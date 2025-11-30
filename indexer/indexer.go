@@ -205,17 +205,10 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 			indexer.Unlock()
 		}
 	}
-
-	for _, vi := range structures.Hardcoded_SCIDS {
-		if scidExist(indexer.ValidatedSCs, vi) {
-			// Hardcoded SCID already exists, no need to re-add
-			continue
-		}
-
-		if scidExist(indexer.SFSCIDExclusion, vi) {
-			logger.Debugf("[StartDaemonMode] Not appending hardcoded SCID '%s' as it resides within SFSCIDExclusion - '%v'.", vi, indexer.SFSCIDExclusion)
-			continue
-		}
+	name_service_smart_contract := structures.Hardcoded_SCIDS[0]
+	if scidExist(indexer.SFSCIDExclusion, name_service_smart_contract) {
+		logger.Debugf("[StartDaemonMode] Not appending hardcoded SCID '%s' as it resides within SFSCIDExclusion - '%v'.", name_service_smart_contract, indexer.SFSCIDExclusion)
+	}
 
 		scVars, scCode, _, _ := indexer.RPC.GetSCVariables(vi, storedindex, nil, nil, nil, false)
 
