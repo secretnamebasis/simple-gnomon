@@ -508,7 +508,8 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 		} else {
 			// Validate SCID is *actually* a valid SCID
 			add := SCIDToIndexStage{scid: scid, fsi: fsi}
-			defer logger.Printf("scid:%+v height:%+v contain:%+v", add.scid, add.fsi.Height, add.contains)
+
+			defer logger.Printf("scid:%+v height:%+v contain:%+v", &add.scid, &add.fsi.Height, &add.contains)
 
 			useSearchFilters := func(indexer *Indexer, add *SCIDToIndexStage) error {
 				no_result := errors.New("no matching result")
