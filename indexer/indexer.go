@@ -412,281 +412,7 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 	}
 	logger.Printf("[StartDaemonMode] Set number of parallel blocks to index to '%d'. Starting index routine...", blockParallelNum)
 
-	go func() {
-		k := 0
-		for {
-			if indexer.Closing {
-				indexer.Status = "closing"
-				logger.Printf("[StartDaemonMode] Closing indexer...")
-				// Break out on closing call
-				break
-			}
-
-			if indexer.LastIndexedHeight >= indexer.ChainHeight {
-				indexer.Status = "indexed"
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			indexer.Status = "indexing"
-
-			// Check to cover fastsync scenarios; no reason to pull all this logic into the multi-block scanning components - this will only run once
-			if k == 0 {
-				_, err := indexer.RPC.getBlockHash(uint64(indexer.LastIndexedHeight))
-				if err != nil {
-					// Handle pruned nodes index errors... find height that they have blocks able to be indexed
-					if strings.Contains(err.Error(), "err occured empty block") || strings.Contains(err.Error(), "err occured file does not exist") {
-						currIndex := indexer.LastIndexedHeight
-						rewindIndex := int64(0)
-						for {
-							if indexer.Closing {
-								// If we do concurrent blocks in the future, this will need to move/be modified to be *after* all concurrent blocks are done incase exit etc.
-								writeWait, _ := time.ParseDuration("20ms")
-								switch indexer.DBType {
-								case "gravdb":
-									for indexer.GravDBBackend.Writing == 1 {
-										if indexer.Closing {
-											return
-										}
-										//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
-										time.Sleep(writeWait)
-									}
-									indexer.GravDBBackend.Writing = 1
-									indexer.GravDBBackend.StoreLastIndexHeight(currIndex, false)
-									indexer.GravDBBackend.Writing = 0
-								case "boltdb":
-									for indexer.BBSBackend.Writing == 1 {
-										if indexer.Closing {
-											return
-										}
-										//logger.Debugf("[Indexer-StartDaemonMode-StoreLastIndexHeight] BoltDB is writing... sleeping for %v... writer %v...", writeWait, indexer.BBSBackend.Writer)
-										time.Sleep(writeWait)
-									}
-									indexer.BBSBackend.Writing = 1
-									//indexer.BBSBackend.Writer = "StartDaemonMode"
-									indexer.BBSBackend.StoreLastIndexHeight(currIndex)
-									indexer.BBSBackend.Writing = 0
-									//indexer.BBSBackend.Writer = ""
-								}
-								// Break out on closing call
-								break
-							}
-							_, err = indexer.RPC.getBlockHash(uint64(currIndex))
-							if err != nil {
-								//if strings.Contains(err.Error(), "err occured empty block") {
-								//time.Sleep(200 * time.Millisecond)	// sleep for node spam, not *required* but can be useful for lesser nodes in brief catchup time.
-								// Increase block by 10 to not spam the daemon at every single block, but skip along a little bit to move faster/more less impact to node. This can be modified if required.
-								if (currIndex + block_jump) > indexer.ChainHeight {
-									currIndex = indexer.ChainHeight
-								} else {
-									currIndex += block_jump
-								}
-								// Should this be an err? We'll get this at least when pinpointing the pruned node states
-								logger.Errorf("GetBlock failed - checking %v", currIndex)
-								//}
-							} else {
-								// Self-contain and loop through at most 10 or X blocks
-								logger.Printf("GetBlock worked at %v", currIndex)
-								for {
-									if indexer.Closing {
-										// If we do concurrent blocks in the future, this will need to move/be modified to be *after* all concurrent blocks are done incase exit etc.
-										writeWait, _ := time.ParseDuration("20ms")
-										switch indexer.DBType {
-										case "gravdb":
-											for indexer.GravDBBackend.Writing == 1 {
-												if indexer.Closing {
-													return
-												}
-												//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
-												time.Sleep(writeWait)
-											}
-											indexer.GravDBBackend.Writing = 1
-											indexer.GravDBBackend.StoreLastIndexHeight(rewindIndex, false)
-											indexer.GravDBBackend.Writing = 0
-										case "boltdb":
-											for indexer.BBSBackend.Writing == 1 {
-												if indexer.Closing {
-													return
-												}
-												//logger.Debugf("[Indexer-StartDaemonMode-StoreLastIndexHeight] BoltDB is writing... sleeping for %v... writer %v...", writeWait, indexer.BBSBackend.Writer)
-												time.Sleep(writeWait)
-											}
-											indexer.BBSBackend.Writing = 1
-											//indexer.BBSBackend.Writer = "StartDaemonMode"
-											indexer.BBSBackend.StoreLastIndexHeight(rewindIndex)
-											indexer.BBSBackend.Writing = 0
-											//indexer.BBSBackend.Writer = ""
-										}
-
-										// Break out on closing call
-										break
-									}
-									if rewindIndex == 0 {
-										rewindIndex = currIndex - block_jump + 1
-										if rewindIndex < 0 {
-											rewindIndex = 1
-										}
-									} else {
-										logger.Printf("Checking GetBlock at %v", rewindIndex)
-										_, err = indexer.RPC.getBlockHash(uint64(rewindIndex))
-										if err != nil {
-											rewindIndex++
-											// TODO: If lowcpuram option defined, uncomment below to add w/ such clause
-											//time.Sleep(200 * time.Millisecond)	// sleep for node spam, not *required* but can be useful for lesser nodes in brief catchup time.
-										} else {
-											logger.Printf("GetBlock worked at %v - continuing as normal", rewindIndex+1)
-											// Break out, we found the earliest block detail
-											indexer.Lock()
-											indexer.LastIndexedHeight = rewindIndex + 1
-											indexer.Unlock()
-											break
-										}
-									}
-								}
-								break
-							}
-						}
-					}
-
-					logger.Errorf("[mainFOR] ERROR - %v", err)
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				k++
-			}
-
-			if indexer.LastIndexedHeight+int64(blockParallelNum) > indexer.ChainHeight {
-				blockParallelNum = int(indexer.ChainHeight - indexer.LastIndexedHeight)
-
-				if blockParallelNum <= 0 || indexer.LastIndexedHeight == indexer.ChainHeight {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-			}
-
-			var regTxCount int64
-			var burnTxCount int64
-			var normTxCount int64
-			var wg sync.WaitGroup
-			wg.Add(blockParallelNum)
-
-			var blsctxnsLock sync.RWMutex
-			var blIndexTxns []*structures.BlockTxns
-
-			for i := 1; i <= blockParallelNum; i++ {
-				go func(i int) {
-					if indexer.Closing {
-						wg.Done()
-						return
-					}
-					currBlHeight := indexer.LastIndexedHeight + int64(i)
-
-					blid, err := indexer.RPC.getBlockHash(uint64(currBlHeight))
-					if err != nil {
-						logger.Errorf("[StartDaemonMode-mainFOR-getBlockHash] %v - ERROR - getBlockHash(%v) - %v", currBlHeight, uint64(currBlHeight), err)
-						wg.Done()
-						return
-					}
-
-					blockTxns, err := indexer.indexBlock(blid, currBlHeight)
-					if err != nil {
-						logger.Errorf("[StartDaemonMode-mainFOR-indexBlock] %v - ERROR - indexBlock(%v) - %v", currBlHeight, blid, err)
-						wg.Done()
-						return
-					}
-
-					if len(blockTxns.Tx_hashes) > 0 {
-						blsctxnsLock.Lock()
-						blIndexTxns = append(blIndexTxns, blockTxns)
-						blsctxnsLock.Unlock()
-						wg.Done()
-					} else {
-						wg.Done()
-					}
-				}(i)
-			}
-			wg.Wait()
-
-			if indexer.Closing {
-				break
-			}
-
-			// Arrange blIndexTxns by height so processed linearly
-			sort.SliceStable(blIndexTxns, func(i, j int) bool {
-				return blIndexTxns[i].Topoheight < blIndexTxns[j].Topoheight
-			})
-
-			// Run through blocks one at a time here to max cpu on a given block if large txns rather than split cpu across go routines of multiple blocks
-			for _, v := range blIndexTxns {
-				if len(v.Tx_hashes) > 0 {
-					c_sctxs, cregTxCount, cburnTxCount, cnormTxCount, err := indexer.IndexTxn(v, false)
-					if err != nil {
-						logger.Errorf("[StartDaemonMode-mainFOR-IndexTxn] %v - ERROR - IndexTxn(%v) - %v", v.Topoheight, v.Tx_hashes, err)
-						return
-					}
-
-					regTxCount += cregTxCount
-					burnTxCount += cburnTxCount
-					normTxCount += cnormTxCount
-
-					err = indexer.indexInvokes(c_sctxs, v)
-					if err != nil {
-						logger.Errorf("[StartDaemonMode-mainFOR-indexInvokes]  ERROR - %v", err)
-						break
-					}
-				}
-			}
-			if err != nil {
-				logger.Errorf("[StartDaemonMode-mainFOR-TxnIndexErrs] ERROR - %v", err)
-				continue
-			}
-
-			if (regTxCount > 0 || burnTxCount > 0 || normTxCount > 0) && !(indexer.RunMode == "asset") {
-				err = indexer.indexTxCounts(regTxCount, burnTxCount, normTxCount)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-mainFOR-indexTxCounts] ERROR - %v", err)
-					continue
-				}
-			}
-
-			if indexer.LastIndexedHeight <= indexer.LastIndexedHeight+int64(blockParallelNum) {
-				indexer.Lock()
-				indexer.LastIndexedHeight += int64(blockParallelNum)
-				indexer.Unlock()
-
-				writeWait, _ := time.ParseDuration("20ms")
-				switch indexer.DBType {
-				case "gravdb":
-					for indexer.GravDBBackend.Writing == 1 {
-						if indexer.Closing {
-							return
-						}
-						//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
-						time.Sleep(writeWait)
-					}
-					indexer.GravDBBackend.Writing = 1
-					_, _, err := indexer.GravDBBackend.StoreLastIndexHeight(indexer.LastIndexedHeight, false)
-					if err != nil {
-						logger.Errorf("[StartDaemonMode-mainFOR-StoreLastIndexHeight] ERROR - %v", err)
-					}
-					indexer.GravDBBackend.Writing = 0
-				case "boltdb":
-					for indexer.BBSBackend.Writing == 1 {
-						if indexer.Closing {
-							return
-						}
-						//logger.Debugf("[Indexer-StartDaemonMode-StoreLastIndexHeight] BoltDB is writing... sleeping for %v... writer %v...", writeWait, indexer.BBSBackend.Writer)
-						time.Sleep(writeWait)
-					}
-					indexer.BBSBackend.Writing = 1
-					//indexer.BBSBackend.Writer = "StartDaemonMode"
-					indexer.BBSBackend.StoreLastIndexHeight(indexer.LastIndexedHeight)
-					indexer.BBSBackend.Writing = 0
-					//indexer.BBSBackend.Writer = ""
-				}
-			}
-		}
-	}()
+	go indexing(indexer, blockParallelNum)
 }
 
 // Potential future item - may be removed as primary service of Gnomon is against daemon and not wallet due to security [unless future black box scenarios]
@@ -3180,4 +2906,222 @@ func vExist(arr []interface{}, val interface{}) bool {
 	}
 
 	return false
+}
+func only_run_once(indexer *Indexer) {
+	if _, err := indexer.RPC.getBlockHash(uint64(indexer.LastIndexedHeight)); err != nil {
+		// Handle pruned nodes index errors... find height that they have blocks able to be indexed
+		isEmpty := strings.Contains(err.Error(), "err occured empty block")
+		isNotExists := strings.Contains(err.Error(), "err occured file does not exist")
+
+		if isEmpty || isNotExists {
+
+			currIndex := indexer.LastIndexedHeight
+			rewindIndex := int64(0)
+
+			for {
+
+				if indexer.Closing {
+					storeHeightCallback(indexer, currIndex)
+					// Break out on closing call
+					return
+				}
+
+				if _, err = indexer.RPC.getBlockHash(uint64(currIndex)); err != nil {
+					//if strings.Contains(err.Error(), "err occured empty block") {
+					//time.Sleep(200 * time.Millisecond)	// sleep for node spam, not *required* but can be useful for lesser nodes in brief catchup time.
+					// Increase block by 10 to not spam the daemon at every single block, but skip along a little bit to move faster/more less impact to node. This can be modified if required.
+					if (currIndex + block_jump) > indexer.ChainHeight {
+						currIndex = indexer.ChainHeight
+					} else {
+						currIndex += block_jump
+					}
+					// Should this be an err? We'll get this at least when pinpointing the pruned node states
+					logger.Errorf("GetBlock failed - checking %v", currIndex)
+					//}
+				} else {
+					// Self-contain and loop through at most 10 or X blocks
+					logger.Printf("GetBlock worked at %v", currIndex)
+
+					for {
+
+						if indexer.Closing {
+							storeHeightCallback(indexer, rewindIndex)
+							// Break out on closing call
+							return
+						}
+						if rewindIndex == 0 {
+							rewindIndex = currIndex - block_jump + 1
+							if rewindIndex < 0 {
+								rewindIndex = 1
+							}
+						} else {
+							logger.Printf("Checking GetBlock at %v", rewindIndex)
+
+							if _, err = indexer.RPC.getBlockHash(uint64(rewindIndex)); err != nil {
+								rewindIndex++
+								// TODO: If lowcpuram option defined, uncomment below to add w/ such clause
+								//time.Sleep(200 * time.Millisecond)	// sleep for node spam, not *required* but can be useful for lesser nodes in brief catchup time.
+							} else {
+								logger.Printf("GetBlock worked at %v - continuing as normal", rewindIndex+1)
+								// Break out, we found the earliest block detail
+								indexer.Lock()
+								indexer.LastIndexedHeight = rewindIndex + 1
+								indexer.Unlock()
+								return
+							}
+						}
+					}
+				}
+			}
+		}
+
+		logger.Errorf("[mainFOR] ERROR - %v", err)
+	}
+}
+func storeHeightCallback(indexer *Indexer, i int64) {
+	// If we do concurrent blocks in the future, this will need to move/be modified to be *after* all concurrent blocks are done incase exit etc.
+	writeWait, _ := time.ParseDuration("20ms")
+	switch indexer.DBType {
+	case "gravdb":
+		for indexer.GravDBBackend.Writing {
+			if indexer.Closing {
+				return
+			}
+			//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
+			time.Sleep(writeWait)
+		}
+		indexer.GravDBBackend.Writing = true
+		indexer.GravDBBackend.StoreLastIndexHeight(i, false)
+		indexer.GravDBBackend.Writing = false
+	case "boltdb":
+		for indexer.BBSBackend.Writing {
+			if indexer.Closing {
+				return
+			}
+			//logger.Debugf("[Indexer-StartDaemonMode-StoreLastIndexHeight] BoltDB is writing... sleeping for %v... writer %v...", writeWait, indexer.BBSBackend.Writer)
+			time.Sleep(writeWait)
+		}
+		indexer.BBSBackend.Writing = true
+		indexer.BBSBackend.StoreLastIndexHeight(i)
+		indexer.BBSBackend.Writing = false
+	}
+}
+
+func indexing(indexer *Indexer, blockParallelNum int) {
+	for {
+		if indexer.Closing {
+			indexer.Status = "closing"
+			logger.Printf("[StartDaemonMode] Closing indexer...")
+			// Break out on closing call
+			break
+		}
+
+		if indexer.LastIndexedHeight >= indexer.ChainHeight {
+			indexer.Status = "indexed"
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		indexer.Status = "indexing"
+
+		// Check to cover fastsync scenarios; no reason to pull all this logic into the multi-block scanning components - this will only run once
+		sync.OnceFunc(func() { only_run_once(indexer) })()
+
+		if indexer.LastIndexedHeight+int64(blockParallelNum) > indexer.ChainHeight {
+			blockParallelNum = int(indexer.ChainHeight - indexer.LastIndexedHeight)
+
+			if blockParallelNum <= 0 || indexer.LastIndexedHeight == indexer.ChainHeight {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+		}
+
+		var regTxCount int64
+		var burnTxCount int64
+		var normTxCount int64
+		var wg sync.WaitGroup
+		wg.Add(blockParallelNum)
+
+		var blsctxnsLock sync.RWMutex
+		var blIndexTxns []*structures.BlockTxns
+
+		for i := 1; i <= blockParallelNum; i++ {
+			go func(i int) {
+				if indexer.Closing {
+					wg.Done()
+					return
+				}
+				currBlHeight := indexer.LastIndexedHeight + int64(i)
+
+				blid, err := indexer.RPC.getBlockHash(uint64(currBlHeight))
+				if err != nil {
+					logger.Errorf("[StartDaemonMode-mainFOR-getBlockHash] %v - ERROR - getBlockHash(%v) - %v", currBlHeight, uint64(currBlHeight), err)
+					wg.Done()
+					return
+				}
+
+				blockTxns, err := indexer.indexBlock(blid, currBlHeight)
+				if err != nil {
+					logger.Errorf("[StartDaemonMode-mainFOR-indexBlock] %v - ERROR - indexBlock(%v) - %v", currBlHeight, blid, err)
+					wg.Done()
+					return
+				}
+
+				if len(blockTxns.Tx_hashes) > 0 {
+					blsctxnsLock.Lock()
+					blIndexTxns = append(blIndexTxns, blockTxns)
+					blsctxnsLock.Unlock()
+					wg.Done()
+				} else {
+					wg.Done()
+				}
+			}(i)
+		}
+		wg.Wait()
+
+		if indexer.Closing {
+			break
+		}
+
+		// Arrange blIndexTxns by height so processed linearly
+		sort.SliceStable(blIndexTxns, func(i, j int) bool {
+			return blIndexTxns[i].Topoheight < blIndexTxns[j].Topoheight
+		})
+
+		// Run through blocks one at a time here to max cpu on a given block if large txns rather than split cpu across go routines of multiple blocks
+		for _, v := range blIndexTxns {
+			if len(v.Tx_hashes) > 0 {
+				c_sctxs, cregTxCount, cburnTxCount, cnormTxCount, err := indexer.IndexTxn(v, false)
+				if err != nil {
+					logger.Errorf("[StartDaemonMode-mainFOR-IndexTxn] %v - ERROR - IndexTxn(%v) - %v", v.Topoheight, v.Tx_hashes, err)
+					return
+				}
+
+				regTxCount += cregTxCount
+				burnTxCount += cburnTxCount
+				normTxCount += cnormTxCount
+
+				err = indexer.indexInvokes(c_sctxs, v)
+				if err != nil {
+					logger.Errorf("[StartDaemonMode-mainFOR-indexInvokes]  ERROR - %v", err)
+					break
+				}
+			}
+		}
+
+		if (regTxCount > 0 || burnTxCount > 0 || normTxCount > 0) && !(indexer.RunMode == "asset") {
+			err := indexer.indexTxCounts(regTxCount, burnTxCount, normTxCount)
+			if err != nil {
+				logger.Errorf("[StartDaemonMode-mainFOR-indexTxCounts] ERROR - %v", err)
+				continue
+			}
+		}
+
+		if indexer.LastIndexedHeight <= indexer.LastIndexedHeight+int64(blockParallelNum) {
+			indexer.Lock()
+			indexer.LastIndexedHeight += int64(blockParallelNum)
+			indexer.Unlock()
+			storeHeightCallback(indexer, indexer.LastIndexedHeight)
+		}
+	}
 }
