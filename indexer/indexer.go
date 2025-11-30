@@ -117,20 +117,22 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 	var err error
 
 	// Simple connect loop .. if connection fails initially then keep trying, else break out and continue on. Connect() is handled in getInfo() for retries later on if connection ceases again
-	for {
-		if indexer.Closing {
-			// Break out on closing call
+	go func() {
+		for {
+			if indexer.Closing {
+				// Break out on closing call
+				break
+			}
+			indexer.Status = "initializing"
+			logger.Printf("[StartDaemonMode] Trying to connect...")
+			err = indexer.RPC.Connect(indexer.Endpoint)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 			break
 		}
-		indexer.Status = "initializing"
-		logger.Printf("[StartDaemonMode] Trying to connect...")
-		err = indexer.RPC.Connect(indexer.Endpoint)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		break
-	}
+	}()
 	time.Sleep(1 * time.Second)
 
 	// Continuously getInfo from daemon to update topoheight globally
