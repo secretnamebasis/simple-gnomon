@@ -488,7 +488,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 	var scilock sync.RWMutex
 	var scidstoindexstage []SCIDToIndexStage
 
-	logger.Printf("[AddSCIDToIndex] Starting - Sorting %v SCIDs to index", len(scidstoadd))
+	logger.Debugf("[AddSCIDToIndex] Starting - Sorting %v SCIDs to index", len(scidstoadd))
 	var tempdb *storage.GravitonStore
 	var treenames []string
 	tempdb, err = storage.NewGravDBRAM("25ms")
@@ -556,7 +556,9 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 				}
 
 				scilock.Lock()
-				scidstoindexstage = append(scidstoindexstage, SCIDToIndexStage{scid: scid, fsi: fsi, scVars: scVars, scCode: scCode, contains: contains})
+				add := SCIDToIndexStage{scid: scid, fsi: fsi, scVars: scVars, scCode: scCode, contains: contains}
+				scidstoindexstage = append(scidstoindexstage, add)
+				logger.Printf("%+v", add)
 				scilock.Unlock()
 			}
 			wg.Done()
@@ -692,13 +694,13 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 		}
 	}
 
-	logger.Printf("[AddSCIDToIndex] Done - Sorting %v SCIDs to index", len(scidstoadd))
+	logger.Debugf("[AddSCIDToIndex] Done - Sorting %v SCIDs to index", len(scidstoadd))
 	switch indexer.DBType {
 	case "gravdb":
-		logger.Printf("[AddSCIDToIndex] Current stored disk: %v", len(indexer.GravDBBackend.GetAllOwnersAndSCIDs()))
-		logger.Printf("[AddSCIDToIndex] Current stored ram: %v", len(tempdb.GetAllOwnersAndSCIDs()))
+		logger.Debugf("[AddSCIDToIndex] Current stored disk: %v", len(indexer.GravDBBackend.GetAllOwnersAndSCIDs()))
+		logger.Debugf("[AddSCIDToIndex] Current stored ram: %v", len(tempdb.GetAllOwnersAndSCIDs()))
 
-		logger.Printf("[AddSCIDToIndex] Starting - Committing RAM SCID sort to disk storage...")
+		logger.Debugf("[AddSCIDToIndex] Starting - Committing RAM SCID sort to disk storage...")
 		writeWait, _ := time.ParseDuration("10ms")
 		for tempdb.Writing || indexer.GravDBBackend.Writing {
 			if indexer.Closing {
@@ -712,13 +714,13 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 		indexer.GravDBBackend.StoreAltDBInput(treenames, tempdb)
 		tempdb.Writing = false
 		indexer.GravDBBackend.Writing = false
-		logger.Printf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk storage...")
-		logger.Printf("[AddSCIDToIndex] New stored disk: %v", len(indexer.GravDBBackend.GetAllOwnersAndSCIDs()))
+		logger.Debugf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk storage...")
+		logger.Debugf("[AddSCIDToIndex] New stored disk: %v", len(indexer.GravDBBackend.GetAllOwnersAndSCIDs()))
 	case "boltdb":
-		logger.Printf("[AddSCIDToIndex] Current stored disk: %v", len(indexer.BBSBackend.GetAllOwnersAndSCIDs()))
-		logger.Printf("[AddSCIDToIndex] Current stored ram: %v", len(tempdb.GetAllOwnersAndSCIDs()))
+		logger.Debugf("[AddSCIDToIndex] Current stored disk: %v", len(indexer.BBSBackend.GetAllOwnersAndSCIDs()))
+		logger.Debugf("[AddSCIDToIndex] Current stored ram: %v", len(tempdb.GetAllOwnersAndSCIDs()))
 
-		logger.Printf("[AddSCIDToIndex] Starting - Committing RAM SCID sort to disk storage...")
+		logger.Debugf("[AddSCIDToIndex] Starting - Committing RAM SCID sort to disk storage...")
 		writeWait, _ := time.ParseDuration("10ms")
 		for tempdb.Writing || indexer.BBSBackend.Writing {
 			if indexer.Closing {
@@ -732,10 +734,9 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 		indexer.BBSBackend.StoreAltDBInput(treenames, tempdb)
 		tempdb.Writing = false
 		indexer.BBSBackend.Writing = false
-		logger.Printf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk storage...")
-		logger.Printf("[AddSCIDToIndex] New stored disk: %v", len(indexer.BBSBackend.GetAllOwnersAndSCIDs()))
+		logger.Debugf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk storage...")
+		logger.Debugf("[AddSCIDToIndex] New stored disk: %v", len(indexer.BBSBackend.GetAllOwnersAndSCIDs()))
 	}
-
 	return err
 }
 
