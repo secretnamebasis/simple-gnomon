@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -507,19 +508,23 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 		} else {
 			// Validate SCID is *actually* a valid SCID
 			add := SCIDToIndexStage{scid: scid, fsi: fsi}
-			useSearchFilters := func(indexer *Indexer, add *SCIDToIndexStage) {
+
+			useSearchFilters := func(indexer *Indexer, add *SCIDToIndexStage) error {
+				no_result := errors.New("no matching result")
 				// If we can get the SC and searchfilter is "" (get all), contains is true. Otherwise evaluate code against searchfilter
 				if len(indexer.SearchFilter) == 0 {
 					add.contains = true
+					return nil
 				} else if add.scCode != "" {
 					// Ensure scCode is not blank (e.g. an invalid scid)
 					for _, sfv := range indexer.SearchFilter {
 						if add.contains = strings.Contains(add.scCode, sfv); add.contains {
 							// Break b/c we want to ensure contains remains true. Only care if it matches at least 1 case
-							break
+							return nil
 						}
 					}
 				}
+				return no_result
 			}
 
 			validateRefs := !skipfsrecheck
@@ -527,10 +532,14 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 
 			if validateRefs {
 				add.scVars, add.scCode, _, _ = indexer.RPC.GetSCVariables(scid, indexer.ChainHeight, nil, nil, nil, false)
-				useSearchFilters(indexer, &add)
+				if err := useSearchFilters(indexer, &add); err != nil {
+					continue
+				}
 			} else if obtainCode {
 				_, add.scCode, _, _ = indexer.RPC.GetSCVariables(scid, indexer.ChainHeight, nil, nil, nil, true)
-				useSearchFilters(indexer, &add)
+				if err := useSearchFilters(indexer, &add); err != nil {
+					continue
+				}
 			}
 
 			scilock.Lock()
