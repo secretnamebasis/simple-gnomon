@@ -65,7 +65,21 @@ var Connected bool = false
 // local logger
 var logger *logrus.Entry
 
-func NewIndexer(Graviton_backend *storage.GravitonStore, Bbs_backend *storage.BboltStore, dbtype string, search_filter []string, last_indexedheight int64, endpoint string, runmode string, mbllookup bool, closeondisconnect bool, fsc *structures.FastSyncConfig, sfscidexclusion []string, storeintegrators bool) *Indexer {
+func NewIndexer(
+	Graviton_backend *storage.GravitonStore,
+	Bbs_backend *storage.BboltStore,
+	dbtype string,
+	search_filter []string,
+	last_indexedheight int64,
+	endpoint string,
+	runmode string,
+	mbllookup bool,
+	closeondisconnect bool,
+	fsc *structures.FastSyncConfig,
+	sfscidexclusion []string,
+	storeintegrators bool,
+) *Indexer {
+
 	logger = structures.Logger.WithFields(logrus.Fields{})
 
 	if fsc == nil {
