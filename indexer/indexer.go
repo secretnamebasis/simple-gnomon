@@ -373,44 +373,29 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 
 						switch ckey := v.Key.(type) {
 						case string:
-							if v.Value != nil {
-								switch len(ckey) {
-								case 64:
-									if scidExist(indexer.SFSCIDExclusion, ckey) {
-										logger.Debugf("[StartDaemonMode] Not appending gnomonsc data SCID '%s' as it resides within SFSCIDExclusion - '%v'.", ckey, indexer.SFSCIDExclusion)
-										continue
-									}
-									// Check for k/v scid/headers
-									if scidstoadd[ckey] == nil {
-										scidstoadd[ckey] = &structures.FastSyncImport{}
-									}
-									scidstoadd[ckey].Headers = v.Value.(string)
-								case 69:
-									if scidExist(indexer.SFSCIDExclusion, ckey[0:64]) {
-										logger.Debugf("[StartDaemonMode] Not appending gnomonsc data SCID '%s' as it resides within SFSCIDExclusion - '%v'.", ckey[0:64], indexer.SFSCIDExclusion)
-										continue
-									}
-									// Check for k/v scidowner/owner
-									if scidstoadd[ckey[0:64]] == nil {
-										scidstoadd[ckey[0:64]] = &structures.FastSyncImport{}
-									}
-									scidstoadd[ckey[0:64]].Owner = v.Value.(string)
-								case 70:
-									if scidExist(indexer.SFSCIDExclusion, ckey[0:64]) {
-										logger.Debugf("[StartDaemonMode] Not appending gnomonsc data SCID '%s' as it resides within SFSCIDExclusion - '%v'.", ckey[0:64], indexer.SFSCIDExclusion)
-										continue
-									}
-									// Check for k/v scidheight/height
-									if scidstoadd[ckey[0:64]] == nil {
-										scidstoadd[ckey[0:64]] = &structures.FastSyncImport{}
-									}
-									scidstoadd[ckey[0:64]].Height = v.Value.(uint64)
-								default:
-									// Nothing - only should match defined ckey lengths
-								}
+							isSCID := (len(ckey) == 64)
+							scid := ckey[0:64]
+							isOwner := strings.Contains(ckey, "owner")
+							isHeight := strings.Contains(ckey, "height")
+							if scidstoadd[scid] == nil {
+								scidstoadd[scid] = &structures.FastSyncImport{}
 							}
-						default:
-							// Nothing - expect only string for value types specifically to Gnomon
+							if scidExist(indexer.SFSCIDExclusion, scid) {
+								logger.Debugf("[StartDaemonMode] Not appending gnomonsc data SCID '%s' as it resides within SFSCIDExclusion - '%v'.", ckey, indexer.SFSCIDExclusion)
+								continue
+							}
+							switch {
+							case isSCID: // Check for k/v scid/headers
+								scidstoadd[scid].Headers = v.Value.(string)
+							case isOwner: // Check for k/v scidowner/owner
+								scidstoadd[scid].Owner = v.Value.(string)
+							case isHeight: // Check for k/v scidheight/height
+								scidstoadd[scid].Height = v.Value.(uint64)
+
+							default: // Nothing - only should match defined ckey lengths
+							}
+
+						default: // Nothing - expect only string for value types specifically to Gnomon
 						}
 					}
 
