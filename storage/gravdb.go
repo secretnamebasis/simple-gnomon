@@ -20,7 +20,7 @@ type GravitonStore struct {
 	migrating     int
 	DBMaxSnapshot uint64
 	DBMigrateWait time.Duration
-	Writing       int
+	Writing       bool
 	Closing       bool
 }
 
