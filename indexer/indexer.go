@@ -168,7 +168,13 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 
 	// If storedindex returns 0, first opening, and fastsync is enabled set index to current chain height
 	// If forcefastsync is used and lastindexheight is indexer.FastSyncConfig.ForceFastSyncDiff away then re-fastsync and catchup to chain height
-	if (storedindex == 0 && indexer.FastSyncConfig.Enabled) || (indexer.FastSyncConfig.ForceFastSync && indexer.FastSyncConfig.Enabled && indexer.ChainHeight-storedindex > indexer.FastSyncConfig.ForceFastSyncDiff) {
+
+	isZeroAndFastSyncing := (storedindex == 0 && indexer.FastSyncConfig.Enabled)
+
+	isForcedToFastsync := (indexer.FastSyncConfig.ForceFastSync && indexer.FastSyncConfig.Enabled &&
+		indexer.ChainHeight-storedindex > indexer.FastSyncConfig.ForceFastSyncDiff)
+
+	if isZeroAndFastSyncing || isForcedToFastsync {
 		indexer.Status = "fastsyncing"
 		logger.Printf("[StartDaemonMode] Fastsync initiated, setting to chainheight (%v)", indexer.ChainHeight)
 		storedindex = indexer.ChainHeight
