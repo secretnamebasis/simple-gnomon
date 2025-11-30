@@ -399,18 +399,9 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 						}
 					}
 
-					err := indexer.AddSCIDToIndex(scidstoadd, indexer.FastSyncConfig.SkipFSRecheck, false)
-					if err != nil {
+					if err := indexer.AddSCIDToIndex(scidstoadd, indexer.FastSyncConfig.SkipFSRecheck, false); err != nil {
 						logger.Errorf("[StartDaemonMode-fastsync] ERR - adding scids to index - %v", err)
 					}
-				} else {
-					logger.Errorf("[StartDaemonMode-fastsync] Gnomon SC '%v' code was NOT validated against in-built signature variable. Skipping auto-population of scids.", gnomon_scid)
-				}
-			} else {
-				if err != nil {
-					logger.Errorf("[StartDaemonMode] Fastsync failed to build GnomonSC index. Error - '%v'. Are you using daemon v139? Syncing from current chain height.", err)
-				} else {
-					logger.Errorf("[StartDaemonMode] Fastsync failed to build GnomonSC index. Variables returned - '%v'. Are you using daemon v139? Syncing from current chain height.", len(variables))
 				}
 			}
 		}
