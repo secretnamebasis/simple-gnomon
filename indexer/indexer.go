@@ -366,6 +366,11 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 
 					// Check k/v pairs for the necessary info: keys/values - scid/headers, scidowner/owner, scidheight/height
 					for _, v := range variables {
+
+						if v.Value == nil {
+							continue
+						}
+
 						switch ckey := v.Key.(type) {
 						case string:
 							if v.Value != nil {
