@@ -1655,11 +1655,9 @@ func (indexer *Indexer) indexInvokes(bl_sctxs []structures.SCTXParse, bl_txns *s
 // Looped interval to probe DERO.GetInfo rpc call for updating chain topoheight. Also handles keeping connection to daemon via RPC.Connect() calls
 func (indexer *Indexer) getInfo() {
 	var reconnect_count int
-	for {
-		if indexer.Closing {
-			// Break out on closing call
-			break
-		}
+
+	for !indexer.Closing {
+
 		var err error
 
 		// Check connection to be sure indexer.Endpoint hasn't changed. If it has, then update. Otherwise Connect will just return back no issues
