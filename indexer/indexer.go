@@ -509,23 +509,25 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 			// Validate SCID is *actually* a valid SCID
 			add := SCIDToIndexStage{scid: scid, fsi: fsi}
 
-			defer logger.Printf("scid:%+v height:%+v contain:%+v", &add.scid, &add.fsi.Height, &add.contains)
-
 			useSearchFilters := func(indexer *Indexer, add *SCIDToIndexStage) error {
 				no_result := errors.New("no matching result")
+
 				// If we can get the SC and searchfilter is "" (get all), contains is true. Otherwise evaluate code against searchfilter
 				if len(indexer.SearchFilter) == 0 {
 					add.contains = true
+					logger.Printf("scid:%+v height:%+v contain:%+v", add.scid, add.fsi.Height, add.contains)
 					return nil
 				} else if add.scCode != "" {
 					// Ensure scCode is not blank (e.g. an invalid scid)
 					for _, sfv := range indexer.SearchFilter {
 						if add.contains = strings.Contains(add.scCode, sfv); add.contains {
 							// Break b/c we want to ensure contains remains true. Only care if it matches at least 1 case
+							logger.Printf("scid:%+v height:%+v contain:%+v", add.scid, add.fsi.Height, add.contains)
 							return nil
 						}
 					}
 				}
+				logger.Printf("scid:%+v height:%+v contain:%+v", add.scid, add.fsi.Height, add.contains)
 				return no_result
 			}
 
