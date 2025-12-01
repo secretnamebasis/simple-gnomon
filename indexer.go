@@ -1,4 +1,4 @@
-package main
+package gnomon
 
 import (
 	"encoding/hex"
@@ -40,7 +40,7 @@ type Indexer struct {
 var Connected bool = false
 
 // local logger
-var logger *logrus.Entry
+var l *logrus.Entry
 
 func InitLog(args map[string]interface{}, console io.Writer) {
 	loglevel_console := logrus.InfoLevel
@@ -68,7 +68,7 @@ func NewIndexer(
 	sfscidexclusion []string,
 ) *Indexer {
 
-	logger = Logger.WithFields(logrus.Fields{})
+	l = l.WithFields(logrus.Fields{})
 
 	return &Indexer{
 		LastIndexedHeight: last_indexedheight,
@@ -98,10 +98,10 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 	// We know owner is a tree that'll be written to, no need to loop through the scexists func every time when we *know* this one exists and isn't unique by scid etc.
 	// Check if already validated
 	if slices.Contains(indexer.ValidatedSCs, scidstoadd.Scid) || indexer.Closing {
-		//logger.Debugf("[AddSCIDToIndex] SCID '%v' already in validated list.", scid)
+		//l.Debugf("[AddSCIDToIndex] SCID '%v' already in validated list.", scid)
 		return
 	} else if slices.Contains(indexer.SFSCIDExclusion, scidstoadd.Scid) {
-		logger.Debugf("[StartDaemonMode] Not appending scidstoadd SCID '%s' as it resides within SFSCIDExclusion - '%v'.", scidstoadd.Scid, indexer.SFSCIDExclusion)
+		l.Debugf("[StartDaemonMode] Not appending scidstoadd SCID '%s' as it resides within SFSCIDExclusion - '%v'.", scidstoadd.Scid, indexer.SFSCIDExclusion)
 		return
 	}
 
@@ -109,9 +109,9 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 	indexer.ValidatedSCs = append(indexer.ValidatedSCs, scidstoadd.Scid)
 	indexer.Unlock()
 	if scidstoadd.Fsi != nil {
-		logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v / Signer %v", scidstoadd.Scid, scidstoadd.Fsi.Owner)
+		l.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v / Signer %v", scidstoadd.Scid, scidstoadd.Fsi.Owner)
 	} else {
-		logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v", scidstoadd.Scid)
+		l.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v", scidstoadd.Scid)
 	}
 
 	writeWait, _ := time.ParseDuration("10ms")
@@ -119,7 +119,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		if indexer.Closing {
 			return
 		}
-		//logger.Debugf("[AddSCIDToIndex-StoreAltDBInput] GravitonDB is writing... sleeping for %v...", writeWait)
+		//l.Debugf("[AddSCIDToIndex-StoreAltDBInput] GravitonDB is writing... sleeping for %v...", writeWait)
 		time.Sleep(writeWait)
 	}
 	indexer.BBSBackend.Writing = true
@@ -127,8 +127,8 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 	indexer.BBSBackend.StoreSCIDVariableDetails(scidstoadd.Scid, scidstoadd.ScVars, int64(scidstoadd.Fsi.Height))
 	indexer.BBSBackend.StoreSCIDInteractionHeight(scidstoadd.Scid, int64(scidstoadd.Fsi.Height))
 	indexer.BBSBackend.Writing = false
-	logger.Debugf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk ..")
-	logger.Debugf("[AddSCIDToIndex] New stored disk: %v", len(indexer.BBSBackend.GetAllOwnersAndSCIDs()))
+	l.Debugf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk ..")
+	l.Debugf("[AddSCIDToIndex] New stored disk: %v", len(indexer.BBSBackend.GetAllOwnersAndSCIDs()))
 	return err
 }
 

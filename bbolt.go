@@ -1,4 +1,4 @@
-package main
+package gnomon
 
 import (
 	"encoding/json"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/civilware/tela/logger"
 	"github.com/sirupsen/logrus"
 
 	bolt "go.etcd.io/bbolt"
@@ -29,7 +30,7 @@ func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
 	var err error
 	var Bbolt_backend *BboltStore = &BboltStore{}
 
-	logger = Logger.WithFields(logrus.Fields{})
+	l = Logger.WithFields(logrus.Fields{})
 
 	if err := os.MkdirAll(dbPath, 0700); err != nil {
 		return nil, fmt.Errorf("directory creation err %s - dirpath %s", err, dbPath)

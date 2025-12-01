@@ -1,4 +1,4 @@
-package main
+package gnomon
 
 import (
 	"github.com/blang/semver/v4"
