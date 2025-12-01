@@ -1,4 +1,4 @@
-module github.com/secretnamebasis/Gnomon
+module github.com/secretnamebasis/simple-gnomon
 
 go 1.21
 
