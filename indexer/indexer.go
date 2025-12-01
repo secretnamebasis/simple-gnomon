@@ -31,10 +31,10 @@ import (
 )
 
 type SCIDToIndexStage struct {
-	scid     string
-	fsi      *structures.FastSyncImport
-	scVars   []*structures.SCIDVariable
-	scCode   string
+	Scid     string
+	Fsi      *structures.FastSyncImport
+	ScVars   []*structures.SCIDVariable
+	ScCode   string
 	contains bool
 }
 
@@ -205,108 +205,6 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 			indexer.Unlock()
 		}
 	}
-	name_service_smart_contract := structures.Hardcoded_SCIDS[0]
-	if slices.Contains(indexer.SFSCIDExclusion, name_service_smart_contract) {
-		logger.Debugf("[StartDaemonMode] Not appending hardcoded SCID '%s' as it resides within SFSCIDExclusion - '%v'.", name_service_smart_contract, indexer.SFSCIDExclusion)
-	}
-
-	scVars, scCode, _, _ := indexer.RPC.GetSCVariables(name_service_smart_contract, storedindex, nil, nil, nil, false)
-
-	callback := func(scVars []*structures.SCIDVariable) {
-		//logger.Debugf("[AddSCIDToIndex] Hardcoded SCID matches search filter. Adding SCID %v", vi)
-		indexer.Lock()
-		indexer.ValidatedSCs = append(indexer.ValidatedSCs, name_service_smart_contract)
-		indexer.Unlock()
-		writeWait, _ := time.ParseDuration("20ms")
-		switch indexer.DBType {
-		case "gravdb":
-			for indexer.GravDBBackend.Writing {
-				if indexer.Closing {
-					return
-				}
-				//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
-				time.Sleep(writeWait)
-			}
-			indexer.GravDBBackend.Writing = true
-			var ctrees []*graviton.Tree
-			sotree, sochanges, err := indexer.GravDBBackend.StoreOwner(name_service_smart_contract, "", true)
-			if err != nil {
-				logger.Errorf("[StartDaemonMode-hardcodedscids] Error storing owner: %v", err)
-			} else {
-				if sochanges {
-					ctrees = append(ctrees, sotree)
-				}
-			}
-			// If scVarsStore length is greater than 0, we can assume there were diffs. Otherwise the varstores are equal and move on.
-			if len(scVars) > 0 {
-				svdtree, svdchanges, err := indexer.GravDBBackend.StoreSCIDVariableDetails(name_service_smart_contract, scVars, storedindex, true)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-hardcodedscids] ERR - storing scid variable details: %v", err)
-				} else {
-					if svdchanges {
-						ctrees = append(ctrees, svdtree)
-					}
-				}
-				sihtree, sihchanges, err := indexer.GravDBBackend.StoreSCIDInteractionHeight(name_service_smart_contract, storedindex, true)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-hardcodedscids] ERR - storing scid interaction height: %v", err)
-				} else {
-					if sihchanges {
-						ctrees = append(ctrees, sihtree)
-					}
-				}
-			}
-			if len(ctrees) > 0 {
-				_, err := indexer.GravDBBackend.CommitTrees(ctrees)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-hardcodedscids] ERR - committing trees: %v", err)
-				} else {
-					//logger.Debugf("[StartDaemonMode-hardcodedscids] DEBUG - cv [%v]", cv)
-				}
-			}
-			indexer.GravDBBackend.Writing = false
-		case "boltdb":
-			for indexer.BBSBackend.Writing {
-				if indexer.Closing {
-					return
-				}
-				//logger.Debugf("[Indexer-StartDaemonMode-hardcodedscids] BoltDB is writing... sleeping for %v... writer %v...", writeWait, indexer.BBSBackend.Writer)
-				time.Sleep(writeWait)
-			}
-			indexer.BBSBackend.Writing = true
-			//indexer.BBSBackend.Writer = "StartDaemonMode"
-			_, err := indexer.BBSBackend.StoreOwner(name_service_smart_contract, "")
-			if err != nil {
-				logger.Errorf("[StartDaemonMode-hardcodedscids] Error storing owner: %v", err)
-			}
-			// If scVarsStore length is greater than 0, we can assume there were diffs. Otherwise the varstores are equal and move on.
-			if len(scVars) > 0 {
-				_, err = indexer.BBSBackend.StoreSCIDVariableDetails(name_service_smart_contract, scVars, storedindex)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-hardcodedscids] ERR - storing scid variable details: %v", err)
-				}
-				_, err = indexer.BBSBackend.StoreSCIDInteractionHeight(name_service_smart_contract, storedindex)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-hardcodedscids] ERR - storing scid interaction height: %v", err)
-				}
-			}
-			indexer.BBSBackend.Writing = false
-			//indexer.BBSBackend.Writer = ""
-		}
-	}
-
-	// If we can get the SC and searchfilter is "" (get all), contains is true. Otherwise evaluate code against searchfilter
-	if len(indexer.SearchFilter) == 0 {
-		callback(scVars)
-	} else {
-		for _, sfv := range indexer.SearchFilter {
-			if strings.Contains(scCode, sfv) {
-				callback(scVars)
-				// Break b/c we want to ensure contains remains true. Only care if it matches at least 1 case
-				break
-			}
-		}
-	}
 
 	if storedindex > indexer.LastIndexedHeight {
 
@@ -315,96 +213,6 @@ func (indexer *Indexer) StartDaemonMode(blockParallelNum int) {
 		indexer.LastIndexedHeight = storedindex
 		indexer.Unlock()
 
-		var getinfo *structures.GetInfo
-		switch indexer.DBType {
-		case "gravdb":
-			getinfo = indexer.GravDBBackend.GetGetInfoDetails()
-		case "boltdb":
-			getinfo = indexer.BBSBackend.GetGetInfoDetails()
-		}
-
-		// Only pull in gnomonsc data if fastsync is defined. TODO: Maybe extra flag for checking this on startup as well.
-		if getinfo != nil && indexer.FastSyncConfig.Enabled {
-			// Define gnomon builtin scid for indexing
-			var gnomon_scid string
-			if getinfo.Testnet {
-				gnomon_scid = structures.TESTNET_GNOMON_SCID
-			} else {
-				gnomon_scid = structures.MAINNET_GNOMON_SCID
-			}
-
-			// All could be future optimized .. for now it's slower but works.
-			logger.Printf("[StartDaemonMode-fastsync] Checking signature and validity of '%s'...", gnomon_scid)
-			variables, code, _, err := indexer.RPC.GetSCVariables(gnomon_scid, indexer.ChainHeight, nil, nil, nil, false)
-			if err != nil {
-
-				logger.Errorf("[StartDaemonMode] Fastsync failed to build GnomonSC index. Error - '%v'. Syncing from current chain height.", err)
-
-			} else if len(variables) > 0 {
-
-				keysstring, _, _ := indexer.GetSCIDValuesByKey(variables, gnomon_scid, "signature", indexer.ChainHeight)
-
-				// Check  if keysstring is nil or not to avoid any sort of panics
-				var sigstr string
-				if len(keysstring) > 0 {
-					sigstr = keysstring[0]
-				}
-
-				validated, _, err := indexer.ValidateSCSignature(code, sigstr)
-				if err != nil {
-					logger.Errorf("[StartDaemonMode-ValidateSCSignature] ERR - %v", err)
-				}
-
-				// Ensure SC signature is validated (LOAD("signature") checks out to code validation)
-				if !validated {
-					logger.Errorf("[StartDaemonMode-fastsync] Gnomon SC '%v' code was NOT validated against in-built signature variable. Skipping auto-population of scids.", gnomon_scid)
-
-				} else {
-					logger.Printf("[StartDaemonMode-fastsync] Gnomon SC '%v' code VALID - proceeding to inject scid data.", gnomon_scid)
-
-					scidstoadd := make(map[string]*structures.FastSyncImport)
-
-					// Check k/v pairs for the necessary info: keys/values - scid/headers, scidowner/owner, scidheight/height
-					for _, v := range variables {
-
-						if v.Value == nil {
-							continue
-						}
-
-						switch ckey := v.Key.(type) {
-						case string:
-							isSCID := (len(ckey) == 64)
-							scid := ckey[0:64]
-							isOwner := strings.Contains(ckey, "owner")
-							isHeight := strings.Contains(ckey, "height")
-							if scidstoadd[scid] == nil {
-								scidstoadd[scid] = &structures.FastSyncImport{}
-							}
-							if slices.Contains(indexer.SFSCIDExclusion, scid) {
-								logger.Debugf("[StartDaemonMode] Not appending gnomonsc data SCID '%s' as it resides within SFSCIDExclusion - '%v'.", ckey, indexer.SFSCIDExclusion)
-								continue
-							}
-							switch {
-							case isSCID: // Check for k/v scid/headers
-								scidstoadd[scid].Headers = v.Value.(string)
-							case isOwner: // Check for k/v scidowner/owner
-								scidstoadd[scid].Owner = v.Value.(string)
-							case isHeight: // Check for k/v scidheight/height
-								scidstoadd[scid].Height = v.Value.(uint64)
-
-							default: // Nothing - only should match defined ckey lengths
-							}
-
-						default: // Nothing - expect only string for value types specifically to Gnomon
-						}
-					}
-
-					if err := indexer.AddSCIDToIndex(scidstoadd, indexer.FastSyncConfig.SkipFSRecheck, false); err != nil {
-						logger.Errorf("[StartDaemonMode-fastsync] ERR - adding scids to index - %v", err)
-					}
-				}
-			}
-		}
 	}
 
 	if blockParallelNum <= 0 {
@@ -478,15 +286,23 @@ func (indexer *Indexer) StartWalletMode(runType string) {
 }
 
 // Manually add/inject a SCID to be indexed. Checks validity and then stores within owner tree (no signer addr) and stores a set of current variables.
-func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyncImport, skipfsrecheck bool, varstoreonly bool) (err error) {
-	if len(scidstoadd) < 1 || scidstoadd == nil {
-		return nil
+func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) {
+	if scidstoadd.Scid == "" {
+		return errors.New("no scid")
+	}
+	if scidstoadd.Fsi == nil {
+		return errors.New("nothing to import")
 	}
 
-	var scilock sync.RWMutex
-	var scidstoindexstage []SCIDToIndexStage
+	if scidstoadd.ScCode == "" {
+		return errors.New("no code")
+	}
 
-	logger.Debugf("[AddSCIDToIndex] Starting - Sorting %v SCIDs to index", len(scidstoadd))
+	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
+	if len(scidstoadd.ScVars) == 0 {
+		return errors.New("no vars")
+	}
+
 	var tempdb *storage.GravitonStore
 	var treenames []string
 	tempdb, err = storage.NewGravDBRAM("25ms")
@@ -495,189 +311,87 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd map[string]*structures.FastSyn
 	}
 	// We know owner is a tree that'll be written to, no need to loop through the scexists func every time when we *know* this one exists and isn't unique by scid etc.
 	treenames = append(treenames, "owner")
-	for scid, fsi := range scidstoadd {
-		// Check if already validated
-		if (slices.Contains(indexer.ValidatedSCs, scid) || indexer.Closing) && !varstoreonly {
-			//logger.Debugf("[AddSCIDToIndex] SCID '%v' already in validated list.", scid)
+	// Check if already validated
+	if slices.Contains(indexer.ValidatedSCs, scidstoadd.Scid) || indexer.Closing {
+		//logger.Debugf("[AddSCIDToIndex] SCID '%v' already in validated list.", scid)
+		return
+	} else if slices.Contains(indexer.SFSCIDExclusion, scidstoadd.Scid) {
+		logger.Debugf("[StartDaemonMode] Not appending scidstoadd SCID '%s' as it resides within SFSCIDExclusion - '%v'.", scidstoadd.Scid, indexer.SFSCIDExclusion)
+		return
+	}
+
+	indexer.Lock()
+	indexer.ValidatedSCs = append(indexer.ValidatedSCs, scidstoadd.Scid)
+	indexer.Unlock()
+	if scidstoadd.Fsi != nil {
+		logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v / Signer %v", scidstoadd.Scid, scidstoadd.Fsi.Owner)
+	} else {
+		logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v", scidstoadd.Scid)
+	}
+
+	writeWait, _ := time.ParseDuration("20ms")
+	for tempdb.Writing {
+		if indexer.Closing {
 			return
-		} else if slices.Contains(indexer.SFSCIDExclusion, scid) {
-			logger.Debugf("[StartDaemonMode] Not appending scidstoadd SCID '%s' as it resides within SFSCIDExclusion - '%v'.", scid, indexer.SFSCIDExclusion)
-			return
+		}
+		//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
+		time.Sleep(writeWait)
+	}
+
+	if indexer.Closing {
+		return
+	}
+	tempdb.Writing = true
+	var ctrees []*graviton.Tree
+
+	var sochanges bool
+	var sotree *graviton.Tree
+	if scidstoadd.Fsi != nil {
+		sotree, sochanges, err = tempdb.StoreOwner(scidstoadd.Scid, scidstoadd.Fsi.Owner, true)
+	} else {
+		sotree, sochanges, err = tempdb.StoreOwner(scidstoadd.Scid, "", true)
+	}
+	if err != nil {
+		logger.Errorf("[AddSCIDToIndex] ERR - storing owner: %v", err)
+	} else {
+		if sochanges {
+			ctrees = append(ctrees, sotree)
+		}
+	}
+	svdtree, svdchanges, err := tempdb.StoreSCIDVariableDetails(scidstoadd.Scid, scidstoadd.ScVars, indexer.ChainHeight, true)
+	if err != nil {
+		logger.Errorf("[AddSCIDToIndex] ERR - storing scid variable details: %v", err)
+	} else {
+		if svdchanges {
+			ctrees = append(ctrees, svdtree)
+		}
+	}
+	if !slices.Contains(treenames, scidstoadd.Scid+"vars") {
+		treenames = append(treenames, scidstoadd.Scid+"vars")
+	}
+	sihtree, sihchanges, err := tempdb.StoreSCIDInteractionHeight(scidstoadd.Scid, indexer.ChainHeight, true)
+	if err != nil {
+		logger.Errorf("[AddSCIDToIndex] ERR - storing scid interaction height: %v", err)
+	} else {
+		if sihchanges {
+			ctrees = append(ctrees, sihtree)
+		}
+	}
+	if !slices.Contains(treenames, scidstoadd.Scid+"heights") {
+		treenames = append(treenames, scidstoadd.Scid+"heights")
+	}
+	if len(ctrees) > 0 {
+		_, err := tempdb.CommitTrees(ctrees)
+		if err != nil {
+			logger.Errorf("[AddSCIDToIndex] ERR - committing trees: %v", err)
 		} else {
-			// Validate SCID is *actually* a valid SCID
-			add := SCIDToIndexStage{scid: scid, fsi: fsi}
-
-			useSearchFilters := func(indexer *Indexer, add *SCIDToIndexStage) error {
-
-				// Ensure scCode is not blank (e.g. an invalid scid)
-				if add.scCode == "" {
-					logger.Printf("scid:%+v height:%+v contain:%+v", add.scid, add.fsi.Height, add.contains)
-					return errors.New("no matching result")
-				}
-
-				// If we can get the SC and searchfilter is "" (get all), contains is true. Otherwise evaluate code against searchfilter
-				for _, sfv := range indexer.SearchFilter {
-					if add.contains = strings.Contains(add.scCode, sfv); add.contains {
-						// Break b/c we want to ensure contains remains true. Only care if it matches at least 1 case
-						logger.Printf("scid:%+v height:%+v contain:%+v", add.scid, add.fsi.Height, add.contains)
-						break
-					}
-				}
-				return nil
-			}
-
-			validateRefs := !skipfsrecheck
-			obtainCode := !indexer.FastSyncConfig.NoCode
-
-			if validateRefs {
-				add.scVars, add.scCode, _, _ = indexer.RPC.GetSCVariables(scid, indexer.ChainHeight, nil, nil, nil, false)
-				if err := useSearchFilters(indexer, &add); err != nil {
-					continue
-				}
-			} else if obtainCode {
-				_, add.scCode, _, _ = indexer.RPC.GetSCVariables(scid, indexer.ChainHeight, nil, nil, nil, true)
-				if err := useSearchFilters(indexer, &add); err != nil {
-					continue
-				}
-			}
-
-			scilock.Lock()
-			scidstoindexstage = append(scidstoindexstage, add)
-			scilock.Unlock()
+			//logger.Debugf("[AddSCIDToIndex] DEBUG - cv [%v]", cv)
 		}
+		tempdb.Writing = false
+	} else {
+		logger.Debugf("[AddSCIDToIndex] ERR - SCID '%v' doesn't exist at height %v", scidstoadd.Scid, indexer.ChainHeight)
 	}
 
-	for _, v := range scidstoindexstage {
-		if v.contains || varstoreonly {
-			// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
-			if len(v.scVars) > 0 || skipfsrecheck {
-				indexer.Lock()
-				indexer.ValidatedSCs = append(indexer.ValidatedSCs, v.scid)
-				indexer.Unlock()
-				if v.fsi != nil {
-					logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v / Signer %v", v.scid, v.fsi.Owner)
-				} else {
-					logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v", v.scid)
-				}
-
-				writeWait, _ := time.ParseDuration("20ms")
-				for tempdb.Writing {
-					if indexer.Closing {
-						return
-					}
-					//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
-					time.Sleep(writeWait)
-				}
-
-				if indexer.Closing {
-					return
-				}
-				tempdb.Writing = true
-				var ctrees []*graviton.Tree
-
-				var sochanges bool
-				var sotree *graviton.Tree
-				if v.fsi != nil {
-					sotree, sochanges, err = tempdb.StoreOwner(v.scid, v.fsi.Owner, true)
-				} else {
-					sotree, sochanges, err = tempdb.StoreOwner(v.scid, "", true)
-				}
-				if err != nil {
-					logger.Errorf("[AddSCIDToIndex] ERR - storing owner: %v", err)
-				} else {
-					if sochanges {
-						ctrees = append(ctrees, sotree)
-					}
-				}
-				svdtree, svdchanges, err := tempdb.StoreSCIDVariableDetails(v.scid, v.scVars, indexer.ChainHeight, true)
-				if err != nil {
-					logger.Errorf("[AddSCIDToIndex] ERR - storing scid variable details: %v", err)
-				} else {
-					if svdchanges {
-						ctrees = append(ctrees, svdtree)
-					}
-				}
-				if !slices.Contains(treenames, v.scid+"vars") {
-					treenames = append(treenames, v.scid+"vars")
-				}
-				sihtree, sihchanges, err := tempdb.StoreSCIDInteractionHeight(v.scid, indexer.ChainHeight, true)
-				if err != nil {
-					logger.Errorf("[AddSCIDToIndex] ERR - storing scid interaction height: %v", err)
-				} else {
-					if sihchanges {
-						ctrees = append(ctrees, sihtree)
-					}
-				}
-				if !slices.Contains(treenames, v.scid+"heights") {
-					treenames = append(treenames, v.scid+"heights")
-				}
-				if len(ctrees) > 0 {
-					_, err := tempdb.CommitTrees(ctrees)
-					if err != nil {
-						logger.Errorf("[AddSCIDToIndex] ERR - committing trees: %v", err)
-					} else {
-						//logger.Debugf("[AddSCIDToIndex] DEBUG - cv [%v]", cv)
-					}
-				}
-				tempdb.Writing = false
-			} else {
-				logger.Debugf("[AddSCIDToIndex] ERR - SCID '%v' doesn't exist at height %v", v.scid, indexer.ChainHeight)
-			}
-
-		} else if skipfsrecheck {
-			// Generally this clause will be hit if contains is false but also skipfsrecheck is true. This will still store the fastsync data in a limited format
-			indexer.Lock()
-			indexer.ValidatedSCs = append(indexer.ValidatedSCs, v.scid)
-			indexer.Unlock()
-			if v.fsi != nil {
-				logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v / Signer %v", v.scid, v.fsi.Owner)
-			} else {
-				logger.Debugf("[AddSCIDToIndex] SCID matches search filter. Adding SCID %v", v.scid)
-			}
-
-			writeWait, _ := time.ParseDuration("20ms")
-			for tempdb.Writing {
-				if indexer.Closing {
-					return
-				}
-				//logger.Debugf("[Indexer-NewIndexer] GravitonDB is writing... sleeping for %v...", writeWait)
-				time.Sleep(writeWait)
-			}
-
-			if indexer.Closing {
-				return
-			}
-			tempdb.Writing = true
-			var ctrees []*graviton.Tree
-
-			var sochanges bool
-			var sotree *graviton.Tree
-			if v.fsi != nil {
-				sotree, sochanges, err = tempdb.StoreOwner(v.scid, v.fsi.Owner, true)
-			} else {
-				sotree, sochanges, err = tempdb.StoreOwner(v.scid, "", true)
-			}
-			if err != nil {
-				logger.Errorf("[AddSCIDToIndex] ERR - storing owner: %v", err)
-			} else {
-				if sochanges {
-					ctrees = append(ctrees, sotree)
-				}
-			}
-			if len(ctrees) > 0 {
-				_, err := tempdb.CommitTrees(ctrees)
-				if err != nil {
-					logger.Errorf("[AddSCIDToIndex] ERR - committing trees: %v", err)
-				} else {
-					//logger.Debugf("[AddSCIDToIndex] DEBUG - cv [%v]", cv)
-				}
-			}
-			tempdb.Writing = false
-		}
-
-	}
-
-	logger.Debugf("[AddSCIDToIndex] Done - Sorting %v SCIDs to index", len(scidstoadd))
 	switch indexer.DBType {
 	case "gravdb":
 		logger.Debugf("[AddSCIDToIndex] Current stored disk: %v", len(indexer.GravDBBackend.GetAllOwnersAndSCIDs()))
