@@ -142,9 +142,12 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 			return err
 		}
 
+		// multiple interactions are possible
 		if !changed {
-			return errors.New("did not store scid/interaction")
+			l.Info("[AddSCIDToIndex] Interaction Height already recorded: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
+			return nil
 		}
+
 		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
 
 	}
