@@ -25,8 +25,7 @@ func main() {
 	start_gnomon_indexer()
 }
 
-var bbolt = make(map[string]*BboltStore)
-var indexers = make(map[string]*Indexer)
+var workers = make(map[string]*Worker)
 
 func start_gnomon_indexer() {
 	var lowest_height int64
