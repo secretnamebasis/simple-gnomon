@@ -104,6 +104,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
 	if len(scidstoadd.ScVars) != 0 {
 		time.Sleep(writeWait)
+		l.Info("[AddSCIDToIndex] Storing Vars: ", fmt.Sprint(scidstoadd))
 		changed, err := indexer.BBSBackend.StoreSCIDVariableDetails(
 			scidstoadd.Scid,
 			scidstoadd.ScVars,
@@ -115,8 +116,10 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		if !changed {
 			return errors.New("did not store scid/vars")
 		}
+		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllSCIDVariableDetails(scidstoadd.Scid))))
 		time.Sleep(writeWait)
 
+		l.Info("[AddSCIDToIndex] Storing Owner: ", fmt.Sprint(scidstoadd))
 		changed, err = indexer.BBSBackend.StoreOwner(
 			scidstoadd.Scid,
 			scidstoadd.Fsi.Owner,
@@ -130,7 +133,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 
 		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
 	} else {
-
+		l.Info("[AddSCIDToIndex] Storing Interaction: ", fmt.Sprint(scidstoadd))
 		changed, err := indexer.BBSBackend.StoreSCIDInteractionHeight(
 			scidstoadd.Scid,
 			int64(scidstoadd.Fsi.Height),
