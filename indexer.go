@@ -9,12 +9,10 @@ import (
 	"sync"
 	"time"
 
-	prefixed "github.com/x-cray/logrus-prefixed-formatter"
-
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/rpc"
-
 	"github.com/sirupsen/logrus"
+	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
 type SCIDToIndexStage struct {
