@@ -8,6 +8,7 @@ import (
 	"image"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -155,8 +156,13 @@ func GetSCIDImage(keys map[string]interface{}) image.Image {
 			continue
 		}
 		value := string(b)
-		Logger.Info("scid", "key", k, "value", value)
-		uri, err := storage.ParseURI(value)
+		fmt.Println("scid", "key", k, "value", value)
+
+		furi, err := storage.ParseURI(value)
+		fmt.Println("storage.ParseURI:", furi)
+
+		uri, err := url.Parse(value) //storage.ParseURI(value)
+		fmt.Println("url.Parse:", uri)
 		if err != nil {
 			Logger.Error(err, value)
 			return nil
@@ -197,6 +203,7 @@ func GetSCNameFromVars(keys map[string]interface{}) string {
 			continue // what else can we do ?
 		}
 		text = string(b)
+		fmt.Println("Name found:", text)
 	}
 	if text == "" {
 		return "N/A"

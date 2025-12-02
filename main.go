@@ -9,7 +9,7 @@ import (
 	"github.com/deroproject/derohe/globals"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/transaction"
-	walletapi "github.com/secretnamebasis/simple-gnomon/models"
+	api "github.com/secretnamebasis/simple-gnomon/models"
 )
 
 func main() {
@@ -17,6 +17,7 @@ func main() {
 	start_gnomon_indexer()
 }
 
+var startat = int64(3000000)
 var bbolt = make(map[string]*BboltStore)
 var indexers = make(map[string]*Indexer)
 
@@ -51,11 +52,11 @@ func start_gnomon_indexer() {
 
 		// initialize each indexer
 		indexers[each] = NewIndexer(bbolt[each], height, []string{MAINNET_GNOMON_SCID})
-		fmt.Println(indexers) //	panic(err)
+		fmt.Println("indexers: ", indexers) //	panic(err)
 	}
 
-	//Logger.Info("starting to index ", walletapi.Get_TopoHeight()) // program.wallet.Get_TopoHeight()
-	fmt.Println("starting to index ", walletapi.Get_TopoHeight()) //	panic(err)
+	//Logger.Info("starting to index ", api.Get_TopoHeight()) // program.wallet.Get_TopoHeight()
+	fmt.Println("starting to index ", api.Get_TopoHeight()) //	panic(err)
 	storeHeight := func(each int64) {
 		for _, db := range bbolt {
 			if ok, err := db.StoreLastIndexHeight(int64(each)); !ok && err != nil {
@@ -66,20 +67,20 @@ func start_gnomon_indexer() {
 	}
 
 	//Logger.Info()
-	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))                //	panic(err)
-	for each := lowest_height; each <= walletapi.Get_TopoHeight(); each++ { //program.wallet.Get_TopoHeight()
-
-		result := walletapi.GetBlockInfo(rpc.GetBlock_Params{
+	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))          //	panic(err)
+	for each := lowest_height; each <= api.Get_TopoHeight(); each++ { //program.wallet.Get_TopoHeight()
+		fmt.Print("\rHeight>", each)
+		result := api.GetBlockInfo(rpc.GetBlock_Params{
 			Height: uint64(each),
 		})
 		//fmt.Println("result", result)
-		bl := walletapi.GetBlockDeserialized(result.Blob)
+		bl := api.GetBlockDeserialized(result.Blob)
 
 		if len(bl.Tx_hashes) < 1 {
 			continue
 		}
 		// not a mined transaction
-		r := walletapi.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{bl.Tx_hashes[0].String()}})
+		r := api.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{bl.Tx_hashes[0].String()}})
 
 		b, err := hex.DecodeString(r.Txs_as_hex[0])
 		if err != nil {
@@ -95,9 +96,9 @@ func start_gnomon_indexer() {
 			continue
 		}
 
-		//	Logger.Info("scid found", fmt.Sprint(each), fmt.Sprint(walletapi.Get_TopoHeight())) //program.
-		fmt.Print("scid found", fmt.Sprint(each), " - ", fmt.Sprint(walletapi.Get_TopoHeight()))
-		sc := walletapi.GetSC(rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, TopoHeight: each})
+		//	Logger.Info("scid found", fmt.Sprint(each), fmt.Sprint(api.Get_TopoHeight())) //program.
+		fmt.Print("\nscid found at height:", fmt.Sprint(each), " - ", fmt.Sprint(api.Get_TopoHeight()), "\n")
+		sc := api.GetSC(rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, TopoHeight: each})
 
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 		if err != nil {
@@ -105,9 +106,9 @@ func start_gnomon_indexer() {
 			continue
 		}
 
-		kv := walletapi.GetSCValues(tx.GetHash().String()).VariableStringKeys
-
-		headers := walletapi.GetSCNameFromVars(kv) + ";" + walletapi.GetSCDescriptionFromVars(kv) + ";" + walletapi.GetSCIDImageURLFromVars(kv)
+		kv := api.GetSCValues(tx.GetHash().String()).VariableStringKeys
+		//fmt.Println("key", kv.)
+		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
 		fmt.Println("headers", headers)
 		staged := SCIDToIndexStage{
 			Scid:   tx.GetHash().String(),
