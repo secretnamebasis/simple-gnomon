@@ -101,19 +101,18 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 	return result
 }
 
+var rpcClient = jsonrpc.NewClient("http://127.0.0.1:10102/json_rpc")
+
 func handleResult[T any](method string, params any) (T, error) {
 	var result T
 	//var ctx context.Context
 
 	var cancel context.CancelFunc
-	var rpcClient jsonrpc.RPCClient
 	_, cancel = context.WithTimeout(context.Background(), timeout)
 	if method == "DERO.GetSC" {
 		_, cancel = context.WithDeadline(context.Background(), time.Now().Add(deadline))
 	}
 	defer cancel()
-
-	rpcClient = jsonrpc.NewClient("http://node.derofoundation.org:11012/json_rpc")
 
 	var err error
 	if params == nil {
