@@ -88,6 +88,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 	}
 
 	writeWait, _ := time.ParseDuration("10ms")
+
 	for indexer.BBSBackend.Writing {
 		if indexer.Closing {
 			return
@@ -100,34 +101,45 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 
 	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
 	if len(scidstoadd.ScVars) != 0 {
-
-		if _, err := indexer.BBSBackend.StoreSCIDVariableDetails(
+		changed, err := indexer.BBSBackend.StoreSCIDVariableDetails(
 			scidstoadd.Scid,
 			scidstoadd.ScVars,
 			int64(scidstoadd.Fsi.Height),
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
+		if !changed {
+			return errors.New("did not write to db")
+		}
 
-		if _, err := indexer.BBSBackend.StoreOwner(
+		changed, err = indexer.BBSBackend.StoreOwner(
 			scidstoadd.Scid,
 			scidstoadd.Fsi.Owner,
-		); err != nil {
+		)
+		if err != nil {
 			return err
+		}
+		if !changed {
+			return errors.New("did not write to db")
 		}
 
 	} else {
 
-		if _, err := indexer.BBSBackend.StoreSCIDInteractionHeight(
+		changed, err := indexer.BBSBackend.StoreSCIDInteractionHeight(
 			scidstoadd.Scid,
 			int64(scidstoadd.Fsi.Height),
-		); err != nil {
+		)
+		if err != nil {
 			return err
+		}
+
+		if !changed {
+			return errors.New("did not write to db")
 		}
 
 	}
 	indexer.BBSBackend.Writing = false
-	l.Debugf("[AddSCIDToIndex] Done - Committing RAM SCID sort to disk ..")
 	l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
 	return nil
 }
