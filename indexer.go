@@ -124,6 +124,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 			return errors.New("did not write to db")
 		}
 
+		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
 	} else {
 
 		changed, err := indexer.BBSBackend.StoreSCIDInteractionHeight(
@@ -137,10 +138,10 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		if !changed {
 			return errors.New("did not write to db")
 		}
+		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
 
 	}
 	indexer.BBSBackend.Writing = false
-	l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
 	return nil
 }
 
