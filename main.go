@@ -96,7 +96,7 @@ func start_gnomon_indexer() {
 		}
 
 		//	Logger.Info("scid found", fmt.Sprint(each), fmt.Sprint(walletapi.Get_TopoHeight())) //program.
-		fmt.Print("scid found", fmt.Sprint(each), fmt.Sprint(walletapi.Get_TopoHeight()))
+		fmt.Print("scid found", fmt.Sprint(each), " - ", fmt.Sprint(walletapi.Get_TopoHeight()))
 		sc := walletapi.GetSC(rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, TopoHeight: each})
 
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)

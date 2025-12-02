@@ -27,7 +27,7 @@ const timeout = time.Second * 9    // the world is a really big place
 const deadline = time.Second * 300 // some content is just bigger
 
 // simple way to identify gnomon
-const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
+//const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 
 func callRPC[t any](method string, params any, validator func(t) bool) t {
 	result, err := handleResult[t](method, params)
