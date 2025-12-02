@@ -73,16 +73,7 @@ const timeout = time.Second * 9    // the world is a really big place
 const deadline = time.Second * 300 // some content is just bigger
 
 // simple way to identify gnomon
-const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
-
-// simple way to accept or reject things
-const reject = false
-const accept = true
-
-// simple way to determine the max ;
-// walletapi.Show_Transfers establishes a max height
-// https://github.com/deroproject/derohe/blob/main/walletapi/wallet.go#L252
-const max_height = "5000000000000"
+//const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 
 func callRPC[t any](method string, params any, validator func(t) bool) t {
 	result, err := handleResult[t](method, params)
@@ -130,17 +121,12 @@ func handleResult[T any](method string, params any) (T, error) {
 	return result, nil
 }
 func Get_TopoHeight() int64 {
-	rpcClient := getClient()
-
-	var height_result rpc.GetHeight_Result
-	err := rpcClient.CallFor(&height_result, "GetHeight")
-	if err != nil {
-		return 0
+	validator := func(r rpc.GetInfo_Result) bool {
+		return r.TopoHeight != 0
 	}
-	//fmt.Println("height_result\n", height_result)
-	return int64(height_result.Height) //look for topoheight specifically later on...
+	result := callRPC("DERO.GetInfo", nil, validator)
+	return result.TopoHeight
 }
-
 func GetTransaction(params rpc.GetTransaction_Params) rpc.GetTransaction_Result {
 	validator := func(r rpc.GetTransaction_Result) bool {
 		return r.Status != ""
