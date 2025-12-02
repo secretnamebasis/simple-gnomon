@@ -18,7 +18,10 @@ import (
 )
 
 func main() {
-
+	walletapi.Set_ws_conn()
+	if walletapi.Get_TopoHeight() == 0 {
+		panic(errors.New("please connect through rpc"))
+	}
 	start_gnomon_indexer()
 }
 
