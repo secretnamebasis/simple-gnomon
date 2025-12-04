@@ -192,7 +192,7 @@ func viewTables(Db *sql.DB) {
 	)
 	for rows.Next() {
 		rows.Scan(&heights, &scid)
-		fmt.Println("heights - scid ", height+"--"+scid)
+		fmt.Println("heights - scid ", heights+"--"+scid)
 	}
 
 }
@@ -1035,9 +1035,11 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 	var currSCIDInteractionHeight []byte
 	var interactionHeight []int64
 	var newInteractionHeight []byte
+	fmt.Println("StoreSCIDInteractionHeight... ")
 	fmt.Println("SELECT heights FROM interactions WHERE scid=?")
 	err = ss.DB.QueryRow("SELECT heights FROM interactions WHERE scid=?", scid).Scan(&currSCIDInteractionHeight)
-
+	//fmt.Println("currSCIDInteractionHeight:", currSCIDInteractionHeight)
+	//fmt.Println("currSCIDInteractionHeight err:", err)
 	if err == nil {
 		interactionHeight = append(interactionHeight, height)
 	} else {
@@ -1059,24 +1061,44 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 	if err != nil {
 		fmt.Printf("[SQLITE] StoreSCIDInteractionHeight could not marshal interactionHeight info: %v", err)
 	}
-	fmt.Println("UPDATE interactions " +
-		"SET heights=? WHERE scid=?;")
-	statement, err := ss.DB.Prepare(
-		"UPDATE interactions " +
-			"SET heights=? WHERE scid=?;")
-	if err != nil {
-		log.Fatal(err)
-	}
-	result, err := statement.Exec(
-		newInteractionHeight,
-		scid,
-	)
 
-	affected, _ := result.RowsAffected()
-	if err == nil && affected >= 0 {
-		changes = true
-		return
+	//No record found, create one
+	if len(currSCIDInteractionHeight) == 0 {
+		fmt.Println("(sql, insert interaction) INSERT INTO interactions (heights, scid) VALUES (?,?)")
+		statement, err := ss.DB.Prepare("INSERT INTO interactions (heights, scid) VALUES (?,?)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		result, err := statement.Exec(
+			newInteractionHeight,
+			scid,
+		)
+
+		last_insert_id, _ := result.LastInsertId()
+		if err == nil && last_insert_id >= 0 {
+			changes = true
+		}
+	} else {
+
+		fmt.Println("(sql, update interaction) UPDATE interactions SET heights=? WHERE scid=?;")
+		statement, err := ss.DB.Prepare("UPDATE interactions SET heights=? WHERE scid=?;")
+		if err != nil {
+			log.Fatal(err)
+		}
+		result, err := statement.Exec(
+			newInteractionHeight,
+			scid,
+		)
+
+		affected, _ := result.RowsAffected()
+		if err == nil && affected >= 0 {
+			changes = true
+
+		}
+
 	}
+
+	return
 	/*
 		err = b.Put([]byte(key), newInteractionHeight)
 		changes = true
@@ -1127,6 +1149,7 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 
 // Gets SC interaction height and detail by a given SCID
 func (ss *SqlStore) GetSCIDInteractionHeight(scid string) (scidinteractions []int64) {
+	fmt.Println("GetSCIDInteractionHeight... ")
 	fmt.Println("SELECT heights FROM interactions WHERE scid=?")
 	heights := ""
 	ss.DB.QueryRow("SELECT heights FROM interactions WHERE scid=?", scid).Scan(&heights)

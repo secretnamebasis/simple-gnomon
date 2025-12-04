@@ -7,7 +7,6 @@ import (
 	"io"
 	"regexp"
 	"sync"
-	"time"
 
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 
@@ -103,24 +102,24 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		return errors.New("nothing to import")
 	}
 
-	writeWait, _ := time.ParseDuration("1s")
+	//	writeWait, _ := time.ParseDuration("1s")
 
-	time.Sleep(writeWait)
+	//	time.Sleep(writeWait)
 
-	for indexer.SSSBackend.Writing {
-		if indexer.Closing {
-			return
+	/*	for indexer.SSSBackend.Writing {
+			if indexer.Closing {
+				return
+			}
+			fmt.Printf("[AddSCIDToIndex-StoreAltDBInput] DB is writing... sleeping for %v...", writeWait)
+			//l.Debugf("[AddSCIDToIndex-StoreAltDBInput] GravitonDB is writing... sleeping for %v...", writeWait)
+			time.Sleep(writeWait)
 		}
-		fmt.Printf("[AddSCIDToIndex-StoreAltDBInput] DB is writing... sleeping for %v...", writeWait)
-		//l.Debugf("[AddSCIDToIndex-StoreAltDBInput] GravitonDB is writing... sleeping for %v...", writeWait)
-		time.Sleep(writeWait)
-	}
 
-	indexer.SSSBackend.Writing = true
-
+		indexer.SSSBackend.Writing = true
+	*/
 	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
 	if len(scidstoadd.ScVars) != 0 {
-		time.Sleep(writeWait)
+		//	time.Sleep(writeWait)
 		changed, err := indexer.SSSBackend.StoreSCIDVariableDetails(
 			scidstoadd.Scid,
 			scidstoadd.ScVars,
@@ -133,7 +132,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		if !changed {
 			return errors.New("did not store scid/vars")
 		}
-		time.Sleep(writeWait)
+		//time.Sleep(writeWait)
 
 		changed, err = indexer.SSSBackend.StoreOwner(
 			scidstoadd.Scid,
@@ -163,10 +162,10 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 			return errors.New("did not store scid/interaction")
 		}
 		//fmt.Print("bb  [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
-		fmt.Print("sql [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.SSSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
+		fmt.Print("sql [AddSCIDToIndex] New updated disk: ", fmt.Sprint(len(indexer.SSSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
 	}
 
-	indexer.SSSBackend.Writing = false
+	//	indexer.SSSBackend.Writing = false
 	return nil
 }
 

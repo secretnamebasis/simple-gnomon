@@ -42,34 +42,6 @@ func start_gnomon_indexer() {
 		"g45": {"G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
 		"nfa": {"ART-NFA-MS1"},
 	}
-	/*
-		for each := range indexes {
-
-			db_name := fmt.Sprintf("%s_%s.db", "GNOMON", each)
-			wd := globals.GetDataDirectory()
-			db_path := filepath.Join(wd, "gnomondb")
-
-			var err error
-			bbolt[each], err = NewBBoltDB(db_path, db_name)
-			if err != nil {
-				Logger.Errorf("[Main] Err creating boltdb: %v", err)
-				return
-			}
-
-			height, err := bbolt[each].GetLastIndexHeight()
-
-			if err != nil {
-				height = 0
-			}
-
-			lowest_height = 0
-			lowest_height = min(lowest_height, height)
-
-			// initialize each indexer
-			indexers[each] = NewIndexer(bbolt[each], height, []string{MAINNET_GNOMON_SCID})
-			fmt.Println("indexers: ", indexers)
-		}
-	*/
 
 	height, err := sqlite.GetLastIndexHeight()
 	if err != nil {
@@ -92,8 +64,8 @@ func start_gnomon_indexer() {
 		}
 	}
 
-	//Logger.Info()
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
+
 	for bheight := lowest_height; bheight <= api.Get_TopoHeight(); bheight++ { //program.wallet.Get_TopoHeight()
 		fmt.Print("\rHeight>", bheight)
 		result := api.GetBlockInfo(rpc.GetBlock_Params{
@@ -128,7 +100,7 @@ func start_gnomon_indexer() {
 
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 		if err != nil {
-			Logger.Error(err)
+			fmt.Println(err)
 			continue
 		}
 
