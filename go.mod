@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	fyne.io/fyne/v2 v2.7.1
 	github.com/blang/semver/v4 v4.0.0
+	github.com/coder/websocket v1.8.12
 	github.com/creachadair/jrpc2 v0.35.4
 	github.com/deroproject/derohe v0.0.0-20250813215012-9b6a8b82c839
 	github.com/gorilla/mux v1.8.1
@@ -21,7 +22,6 @@ require (
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
-	github.com/coder/websocket v1.8.12 // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

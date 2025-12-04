@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,6 +19,7 @@ import (
 	"github.com/secretnamebasis/simple-gnomon/indexer"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"github.com/ybbus/jsonrpc"
+	"go.etcd.io/bbolt"
 
 	"github.com/deroproject/derohe/cryptography/crypto"
 	network "github.com/deroproject/derohe/globals"
@@ -100,7 +103,6 @@ func start_gnomon_indexer() {
 			Queue: make(chan structures.SCIDToIndexStage, 1000),
 			Idx:   indexer.NewIndexer(b, height, []string{globals.MAINNET_GNOMON_SCID}),
 		}
-
 		go func() {
 			for staged := range workers[each].Queue {
 				if err := workers[each].Idx.AddSCIDToIndex(staged); err != nil {
@@ -112,6 +114,7 @@ func start_gnomon_indexer() {
 				fmt.Println("scid at height indexed:",
 					fmt.Sprint(staged.Fsi.Height), "/", fmt.Sprint(connections.Get_TopoHeight()),
 				)
+
 			}
 		}()
 
@@ -128,9 +131,24 @@ do_it_again: // simple-daemon
 	now := connections.Get_TopoHeight()
 	wg := sync.WaitGroup{}
 	limit := make(chan struct{}, runtime.GOMAXPROCS(0)-2)
-	// lowest_height = 1491500
+	mu := sync.Mutex{}
+	lowest_height = 4_399_999
 	for each := lowest_height; each < now; each++ {
+
+		if each%100_000 == 0 { // this is like every 5 minutes
+
+			// wait for the other objects to finish
+			for len(limit) != 0 {
+				fmt.Println("allowing heights to clear before backing up db")
+				time.Sleep(time.Second)
+
+				continue
+			}
+			back_up_databases(workers, indicies, &mu)
+		}
+
 		limit <- struct{}{}
+
 		wg.Add(1)
 		go func(
 			workers map[string]*indexer.Worker,
@@ -157,6 +175,102 @@ do_it_again: // simple-daemon
 
 }
 
+func back_up_databases(workers map[string]*indexer.Worker, indicies map[string][]string, mu *sync.Mutex) {
+	mu.Lock()
+	defer mu.Unlock()
+	fmt.Println("backing up databases")
+	// lock this up so we don't break it
+	for index := range indicies {
+		fmt.Println("Preparing snapshot for", index)
+
+		// capture the db
+		database := workers[index].Idx.BBSBackend.DB
+
+		// sync the database
+		if err := database.Sync(); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// capture the db name
+		scr_name := database.Path()
+
+		// establish a source db file
+		src, err := os.Open(scr_name)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer src.Close()
+
+		// make a snapshot file
+		dst_name := database.Path() + ".snapshot"
+
+		// this will be the destination of the snapshot
+		dst, err := os.Create(dst_name)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer dst.Close()
+
+		// remove this file when we are done
+		defer os.Remove(dst_name)
+
+		// now copy the src db file to the dst file
+		if _, err = io.Copy(dst, src); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// and commit.
+		if err = dst.Sync(); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println("Snapshot complete", index)
+
+		fmt.Println("Preparing backup", index)
+
+		// open the snapshot db as read only
+		source, _ := bbolt.Open(dst_name, fs.FileMode(0444), &bbolt.Options{ReadOnly: true})
+		defer source.Close()
+
+		// establish as backup
+		backup_name := database.Path() + ".bak"
+
+		// establish a tmp backup
+		tmp_backup := backup_name + ".tmp"
+
+		// remove tmp backup when are done
+		defer os.Remove(tmp_backup)
+
+		// move this file to protect it
+		if err := os.Rename(backup_name, tmp_backup); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// open the backup db
+		destination, _ := bbolt.Open(backup_name, fs.FileMode(0644), &bbolt.Options{})
+		defer destination.Close()
+
+		// we are going to use 64MB pagination as a place to start, tune as necessary
+		txMaxSize := 64 * 1024 * 1024 // 64 MB
+
+		// now copy the read only snapshot to the backup
+		if err := bbolt.Compact(destination, source, int64(txMaxSize)); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println("Backup complete", index)
+	}
+
+	fmt.Println("All databases are backed")
+
+}
 func indexHeight(
 	workers map[string]*indexer.Worker,
 	indicies map[string][]string,
