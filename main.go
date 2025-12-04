@@ -240,10 +240,6 @@ do_it_again: // simple-daemon
 
 	lowest_height = min(now, achieved_current_height)
 
-	if lowest_height == achieved_current_height {
-		time.Sleep(time.Second * 3)
-	}
-
 	goto do_it_again
 
 }
