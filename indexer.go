@@ -137,6 +137,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		changed, err = indexer.SSSBackend.StoreOwner(
 			scidstoadd.Scid,
 			scidstoadd.Fsi.Owner,
+			scidstoadd.Tags,
 		)
 		if err != nil {
 			fmt.Println("err StoreOwner: ", err)

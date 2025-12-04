@@ -280,18 +280,20 @@ func (ss *SqlStore) GetTxCount(txType string) (txCount int64) {
 */
 
 // Stores the owner (who deployed it) of a given scid
-func (ss *SqlStore) StoreOwner(scid string, owner string) (changes bool, err error) {
-	fmt.Println("INSERT INTO scs (owner,scid) VALUES (?,?)")
-	statement, err := ss.DB.Prepare("INSERT INTO scs (owner,scid) VALUES (?,?)")
+func (ss *SqlStore) StoreOwner(scid string, owner string, tags string) (changes bool, err error) {
+	fmt.Println("INSERT INTO scs (owner,scid,tags) VALUES (?,?,?)")
+	statement, err := ss.DB.Prepare("INSERT INTO scs (owner,scid,tags) VALUES (?,?,?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	result, err := statement.Exec(
 		owner,
 		scid,
+		tags,
 	)
 
 	last_insert_id, _ := result.LastInsertId()
+	fmt.Println("ownerinsertid: ", last_insert_id)
 	if err == nil && last_insert_id >= 0 {
 		changes = true
 		return

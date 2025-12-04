@@ -108,24 +108,28 @@ func start_gnomon_indexer() {
 		//fmt.Println("key", kv.)
 		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
 		fmt.Println("headers", headers)
-
+		tags := ""
 		// range the indexers and add to index 1 at a time to prevent out of memory error
 		for _, name := range indexes {
 			fmt.Println("name: ", name)
 			// if the code does not contain the filter, skip
-
 			for _, filter := range name {
 				if !strings.Contains(sc.Code, filter) {
 					continue
 				}
+				tags = tags + "," + filter
 			}
+			if tags != "" {
+				tags = tags[1:]
+			}
+
 		}
 		staged := SCIDToIndexStage{
 			Scid:   tx.GetHash().String(),
 			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, Headers: headers},
 			ScVars: vars,
 			ScCode: sc.Code,
-			Tags:   "",
+			Tags:   tags,
 		}
 		// now add the scid to the index
 		go func(*Indexer) {
