@@ -139,8 +139,8 @@ func start_gnomon_indexer() {
 					fmt.Sprint(staged.Fsi.Height), "/", fmt.Sprint(connections.Get_TopoHeight()),
 				)
 
-				if achieved_current_height > 0 {
-
+				if achieved_current_height > 0 { // once the indexer has reached the top...
+					// do incremental backups
 					if err := backups[each].AddSCIDToIndex(staged); err != nil {
 						// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
 						fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
@@ -177,7 +177,7 @@ do_it_again: // simple-daemon
 
 			continue
 		}
-
+		// full backup
 		back_up_databases(workers, indicies, each, &mu)
 		established_backup = true
 	}
@@ -201,14 +201,13 @@ do_it_again: // simple-daemon
 	// main processing loop
 	for height := lowest_height; height < now; height++ {
 
-		// go faster at first
 		if achieved_current_height > 0 && !established_backup && func() bool {
 			lowest := now
 			for _, each := range backups {
 				lowest = min(lowest, each.LastIndexedHeight)
 			}
 			return achieved_current_height-4800 > lowest
-		}() {
+		}() { // if the current height is greater than a day of blocks...
 			backup(height)
 		}
 
