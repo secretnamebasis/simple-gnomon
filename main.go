@@ -88,14 +88,14 @@ func start_gnomon_indexer() {
 		if err := tx.Deserialize(b); err != nil {
 			panic(err)
 		}
-		//	fmt.Println("TX: ", tx)
+		fmt.Println("\nTX Height: ", tx.Height)
 		if tx.TransactionType != transaction.SC_TX || !tx.SCDATA.Has(rpc.SCCODE, rpc.DataString) {
 			storeHeight(bheight)
 			continue
 		}
 
 		//	Logger.Info("scid found", fmt.Sprint(each), fmt.Sprint(api.Get_TopoHeight())) //program.
-		fmt.Print("\nscid found at height:", fmt.Sprint(bheight), " - ", fmt.Sprint(api.Get_TopoHeight()), "\n")
+		fmt.Print("scid found at height:", fmt.Sprint(bheight), " - ", fmt.Sprint(api.Get_TopoHeight()), "\n")
 		sc := api.GetSC(rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, TopoHeight: bheight})
 
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
@@ -109,14 +109,16 @@ func start_gnomon_indexer() {
 		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
 		fmt.Println("headers", headers)
 		tags := ""
+		class := ""
 		// range the indexers and add to index 1 at a time to prevent out of memory error
-		for _, name := range indexes {
+		for key, name := range indexes {
 			fmt.Println("name: ", name)
 			// if the code does not contain the filter, skip
 			for _, filter := range name {
 				if !strings.Contains(sc.Code, filter) {
 					continue
 				}
+				class = key
 				tags = tags + "," + filter
 			}
 			if tags != "" {
@@ -129,6 +131,7 @@ func start_gnomon_indexer() {
 			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, Headers: headers},
 			ScVars: vars,
 			ScCode: sc.Code,
+			Class:  class,
 			Tags:   tags,
 		}
 		// now add the scid to the index

@@ -20,6 +20,7 @@ type SCIDToIndexStage struct {
 	Fsi    *FastSyncImport
 	ScVars []*SCIDVariable
 	ScCode string
+	Class  string
 	Tags   string
 }
 
@@ -137,6 +138,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		changed, err = indexer.SSSBackend.StoreOwner(
 			scidstoadd.Scid,
 			scidstoadd.Fsi.Owner,
+			scidstoadd.Class,
 			scidstoadd.Tags,
 		)
 		if err != nil {

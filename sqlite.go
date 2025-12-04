@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -37,8 +38,15 @@ func NewSqlDB(dbPath, dbName string) (*SqlStore, error) {
 	}
 	createTables(Sql_backend.DB)
 	//check tables
-	viewTables(Sql_backend.DB)
 
+	go func() {
+		for {
+			amt, _ := time.ParseDuration("2s")
+			time.Sleep(amt)
+			viewTables(Sql_backend.DB)
+		}
+
+	}()
 	Sql_backend.DBPath = dbPath
 	//Db = Sql_backend.DB
 	return Sql_backend, err
@@ -75,8 +83,9 @@ func createTables(Db *sql.DB) {
 	startup[1] = "CREATE TABLE IF NOT EXISTS scs (" +
 		"scid TEXT PRIMARY KEY, " +
 		"owner TEXT NOT NULL, " +
-		"tags TEXT, " +
-		"height INTEGER)"
+		"height INTEGER, " +
+		"class TEXT, " +
+		"tags TEXT	)"
 
 		//scid + "vars"
 	startup[2] = "CREATE TABLE IF NOT EXISTS variables (" +
@@ -153,18 +162,20 @@ func viewTables(Db *sql.DB) {
 	}
 
 	fmt.Println("Showing SCs / Owners: ")
-	rows, err = Db.Query("SELECT scid, owner FROM scs", nil)
+	rows, err = Db.Query("SELECT scid, owner, class, tags FROM scs", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 	var (
 		scid  string
 		owner string
+		class string
+		tags  string
 	)
 
 	for rows.Next() {
-		rows.Scan(&scid, &owner)
-		fmt.Println("owner - scid", owner+"--"+scid)
+		rows.Scan(&scid, &owner, &class, &tags)
+		fmt.Println("owner - scid - class - tags", owner+"--"+scid+"--"+class+"--"+tags)
 	}
 
 	//INSERT INTO vars (height, scid, vars) VALUES (?,?,?)
@@ -280,15 +291,16 @@ func (ss *SqlStore) GetTxCount(txType string) (txCount int64) {
 */
 
 // Stores the owner (who deployed it) of a given scid
-func (ss *SqlStore) StoreOwner(scid string, owner string, tags string) (changes bool, err error) {
-	fmt.Println("INSERT INTO scs (owner,scid,tags) VALUES (?,?,?)")
-	statement, err := ss.DB.Prepare("INSERT INTO scs (owner,scid,tags) VALUES (?,?,?)")
+func (ss *SqlStore) StoreOwner(scid string, owner string, class string, tags string) (changes bool, err error) {
+	fmt.Println("INSERT INTO scs (owner,scid,class,tags) VALUES (?,?,?,?)")
+	statement, err := ss.DB.Prepare("INSERT INTO scs (owner,scid,class,tags) VALUES (?,?,?,?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	result, err := statement.Exec(
 		owner,
 		scid,
+		class,
 		tags,
 	)
 
