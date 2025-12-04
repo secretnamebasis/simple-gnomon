@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -27,7 +28,10 @@ import (
 	"github.com/deroproject/derohe/transaction"
 )
 
+var pop_back = flag.Int64("pop_back", -1, "-pop_back=123")
+
 func main() {
+	flag.Parse()
 	// first call on the wallet ws for authorizations
 	connections.Set_ws_conn()
 
