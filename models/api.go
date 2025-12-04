@@ -10,25 +10,79 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2/storage"
+	"github.com/creachadair/jrpc2"
+	"github.com/creachadair/jrpc2/channel"
 	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/glue/rwc"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/walletapi"
-	"github.com/sirupsen/logrus"
-	"github.com/ybbus/jsonrpc"
+	"github.com/gorilla/websocket"
 )
 
-var Logger logrus.Logger
-var daemon = "node.derofoundation.org:11012"
+type Client struct {
+	WS  *websocket.Conn
+	RPC *jrpc2.Client
+	sync.RWMutex
+}
+
+var endpoint = "node.derofoundation.org:11012"
+
+// var endpoint = "dero-node.net:11012"
+var Connected bool
+
+func (client *Client) Connect(endpoint string) (err error) {
+	// Used to check if the endpoint has changed.. if so, then close WS to current and update WS
+	if client.WS != nil {
+		remAddr := client.WS.RemoteAddr()
+		var pingpong string
+		err2 := client.RPC.CallResult(context.Background(), "DERO.Ping", nil, &pingpong)
+		if strings.Contains(remAddr.String(), endpoint) && err2 == nil {
+			// Endpoint is the same, continue on
+			return
+		} else {
+			// Remote addr (current ws connection endpoint) does not match indexer endpoint - re-connecting
+			client.Lock()
+			defer client.Unlock()
+			client.WS.Close()
+		}
+	}
+
+	client.WS, _, err = websocket.DefaultDialer.Dial("ws://"+endpoint+"/ws", nil)
+
+	// notify user of any state change
+	// if daemon connection breaks or comes live again
+	if err == nil {
+		if !Connected {
+			fmt.Printf("[Connect] Connection to RPC server successful - ws://%s/ws", endpoint)
+			Connected = true
+		}
+	} else {
+		fmt.Printf("[Connect] ERROR connecting to endpoint %v", err)
+
+		if Connected {
+			fmt.Printf("[Connect] ERROR - Connection to RPC server Failed - ws://%s/ws", endpoint)
+		}
+		Connected = false
+		return err
+	}
+
+	input_output := rwc.New(client.WS)
+	client.RPC = jrpc2.NewClient(channel.RawJSON(input_output, input_output), nil)
+
+	return err
+}
 
 // simple way to set timeouts
 const timeout = time.Second * 9    // the world is a really big place
 const deadline = time.Second * 300 // some content is just bigger
 
 // simple way to identify gnomon
-//const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
+// const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
+var RpcClient jrpc2.Client
 
 func callRPC[t any](method string, params any, validator func(t) bool) t {
 	result, err := handleResult[t](method, params)
@@ -39,7 +93,7 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 	}
 
 	if !validator(result) {
-		Logger.Error(errors.New("failed validation"), method)
+		fmt.Println(errors.New("failed validation"), method)
 		var zero t
 		return zero
 	}
@@ -49,23 +103,38 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 
 func handleResult[T any](method string, params any) (T, error) {
 	var result T
-	//var ctx context.Context
+	var ctx context.Context
 
 	var cancel context.CancelFunc
-	var rpcClient jsonrpc.RPCClient
-	_, cancel = context.WithTimeout(context.Background(), timeout)
+
+	ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	if method == "DERO.GetSC" {
-		_, cancel = context.WithDeadline(context.Background(), time.Now().Add(deadline))
+		ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(deadline))
 	}
 	defer cancel()
-
-	rpcClient = jsonrpc.NewClient("http://" + daemon + "/json_rpc")
-
 	var err error
+	/*
+		var rpcClient jsonrpc.RPCClient
+		rpcClient = jsonrpc.NewClient("http://" + endpoint + "/json_rpc")
+
+
+		if params == nil {
+			err = rpcClient.CallFor(&result, method) // no params argument
+		} else {
+			err = rpcClient.CallFor(&result, method, params)
+		}
+	*/
+
+	var RpcClient = jrpc2.Client{}
+	walletapi.Daemon_Endpoint = endpoint
+	err = walletapi.Connect(walletapi.Daemon_Endpoint)
+	if err != nil {
+		log.Fatalln("connection failed", err)
+	}
 	if params == nil {
-		err = rpcClient.CallFor(&result, method) // no params argument
+		err = RpcClient.CallResult(ctx, method, nil, &result)
 	} else {
-		err = rpcClient.CallFor(&result, method, params)
+		err = RpcClient.CallResult(ctx, method, params, &result)
 	}
 
 	if err != nil {
@@ -152,7 +221,7 @@ func GetSCIDImage(keys map[string]interface{}) image.Image {
 		encoded := v.(string)
 		b, e := hex.DecodeString(encoded)
 		if e != nil {
-			Logger.Error(e, encoded)
+			fmt.Println(e, encoded)
 			continue
 		}
 		value := string(b)
@@ -164,7 +233,7 @@ func GetSCIDImage(keys map[string]interface{}) image.Image {
 		uri, err := url.Parse(value) //storage.ParseURI(value)
 		fmt.Println("url.Parse:", uri)
 		if err != nil {
-			Logger.Error(err, value)
+			fmt.Println(err, value)
 			return nil
 		} else {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -172,7 +241,7 @@ func GetSCIDImage(keys map[string]interface{}) image.Image {
 
 			req, err := http.NewRequestWithContext(ctx, "GET", uri.String(), nil)
 			if err != nil {
-				Logger.Error(err, "get error")
+				fmt.Println(err, "get error")
 				return nil
 			}
 			client := http.DefaultClient

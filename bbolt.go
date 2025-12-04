@@ -23,7 +23,7 @@ type BboltStore struct {
 	Writing bool
 	//Writer  string
 	Closing bool
-	Buckets []string
+	//Buckets []string
 }
 
 func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
@@ -94,6 +94,7 @@ func (bbs *BboltStore) GetLastIndexHeight() (topoheight int64, err error) {
 	return
 }
 
+/*
 // Stores bbolt's txcount by a given txType - this is for stateful stores on close and reference on open
 func (bbs *BboltStore) StoreTxCount(count int64, txType string) (changes bool, err error) {
 	bName := "stats"
@@ -138,7 +139,7 @@ func (bbs *BboltStore) GetTxCount(txType string) (txCount int64) {
 
 	return
 }
-
+*/
 // Stores the owner (who deployed it) of a given scid
 func (bbs *BboltStore) StoreOwner(scid string, owner string) (changes bool, err error) {
 	bName := "scowner"

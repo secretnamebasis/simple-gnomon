@@ -13,7 +13,6 @@ import (
 
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/rpc"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,6 +21,7 @@ type SCIDToIndexStage struct {
 	Fsi    *FastSyncImport
 	ScVars []*SCIDVariable
 	ScCode string
+	Tags   string
 }
 
 type Indexer struct {
@@ -30,6 +30,7 @@ type Indexer struct {
 	SearchFilter      []string
 	SFSCIDExclusion   []string
 	BBSBackend        *BboltStore
+	SSSBackend        *SqlStore
 	Closing           bool
 	ValidatedSCs      []string
 	Status            string
@@ -73,6 +74,21 @@ func NewIndexer(
 		LastIndexedHeight: last_indexedheight,
 		SFSCIDExclusion:   sfscidexclusion,
 		BBSBackend:        Bbs_backend,
+	}
+}
+
+func NewSQLIndexer(
+	Sqls_backend *SqlStore,
+	last_indexedheight int64,
+	sfscidexclusion []string,
+) *Indexer {
+
+	//l = l.WithFields(logrus.Fields{})
+
+	return &Indexer{
+		LastIndexedHeight: last_indexedheight,
+		SFSCIDExclusion:   sfscidexclusion,
+		SSSBackend:        Sqls_backend,
 	}
 }
 
@@ -128,7 +144,8 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 			return errors.New("did not store scid/owner")
 		}
 
-		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
+		fmt.Print("bb  [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
+		//	fmt.Print("sql [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.SSSBackend.GetAllOwnersAndSCIDs())))
 	} else {
 
 		changed, err := indexer.BBSBackend.StoreSCIDInteractionHeight(
@@ -142,10 +159,11 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		if !changed {
 			return errors.New("did not store scid/interaction")
 		}
-		l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
-
+		fmt.Print("bb  [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
+		//	fmt.Print("sql [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.SSSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
 	}
-	indexer.BBSBackend.Writing = false
+
+	indexer.SSSBackend.Writing = false
 	return nil
 }
 
