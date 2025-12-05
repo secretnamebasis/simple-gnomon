@@ -42,7 +42,7 @@ func NewSqlDB(dbPath, dbName string) (*SqlStore, error) {
 
 	go func() {
 		for {
-			amt, _ := time.ParseDuration("15s")
+			amt, _ := time.ParseDuration("1m")
 			time.Sleep(amt)
 			viewTables(Sql_backend.DB)
 		}
@@ -149,68 +149,69 @@ func handleError(err error) {
 // --- extras...
 func viewTables(Db *sql.DB) {
 	/// check tables
+	/*
+		fmt.Println("\nShowing State: ")
+		rows, err := Db.Query("SELECT name, value FROM state WHERE name = 'lastindexedheight'", nil)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var (
+			name  string
+			value string
+		)
 
-	fmt.Println("\nShowing State: ")
-	rows, err := Db.Query("SELECT name, value FROM state WHERE name = 'lastindexedheight'", nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-	var (
-		name  string
-		value string
-	)
+		for rows.Next() {
+			rows.Scan(&name, &value)
+			fmt.Println(name, value)
+		}
 
-	for rows.Next() {
-		rows.Scan(&name, &value)
-		fmt.Println(name, value)
-	}
+		fmt.Println("Showing SCs / Owners: ")
+		rows, err = Db.Query("SELECT scid, owner, scname,class, tags FROM scs", nil)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var (
+			scid   string
+			owner  string
+			scname string
+			class  string
+			tags   string
+		)
 
-	fmt.Println("Showing SCs / Owners: ")
-	rows, err = Db.Query("SELECT scid, owner, scname,class, tags FROM scs", nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-	var (
-		scid   string
-		owner  string
-		scname string
-		class  string
-		tags   string
-	)
+		for rows.Next() {
+			rows.Scan(&scid, &owner, &scname, &class, &tags)
+			fmt.Println("owner - scid - scname - class - tags", owner+"--"+scid+"--"+scname+"--"+class+"--"+tags)
+		}
 
-	for rows.Next() {
-		rows.Scan(&scid, &owner, &scname, &class, &tags)
-		fmt.Println("owner - scid - scname - class - tags", owner+"--"+scid+"--"+scname+"--"+class+"--"+tags)
-	}
+		//INSERT INTO vars (height, scid, vars) VALUES (?,?,?)
+		fmt.Println("Showing Vars: ")
+		rows, err = Db.Query("SELECT height, scid FROM variables", nil)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var (
+			height string
+		)
+		for rows.Next() {
+			rows.Scan(&height, &scid)
+			fmt.Println("height - scid - vars (not shown) ", height+"--"+scid)
+		}
 
-	//INSERT INTO vars (height, scid, vars) VALUES (?,?,?)
-	fmt.Println("Showing Vars: ")
-	rows, err = Db.Query("SELECT height, scid FROM variables", nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-	var (
-		height string
-	)
-	for rows.Next() {
-		rows.Scan(&height, &scid)
-		fmt.Println("height - scid - vars (not shown) ", height+"--"+scid)
-	}
+		fmt.Println("Showing Interactions: ")
 
-	fmt.Println("Showing Interactions: ")
+		rows, err = Db.Query("SELECT count(int_id) as count FROM interactions", nil) //"SELECT count(*) heights, scid FROM interactions ORDER BY heights DESC LIMIT 1;"
+		if err != nil {
+			fmt.Println(err)
+		}
+		var (
+			count string
+		)
+		for rows.Next() {
+			rows.Scan(&count)
 
-	rows, err = Db.Query("SELECT count(int_id) as count FROM interactions", nil) //"SELECT count(*) heights, scid FROM interactions ORDER BY heights DESC LIMIT 1;"
-	if err != nil {
-		fmt.Println(err)
-	}
-	var (
-		count string
-	)
-	for rows.Next() {
-		rows.Scan(&count)
-
-	}
-	fmt.Println("count ", count)
+		}
+		fmt.Println("count ", count)
+	*/
 }
 
 //-----------------
@@ -222,15 +223,18 @@ func (ss *SqlStore) StoreLastIndexHeight(last_indexedheight int64) (changes bool
 	if err != nil {
 		panic(err)
 	}
-	result, _ := statement.Exec(
+	result, err := statement.Exec(
 		last_indexedheight,
 		"lastindexedheight",
 	)
-	affected_rows, _ := result.RowsAffected()
-	if affected_rows != 0 {
-		changes = true
-		return
+	if err == nil {
+		affected_rows, _ := result.RowsAffected()
+		if affected_rows != 0 {
+			changes = true
+			return
+		}
 	}
+
 	return
 }
 

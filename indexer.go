@@ -94,7 +94,7 @@ func NewSQLIndexer(
 
 // Manually add/inject a SCID to be indexed. Checks validity and then stores within owner tree (no signer addr) and stores a set of current variables.
 func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) {
-	fmt.Println("Adding to Index: ", scidstoadd)
+	//fmt.Println("Adding to Index: ", scidstoadd)
 	if scidstoadd.Scid == "" {
 		return errors.New("no scid")
 	}

@@ -58,7 +58,7 @@ func start_gnomon_indexer() {
 	//var wg sync.WaitGroup
 	var wg sync.WaitGroup
 	for bheight := lowest_height; bheight <= TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
-		t, _ := time.ParseDuration("25ms")
+		t, _ := time.ParseDuration("40ms")
 		time.Sleep(t)
 		wg.Add(1) //
 		go ProcessBlock(&wg, bheight)
