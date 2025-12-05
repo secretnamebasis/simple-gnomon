@@ -180,17 +180,16 @@ func viewTables(Db *sql.DB) {
 
 	//INSERT INTO vars (height, scid, vars) VALUES (?,?,?)
 	fmt.Println("Showing Vars: ")
-	rows, err = Db.Query("SELECT height, scid, vars FROM variables", nil)
+	rows, err = Db.Query("SELECT height, scid FROM variables", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 	var (
-		vars   string
 		height string
 	)
 	for rows.Next() {
-		rows.Scan(&height, &scid, &vars)
-		fmt.Println("height - scid - vars ", height+"--"+scid+"--"+vars)
+		rows.Scan(&height, &scid)
+		fmt.Println("height - scid - vars (not shown) ", height+"--"+scid)
 	}
 
 	fmt.Println("Showing Interactions: ")
