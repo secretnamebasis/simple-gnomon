@@ -21,6 +21,7 @@ type SqlStore struct {
 	DBPath  string
 	Writing bool
 	//Writer  string
+	Cancel  bool
 	Closing bool
 	//Buckets []string
 }
@@ -42,7 +43,12 @@ func NewSqlDB(dbPath, dbName string) (*SqlStore, error) {
 
 	go func() {
 		for {
-			amt, _ := time.ParseDuration("1m")
+			amt, _ := time.ParseDuration("1s")
+			if Sql_backend.Cancel {
+				time.Sleep(amt)
+				fmt.Print("Resuming...")
+				Sql_backend.Cancel = false
+			}
 			time.Sleep(amt)
 			viewTables(Sql_backend.DB)
 		}
@@ -218,7 +224,9 @@ func viewTables(Db *sql.DB) {
 
 // Stores bbolt's last indexed height - this is for stateful stores on close and reference on open
 func (ss *SqlStore) StoreLastIndexHeight(last_indexedheight int64) (changes bool, err error) {
-
+	if ss.Cancel {
+		return
+	}
 	statement, err := ss.DB.Prepare("UPDATE state SET value = ? WHERE name = ?;")
 	if err != nil {
 		panic(err)
@@ -233,6 +241,8 @@ func (ss *SqlStore) StoreLastIndexHeight(last_indexedheight int64) (changes bool
 			changes = true
 			return
 		}
+	} else {
+		ss.Cancel = true
 	}
 
 	return
@@ -301,6 +311,9 @@ func (ss *SqlStore) GetTxCount(txType string) (txCount int64) {
 
 // Stores the owner (who deployed it) of a given scid
 func (ss *SqlStore) StoreOwner(scid string, owner string, scname string, scdescr string, scimgurl string, class string, tags string) (changes bool, err error) {
+	if ss.Cancel {
+		return
+	}
 	fmt.Println("INSERT INTO scs (owner,scid,headers,class,tags) VALUES (?,?,?,?,?,?,?)")
 	statement, err := ss.DB.Prepare("INSERT INTO scs (scid,owner,scname,scdescr,scimgurl,class,tags) VALUES (?,?,?,?,?,?,?)")
 	if err != nil {
@@ -315,12 +328,16 @@ func (ss *SqlStore) StoreOwner(scid string, owner string, scname string, scdescr
 		class,
 		tags,
 	)
+	if err == nil {
+		last_insert_id, _ := result.LastInsertId()
+		fmt.Println("ownerinsertid: ", last_insert_id)
+		if last_insert_id >= 0 {
+			changes = true
+			return
+		}
 
-	last_insert_id, _ := result.LastInsertId()
-	fmt.Println("ownerinsertid: ", last_insert_id)
-	if err == nil && last_insert_id >= 0 {
-		changes = true
-		return
+	} else {
+		ss.Cancel = true
 	}
 	return
 	/*
@@ -536,7 +553,9 @@ func (ss *SqlStore) GetAllSCIDInvokeDetailsBySigner(scid string, signerPart stri
 */
 // Stores SC variables at a given topoheight (called on any new scdeploy or scinvoke actions)
 func (ss *SqlStore) StoreSCIDVariableDetails(scid string, variables []*SCIDVariable, topoheight int64) (changes bool, err error) {
-
+	if ss.Cancel {
+		return
+	}
 	confBytes, err := json.Marshal(variables)
 	if err != nil {
 		return changes, fmt.Errorf("[StoreSCIDVariableDetails] could not marshal getinfo info: %v", err)
@@ -551,11 +570,14 @@ func (ss *SqlStore) StoreSCIDVariableDetails(scid string, variables []*SCIDVaria
 		scid,
 		confBytes,
 	)
-
-	last_insert_id, _ := result.LastInsertId()
-	if err == nil && last_insert_id >= 0 {
-		changes = true
-		return
+	if err == nil {
+		last_insert_id, _ := result.LastInsertId()
+		if last_insert_id >= 0 {
+			changes = true
+			return
+		}
+	} else {
+		ss.Cancel = true
 	}
 
 	/*
@@ -1077,6 +1099,9 @@ func (ss *SqlStore) GetSCIDValuesByKey(scid string, key interface{}, height int6
 
 // Stores SC interaction height and detail - height invoked upon and type (scinstall/scinvoke). This is separate tree & k/v since we can query it for other things at less data retrieval
 func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (changes bool, err error) {
+	if ss.Cancel {
+		return
+	}
 	var currSCIDInteractionHeight []byte
 	var interactionHeight []int64
 	var newInteractionHeight []byte
@@ -1124,6 +1149,8 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 				changes = true
 			}
 
+		} else {
+			ss.Cancel = true
 		}
 
 	} else {
@@ -1137,11 +1164,14 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 			newInteractionHeight,
 			scid,
 		)
+		if err == nil {
+			affected, _ := result.RowsAffected()
+			if affected >= 0 {
+				changes = true
 
-		affected, _ := result.RowsAffected()
-		if err == nil && affected >= 0 {
-			changes = true
-
+			}
+		} else {
+			ss.Cancel = true
 		}
 
 	}

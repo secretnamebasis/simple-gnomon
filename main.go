@@ -20,8 +20,6 @@ func main() {
 	start_gnomon_indexer()
 }
 
-var bbolt = make(map[string]*BboltStore)
-var indexers = make(map[string]*Indexer)
 var TargetHeight = api.Get_TopoHeight()
 var sqlite = &SqlStore{}
 var sqlindexer = &Indexer{}
@@ -58,7 +56,11 @@ func start_gnomon_indexer() {
 	//var wg sync.WaitGroup
 	var wg sync.WaitGroup
 	for bheight := lowest_height; bheight <= TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
-		t, _ := time.ParseDuration("40ms")
+		if sqlindexer.SSSBackend.Cancel {
+			break
+		}
+
+		t, _ := time.ParseDuration("25ms")
 		time.Sleep(t)
 		wg.Add(1) //
 		go ProcessBlock(&wg, bheight)
@@ -69,11 +71,13 @@ func start_gnomon_indexer() {
 	t, _ := time.ParseDuration("1s")
 	time.Sleep(t)
 	TargetHeight = api.Get_TopoHeight()
+	sqlindexer.SSSBackend.Cancel = false
 	start_gnomon_indexer()
 
 }
 
 func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
+	defer wg.Done()
 	indexes := map[string][]string{
 		"g45":   {"G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
 		"nfa":   {"ART-NFA-MS1"},
