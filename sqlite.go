@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/civilware/tela/logger"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -578,18 +579,14 @@ func (ss *SqlStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheight i
 
 	bName := scid + "vars"
 	fmt.Println("GetSCIDVariableDetailsAtTopoheight", bName)
-	/*
-
-		"height INTEGER NOT NULL, " +
-		"scid TEXT NOT NULL, " +
-		"vars TEXT NOT NULL)"
-
-	*/
-	fmt.Println("SELECT height,vars FROM variables")
-	rows, _ := ss.DB.Query("SELECT height,vars FROM variables", nil)
+	fmt.Println("SELECT height,vars FROM variables WHERE height=? AND scid =?")
+	rows, _ := ss.DB.Query("SELECT height,vars FROM variables WHERE height=? AND scid =?",
+		int(topoheight),
+		scid,
+	)
 	var (
 		vars   string
-		height string
+		height int
 	)
 
 	for rows.Next() {
@@ -601,6 +598,7 @@ func (ss *SqlStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheight i
 		results[topoheight] = variables
 	}
 
+	fmt.Println("results: ", results)
 	/*	ss.DB.View(func(tx *bolt.Tx) (err error) {
 			b := tx.Bucket([]byte(bName))
 			if b != nil {
@@ -752,36 +750,57 @@ func (ss *SqlStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheight i
 	return
 }
 
-/*
+// Function not needed for indexer...
 // Gets SC variables at all topoheights
 func (ss *SqlStore) GetAllSCIDVariableDetails(scid string) (hVars []*SCIDVariable) {
 	results := make(map[int64][]*SCIDVariable)
 	var heights []int64
 
 	bName := scid + "vars"
+	fmt.Println("GetAllSCIDVariableDetails", bName)
+	fmt.Println("SELECT height,vars FROM variables WHERE height=? AND scid =?")
 
-	ss.DB.View(func(tx *bolt.Tx) (err error) {
-		b := tx.Bucket([]byte(bName))
-		if b != nil {
+	rows, _ := ss.DB.Query("SELECT height,vars FROM variables WHERE scid =?",
+		scid,
+	)
+	var (
+		vars   string
+		height int
+	)
 
-			c := b.Cursor()
+	for rows.Next() {
+		rows.Scan(&height, &vars)
+		topoheight, _ := strconv.ParseInt(string(height), 10, 64)
+		heights = append(heights, topoheight)
+		var variables []*SCIDVariable
+		_ = json.Unmarshal([]byte(vars), &variables)
+		results[topoheight] = variables
+	}
 
-			for k, v := c.First(); err == nil; k, v = c.Next() {
-				if k != nil && v != nil {
-					topoheight, _ := strconv.ParseInt(string(k), 10, 64)
-					heights = append(heights, topoheight)
-					var variables []*SCIDVariable
-					_ = json.Unmarshal(v, &variables)
-					results[topoheight] = variables
-				} else {
-					break
+	fmt.Println("results: ", results)
+	/*
+		ss.DB.View(func(tx *bolt.Tx) (err error) {
+			b := tx.Bucket([]byte(bName))
+			if b != nil {
+
+				c := b.Cursor()
+
+				for k, v := c.First(); err == nil; k, v = c.Next() {
+					if k != nil && v != nil {
+						topoheight, _ := strconv.ParseInt(string(k), 10, 64)
+						heights = append(heights, topoheight)
+						var variables []*SCIDVariable
+						_ = json.Unmarshal(v, &variables)
+						results[topoheight] = variables
+					} else {
+						break
+					}
 				}
 			}
-		}
 
-		return
-	})
-
+			return
+		})
+	*/
 	if results != nil {
 		// Sort heights so most recent is index 0 [if preferred reverse, just swap > with <]
 		sort.SliceStable(heights, func(i, j int) bool {
@@ -907,7 +926,8 @@ func (ss *SqlStore) GetAllSCIDVariableDetails(scid string) (hVars []*SCIDVariabl
 
 	return
 }
-*/
+
+/**/
 // Gets SC variable keys at given topoheight who's value equates to a given interface{} (string/uint64)
 func (ss *SqlStore) GetSCIDKeysByValue(scid string, val interface{}, height int64, rmax bool) (keysstring []string, keysuint64 []uint64) {
 	scidInteractionHeights := ss.GetSCIDInteractionHeight(scid)
