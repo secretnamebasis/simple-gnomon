@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ func main() {
 	start_gnomon_indexer()
 }
 
+var speed = 20
 var TargetHeight = api.Get_TopoHeight()
 var sqlite = &SqlStore{}
 var sqlindexer = &Indexer{}
@@ -57,10 +59,13 @@ func start_gnomon_indexer() {
 	var wg sync.WaitGroup
 	for bheight := lowest_height; bheight <= TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
 		if sqlindexer.SSSBackend.Cancel {
+			speed++
+			fmt.Println("Speed", speed)
+
 			break
 		}
 
-		t, _ := time.ParseDuration("25ms")
+		t, _ := time.ParseDuration(strconv.Itoa(speed) + "ms")
 		time.Sleep(t)
 		wg.Add(1) //
 		go ProcessBlock(&wg, bheight)
