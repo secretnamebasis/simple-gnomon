@@ -29,7 +29,7 @@ import (
 )
 
 var endpoint = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
-var pop_back = flag.Int64("pop_back", -1, "-pop_back=123")
+var starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
 var help = flag.Bool("help", false, "-help")
 var established_backup bool
 
@@ -41,7 +41,7 @@ A simple indexer for the DERO blockchain.
 
 Options:
   -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
-  -pop_back <N>                Height to pop to the back to.
+  -starting_height <N>                Height to pop to the back to.
   -help                        Show this help message.`)
 		return
 	}
@@ -212,8 +212,8 @@ do_it_again: // simple-daemon
 	}
 
 	// in case db needs to re-parse from a desired height
-	if pop_back != nil && *pop_back < now && *pop_back > -1 && achieved_current_height == 0 {
-		lowest_height = *pop_back
+	if starting_height != nil && *starting_height < now && *starting_height > -1 && achieved_current_height == 0 {
+		lowest_height = *starting_height
 	}
 
 	// main processing loop
