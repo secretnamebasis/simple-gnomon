@@ -135,7 +135,10 @@ func start_gnomon_indexer() {
 
 		kv := sc.VariableStringKeys
 		//fmt.Println("key", kv)
-		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
+		scname := api.GetSCNameFromVars(kv)
+		scdesc := api.GetSCDescriptionFromVars(kv)
+		scimgurl := api.GetSCIDImageURLFromVars(kv)
+
 		//	fmt.Println("headers", headers)
 		tags := ""
 		class := ""
@@ -159,7 +162,7 @@ func start_gnomon_indexer() {
 		}
 		staged := SCIDToIndexStage{
 			Scid:   tx.GetHash().String(),
-			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, Headers: headers}, //
+			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, SCName: scname, SCDesc: scdesc, SCImgURL: scimgurl}, //
 			ScVars: vars,
 			ScCode: sc.Code,
 			Class:  class, //Class and tags are not in original gnomon

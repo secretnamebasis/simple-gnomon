@@ -85,7 +85,9 @@ func createTables(Db *sql.DB) {
 		"scid TEXT PRIMARY KEY, " +
 		"owner TEXT NOT NULL, " +
 		"height INTEGER, " +
-		"headers TEXT, " +
+		"scname TEXT, " +
+		"scdescr TEXT, " +
+		"scimgurl TEXT, " +
 		"class TEXT, " +
 		"tags TEXT) "
 
@@ -164,21 +166,21 @@ func viewTables(Db *sql.DB) {
 	}
 
 	fmt.Println("Showing SCs / Owners: ")
-	rows, err = Db.Query("SELECT scid, owner, headers, class, tags FROM scs", nil)
+	rows, err = Db.Query("SELECT scid, owner, scname,class, tags FROM scs", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 	var (
-		scid    string
-		owner   string
-		headers string
-		class   string
-		tags    string
+		scid   string
+		owner  string
+		scname string
+		class  string
+		tags   string
 	)
 
 	for rows.Next() {
-		rows.Scan(&scid, &owner, &headers, &class, &tags)
-		fmt.Println("owner - scid - headers - class - tags", owner+"--"+scid+"--"+headers+"--"+class+"--"+tags)
+		rows.Scan(&scid, &owner, &scname, &class, &tags)
+		fmt.Println("owner - scid - scname - class - tags", owner+"--"+scid+"--"+scname+"--"+class+"--"+tags)
 	}
 
 	//INSERT INTO vars (height, scid, vars) VALUES (?,?,?)
@@ -294,16 +296,18 @@ func (ss *SqlStore) GetTxCount(txType string) (txCount int64) {
 */
 
 // Stores the owner (who deployed it) of a given scid
-func (ss *SqlStore) StoreOwner(scid string, owner string, headers string, class string, tags string) (changes bool, err error) {
-	fmt.Println("INSERT INTO scs (owner,scid,headers,class,tags) VALUES (?,?,?,?,?)")
-	statement, err := ss.DB.Prepare("INSERT INTO scs (owner,scid,headers,class,tags) VALUES (?,?,?,?,?)")
+func (ss *SqlStore) StoreOwner(scid string, owner string, scname string, scdescr string, scimgurl string, class string, tags string) (changes bool, err error) {
+	fmt.Println("INSERT INTO scs (owner,scid,headers,class,tags) VALUES (?,?,?,?,?,?,?)")
+	statement, err := ss.DB.Prepare("INSERT INTO scs (scid,owner,scname,scdescr,scimgurl,class,tags) VALUES (?,?,?,?,?,?,?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	result, err := statement.Exec(
-		owner,
 		scid,
-		headers,
+		owner,
+		scname,
+		scdescr,
+		scimgurl,
 		class,
 		tags,
 	)

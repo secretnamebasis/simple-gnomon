@@ -24,7 +24,9 @@ type SCIDVariable struct {
 }
 
 type FastSyncImport struct {
-	Owner   string
-	Height  uint64
-	Headers string
+	Owner    string
+	Height   uint64
+	SCName   string
+	SCDesc   string
+	SCImgURL string
 }

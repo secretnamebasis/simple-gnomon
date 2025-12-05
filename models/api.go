@@ -235,7 +235,7 @@ func GetSCNameFromVars(keys map[string]interface{}) string {
 		fmt.Println("Name found:", text)
 	}
 	if text == "" {
-		return "N/A"
+		return ""
 	}
 	return text
 }
@@ -253,7 +253,7 @@ func GetSCDescriptionFromVars(keys map[string]interface{}) string {
 		text = string(b)
 	}
 	if text == "" {
-		return "N/A"
+		return ""
 	}
 	return text
 }
@@ -272,7 +272,7 @@ func GetSCIDImageURLFromVars(keys map[string]interface{}) string {
 		text = string(b)
 	}
 	if text == "" {
-		return "N/A"
+		return ""
 	}
 	return text
 }
