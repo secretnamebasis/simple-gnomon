@@ -121,14 +121,12 @@ func start_gnomon_indexer() {
 			}
 		}
 		sc := api.GetSC(params) //Variables: true,
-
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 		if err != nil {
-			fmt.Println(err)
 			continue
 		}
-		fmt.Println("vars---------------- ", vars)
-		kv := api.GetSCValues(tx.GetHash().String()).VariableStringKeys
+
+		kv := sc.VariableStringKeys
 		//fmt.Println("key", kv)
 		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
 		fmt.Println("headers", headers)
@@ -160,6 +158,7 @@ func start_gnomon_indexer() {
 			Class:  class, //Class and tags are not in original gnomon
 			Tags:   tags,
 		}
+		fmt.Println("staged scid:", staged.Scid, ":", fmt.Sprint(staged.Fsi.Height), "/", fmt.Sprint(api.Get_TopoHeight()))
 		// now add the scid to the index
 		go func(*Indexer) {
 			// if the contract already exists, record the interaction
