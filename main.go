@@ -126,10 +126,10 @@ func start_gnomon_indexer() {
 			continue
 		}
 
-		kv := sc.VariableStringKeys
+		//	kv := sc.VariableStringKeys
 		//fmt.Println("key", kv)
-		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
-		fmt.Println("headers", headers)
+		//	headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
+		//	fmt.Println("headers", headers)
 		tags := ""
 		class := ""
 		// range the indexers and add to index 1 at a time to prevent out of memory error
@@ -152,7 +152,7 @@ func start_gnomon_indexer() {
 		}
 		staged := SCIDToIndexStage{
 			Scid:   tx.GetHash().String(),
-			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, Headers: headers},
+			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer}, //, Headers: headers
 			ScVars: vars,
 			ScCode: sc.Code,
 			Class:  class, //Class and tags are not in original gnomon

@@ -154,7 +154,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		//fmt.Print("bb  [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
 		fmt.Print("sql [AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.SSSBackend.GetAllOwnersAndSCIDs())))
 	} else {
-
+		//was not an install or a failed install
 		changed, err := indexer.SSSBackend.StoreSCIDInteractionHeight(
 			scidstoadd.Scid,
 			int64(scidstoadd.Fsi.Height),

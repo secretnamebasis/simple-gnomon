@@ -243,7 +243,7 @@ func GetSCDescriptionFromVars(keys map[string]interface{}) string {
 	var text string
 
 	for k, v := range keys {
-		if !strings.Contains(k, "description") {
+		if !strings.Contains(k, "descr") {
 			continue
 		}
 		b, e := hex.DecodeString(v.(string))
