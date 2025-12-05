@@ -41,7 +41,7 @@ func NewSqlDB(dbPath, dbName string) (*SqlStore, error) {
 
 	go func() {
 		for {
-			amt, _ := time.ParseDuration("2s")
+			amt, _ := time.ParseDuration("5s")
 			time.Sleep(amt)
 			viewTables(Sql_backend.DB)
 		}
@@ -146,7 +146,7 @@ func handleError(err error) {
 func viewTables(Db *sql.DB) {
 	/// check tables
 
-	fmt.Println("Showing State: ")
+	fmt.Println("\nShowing State: ")
 	rows, err := Db.Query("SELECT name, value FROM state WHERE name = 'lastindexedheight'", nil)
 	if err != nil {
 		fmt.Println(err)
@@ -189,23 +189,24 @@ func viewTables(Db *sql.DB) {
 		height string
 	)
 	for rows.Next() {
-		rows.Scan(&scid, &owner, &vars)
+		rows.Scan(&height, &scid, &vars)
 		fmt.Println("owner - scid - vars ", height+"--"+scid+"--"+vars)
 	}
 
 	fmt.Println("Showing Interactions: ")
-	rows, err = Db.Query("SELECT heights, scid FROM interactions", nil)
+
+	rows, err = Db.Query("SELECT count(int_id) as count FROM interactions", nil) //"SELECT count(*) heights, scid FROM interactions ORDER BY heights DESC LIMIT 1;"
 	if err != nil {
 		fmt.Println(err)
 	}
 	var (
-		heights string
+		count string
 	)
 	for rows.Next() {
-		rows.Scan(&heights, &scid)
-		fmt.Println("heights - scid ", heights+"--"+scid)
-	}
+		rows.Scan(&count)
 
+	}
+	fmt.Println("count ", count)
 }
 
 //-----------------

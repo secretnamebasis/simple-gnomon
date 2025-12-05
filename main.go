@@ -38,9 +38,10 @@ func start_gnomon_indexer() {
 
 	var lowest_height int64
 	indexes := map[string][]string{
-		"":    {""},
-		"g45": {"G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
-		"nfa": {"ART-NFA-MS1"},
+		"":      {""},
+		"g45":   {"G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
+		"nfa":   {"ART-NFA-MS1"},
+		"swaps": {"StartSwap"},
 	}
 
 	height, err := sqlite.GetLastIndexHeight()
@@ -96,14 +97,15 @@ func start_gnomon_indexer() {
 
 		//	Logger.Info("scid found", fmt.Sprint(each), fmt.Sprint(api.Get_TopoHeight())) //program.
 		fmt.Print("scid found at height:", fmt.Sprint(bheight), " - ", fmt.Sprint(api.Get_TopoHeight()), "\n")
-		sc := api.GetSC(rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, TopoHeight: bheight})
-
+		sc := api.GetSC(rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, Variables: true, TopoHeight: bheight})
+		fmt.Println("sc.VariableStringKeys---------------- ", sc.VariableStringKeys)
+		fmt.Println("sc.VariableUint64Keys---------------- ", sc.VariableUint64Keys)
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-
+		fmt.Println("vars---------------- ", vars)
 		kv := api.GetSCValues(tx.GetHash().String()).VariableStringKeys
 		//fmt.Println("key", kv.)
 		headers := api.GetSCNameFromVars(kv) + ";" + api.GetSCDescriptionFromVars(kv) + ";" + api.GetSCIDImageURLFromVars(kv)
@@ -114,6 +116,7 @@ func start_gnomon_indexer() {
 		for key, name := range indexes {
 			fmt.Println("name: ", name)
 			// if the code does not contain the filter, skip
+			//probably could use some suring up here
 			for _, filter := range name {
 				if !strings.Contains(sc.Code, filter) {
 					continue
@@ -121,7 +124,8 @@ func start_gnomon_indexer() {
 				class = key
 				tags = tags + "," + filter
 			}
-			if tags != "" {
+
+			if tags != "" && tags[0:1] == "," {
 				tags = tags[1:]
 			}
 
@@ -131,7 +135,7 @@ func start_gnomon_indexer() {
 			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, Headers: headers},
 			ScVars: vars,
 			ScCode: sc.Code,
-			Class:  class,
+			Class:  class, //Class and tags are not in original gnomon
 			Tags:   tags,
 		}
 		// now add the scid to the index

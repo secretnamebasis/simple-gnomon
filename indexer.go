@@ -118,6 +118,8 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 
 		indexer.SSSBackend.Writing = true
 	*/
+
+	fmt.Printf("SCIDS TO ADD: %v...", scidstoadd.ScVars)
 	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
 	if len(scidstoadd.ScVars) != 0 {
 		//	time.Sleep(writeWait)
@@ -175,6 +177,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 // Gets SC variable details
 func GetSCVariables(keysstring map[string]any, keysuint64 map[uint64]any) (variables []*SCIDVariable, err error) {
 	//balances = make(map[string]uint64)
+	fmt.Println(keysuint64)
 
 	isAlpha := regexp.MustCompile(`^[A-Za-z]+$`).MatchString
 

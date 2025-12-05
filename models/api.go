@@ -15,9 +15,7 @@ import (
 
 	"fyne.io/fyne/v2/storage"
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/channel"
 	"github.com/deroproject/derohe/block"
-	"github.com/deroproject/derohe/glue/rwc"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/walletapi"
 	"github.com/gorilla/websocket"
@@ -30,53 +28,11 @@ type Client struct {
 	sync.RWMutex
 }
 
-var endpoint = "64.226.81.37:10102"
+// var endpoint = "64.226.81.37:10102"
 
 // 64.226.81.37:10102
-// var endpoint = "dero-node.net:11012"
-var Connected bool
-
-func (client *Client) Connect(endpoint string) (err error) {
-	// Used to check if the endpoint has changed.. if so, then close WS to current and update WS
-	if client.WS != nil {
-		remAddr := client.WS.RemoteAddr()
-		var pingpong string
-		err2 := client.RPC.CallResult(context.Background(), "DERO.Ping", nil, &pingpong)
-		if strings.Contains(remAddr.String(), endpoint) && err2 == nil {
-			// Endpoint is the same, continue on
-			return
-		} else {
-			// Remote addr (current ws connection endpoint) does not match indexer endpoint - re-connecting
-			client.Lock()
-			defer client.Unlock()
-			client.WS.Close()
-		}
-	}
-
-	client.WS, _, err = websocket.DefaultDialer.Dial("ws://"+endpoint+"/ws", nil)
-
-	// notify user of any state change
-	// if daemon connection breaks or comes live again
-	if err == nil {
-		if !Connected {
-			fmt.Printf("[Connect] Connection to RPC server successful - ws://%s/ws", endpoint)
-			Connected = true
-		}
-	} else {
-		fmt.Printf("[Connect] ERROR connecting to endpoint %v", err)
-
-		if Connected {
-			fmt.Printf("[Connect] ERROR - Connection to RPC server Failed - ws://%s/ws", endpoint)
-		}
-		Connected = false
-		return err
-	}
-
-	input_output := rwc.New(client.WS)
-	client.RPC = jrpc2.NewClient(channel.RawJSON(input_output, input_output), nil)
-
-	return err
-}
+// var endpoint = "node.derofoundation.org:11012"
+var endpoint = "64.226.81.37:10102"
 
 // simple way to set timeouts
 const timeout = time.Second * 9    // the world is a really big place
@@ -124,11 +80,13 @@ func handleResult[T any](method string, params any) (T, error) {
 	} else {
 		err = rpcClient.CallFor(&result, method, params)
 	}
-
 	/*
-		var RpcClient = jrpc2.Client{}
-		walletapi.Daemon_Endpoint = endpoint
-		err = walletapi.Connect(walletapi.Daemon_Endpoint)
+		if walletapi.Get_Daemon_Height() < 1 || !walletapi.Connected {
+			walletapi.Daemon_Endpoint = "wss://" + endpoint + "/ws"
+			fmt.Printf("[Network] Attempting network connection to: %s\n", walletapi.Daemon_Endpoint)
+			err = walletapi.Connect(walletapi.Daemon_Endpoint)
+		}
+
 		if err != nil {
 			log.Fatalln("connection failed", err)
 		}
@@ -138,6 +96,7 @@ func handleResult[T any](method string, params any) (T, error) {
 			err = RpcClient.CallResult(ctx, method, params, &result)
 		}
 	*/
+
 	if err != nil {
 		log.Fatal(err)
 		var zero T
