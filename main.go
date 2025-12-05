@@ -90,7 +90,7 @@ func start_gnomon_indexer() {
 			panic(err)
 		}
 		fmt.Println("\nTX Height: ", tx.Height)
-		if tx.TransactionType != transaction.SC_TX || !tx.SCDATA.Has(rpc.SCCODE, rpc.DataString) {
+		if tx.TransactionType != transaction.SC_TX {
 			storeHeight(bheight)
 			continue
 		}
