@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/globals"
@@ -170,5 +171,7 @@ func start_gnomon_indexer() {
 		storeHeight(bheight)
 	}
 	fmt.Println("indexed")
+	t, _ := time.ParseDuration("1s")
+	time.Sleep(t)
 	TargetHeight = api.Get_TopoHeight()
 }
