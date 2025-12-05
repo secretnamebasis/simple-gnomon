@@ -59,7 +59,7 @@ func start_gnomon_indexer() {
 	var wg sync.WaitGroup
 	for bheight := lowest_height; bheight <= TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
 		if sqlindexer.SSSBackend.Cancel {
-			speed++
+			speed = speed + 5
 			fmt.Println("Speed", speed)
 
 			break

@@ -1143,7 +1143,7 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 			newInteractionHeight,
 			scid,
 		)
-		if err != nil {
+		if err == nil {
 			last_insert_id, _ := result.LastInsertId()
 			if last_insert_id >= 0 {
 				changes = true
