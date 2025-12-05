@@ -1114,11 +1114,14 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 			newInteractionHeight,
 			scid,
 		)
+		if err != nil {
+			last_insert_id, _ := result.LastInsertId()
+			if last_insert_id >= 0 {
+				changes = true
+			}
 
-		last_insert_id, _ := result.LastInsertId()
-		if err == nil && last_insert_id >= 0 {
-			changes = true
 		}
+
 	} else {
 
 		fmt.Println("(sql, update interaction) UPDATE interactions SET heights=? WHERE scid=?;")
@@ -1185,7 +1188,7 @@ func (ss *SqlStore) StoreSCIDInteractionHeight(scid string, height int64) (chang
 			return
 		})
 	*/
-	return
+
 }
 
 // Gets SC interaction height and detail by a given SCID

@@ -24,4 +24,4 @@ var Version = semver.MustParse("2.0.3-alpha.8")
 // Hardcoded Smart Contracts of DERO Network
 // TODO: Possibly in future we can pull this from derohe codebase
 var Hardcoded_SCIDS = []string{"0000000000000000000000000000000000000000000000000000000000000001"}
-var startat = int64(3680800) //3680800 - nfa  6002100 swap
+var startat = int64(0) //3680800 - nfa  6002100 swap
