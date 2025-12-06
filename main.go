@@ -34,6 +34,7 @@ var TargetHeight = int64(0)
 var HighestKnownHeight = api.Get_TopoHeight()
 var sqlite = &SqlStore{}
 var sqlindexer = &Indexer{}
+var UseMem = true
 
 func start_gnomon_indexer() {
 
@@ -77,8 +78,18 @@ func start_gnomon_indexer() {
 	HighestKnownHeight = api.Get_TopoHeight()
 
 	fmt.Println("Saving Batch.............................................................")
-	if last != HighestKnownHeight {
-		sqlite.BackupToDisk()
+	if last > HighestKnownHeight-50 {
+		if UseMem {
+			sqlite.BackupToDisk()
+		}
+		UseMem = false
+
+		// Extract filename
+		filename := filepath.Base(sqlite.DBPath)
+		dir := filepath.Dir(sqlite.DBPath)
+		ext := filepath.Ext(filename)
+
+		sqlite, err = NewSqlDB(dir, filename+ext)
 	}
 
 	fmt.Println("Saving phase over...............................................................")
