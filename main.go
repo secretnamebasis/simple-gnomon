@@ -147,25 +147,31 @@ func start_gnomon_indexer() {
 		// set up a listener for staged scids in the indexer queue
 		go func() {
 			for staged := range workers[each].Queue {
-				if err := workers[each].Idx.AddSCIDToIndex(staged); err != nil {
-					// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-					fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-					// }
-					continue
-				}
-				fmt.Println("scid at height indexed:",
-					fmt.Sprint(staged.Fsi.Height), "/", fmt.Sprint(connections.Get_TopoHeight()),
-				)
+				go func() {
 
-				if achieved_current_height > 0 { // once the indexer has reached the top...
-					// do incremental backups
-					if err := backups[each].AddSCIDToIndex(staged); err != nil {
+					if err := workers[each].Idx.AddSCIDToIndex(staged); err != nil {
 						// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
 						fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
 						// }
-						continue
+						return
 					}
-				}
+					fmt.Println("scid at height indexed:",
+						fmt.Sprint(staged.Fsi.Height), "/", fmt.Sprint(connections.Get_TopoHeight()),
+					)
+
+				}()
+				go func() {
+
+					if achieved_current_height > 0 { // once the indexer has reached the top...
+						// do incremental backups
+						if err := backups[each].AddSCIDToIndex(staged); err != nil {
+							// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
+							fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
+							// }
+							return
+						}
+					}
+				}()
 			}
 		}()
 
