@@ -11,20 +11,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
+
+	"github.com/coder/websocket/wsjson"
+
 	"github.com/creachadair/jrpc2"
 	"github.com/secretnamebasis/simple-gnomon/globals"
 	"github.com/secretnamebasis/simple-gnomon/indexer"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"github.com/sirupsen/logrus"
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 )
 
 var ioTimeout = flag.Duration("io_timeout", time.Millisecond*100, "i/o operations timeout")
 
 type WSServer struct {
-	srv *http.Server
-	mux *http.ServeMux
+	workers map[string]*indexer.Worker
+	srv     *http.Server
+	mux     *http.ServeMux
 	sync.RWMutex
 	Writer io.WriteCloser
 	Reader io.Reader
@@ -35,7 +38,7 @@ var WSS *WSServer = &WSServer{}
 var options = &jrpc2.ServerOptions{AllowPush: true}
 
 // Starts websocket listening for web miners
-func ListenWS(indexer *indexer.Indexer) {
+func ListenWS(workers map[string]*indexer.Worker) {
 	logger = globals.Logger.WithFields(logrus.Fields{})
 
 	bindAddr := "127.0.0.1:9190"
@@ -46,7 +49,7 @@ func ListenWS(indexer *indexer.Indexer) {
 		logger.Fatalf("[ListenWS] Error: %v", err)
 	}
 	_ = addr
-
+	WSS.workers = workers
 	WSS.mux = http.NewServeMux()
 
 	WSS.Lock()
