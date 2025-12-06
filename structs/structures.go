@@ -12,6 +12,8 @@ type SCIDToIndexStage struct {
 	Fsi    *FastSyncImport
 	ScVars []*SCIDVariable
 	ScCode string
+	Class  string
+	Tags   string
 }
 
 type SCTXParse struct {
