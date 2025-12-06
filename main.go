@@ -90,11 +90,12 @@ func start_gnomon_indexer() {
 	// for now, these are the collections we are looking for
 	indicies := map[string][]string{
 		// this is the base db, it contains all scids and contract interactions
-		"": {""},
+		"all": {""},
 
 		// TODO: we are not currently indexing contract interactions within search filters
-		"g45": {"G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
-		"nfa": {"ART-NFA-MS1"},
+		"g45":  {"G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
+		"nfa":  {"ART-NFA-MS1"},
+		"tela": {"docVersion", "telaVersion"},
 
 		// other indicies could exist...
 		// "normal":{""}
