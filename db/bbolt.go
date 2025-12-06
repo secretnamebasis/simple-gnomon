@@ -3,6 +3,8 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,6 +18,7 @@ import (
 	"github.com/secretnamebasis/simple-gnomon/globals"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"github.com/sirupsen/logrus"
+	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -48,6 +51,99 @@ func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
 	Bbolt_backend.DBPath = dbPath
 
 	return Bbolt_backend, err
+}
+
+func (bbs *BboltStore) BackUpDatabases(height int64) {
+
+	fmt.Println("backing up databases")
+	// lock this up so we don't break it
+	fmt.Println("Preparing snapshot")
+
+	// capture the db
+	database := bbs.DB
+	//workers[index].Idx.BBSBackend.DB
+
+	// sync the database
+	if err := database.Sync(); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// capture the db name
+	scr_name := database.Path()
+
+	// establish a source db file
+	src, err := os.Open(scr_name)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer src.Close()
+
+	// make a snapshot file
+	dst_name := database.Path() + ".snapshot"
+
+	// this will be the destination of the snapshot
+	dst, err := os.Create(dst_name)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer dst.Close()
+
+	// remove this file when we are done
+	defer os.Remove(dst_name)
+
+	// now copy the src db file to the dst file
+	if _, err = io.Copy(dst, src); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// and commit.
+	if err = dst.Sync(); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("Snapshot complete")
+
+	fmt.Println("Preparing backup")
+
+	// open the snapshot db as read only
+	source, _ := bbolt.Open(dst_name, fs.FileMode(0444), &bbolt.Options{ReadOnly: true})
+	defer source.Close()
+
+	// establish as backup
+	backup_name := database.Path() + ".bak"
+
+	// establish a tmp backup
+	tmp_backup := backup_name + ".tmp"
+
+	// remove tmp backup when are done
+	defer os.Remove(tmp_backup)
+
+	// move this file to protect it
+	if err := os.Rename(backup_name, tmp_backup); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// open the backup db
+	destination, _ := bbolt.Open(backup_name, fs.FileMode(0644), &bbolt.Options{})
+	defer destination.Close()
+
+	// we are going to use 64MB pagination as a place to start, tune as necessary
+	txMaxSize := 64 * 1024 * 1024 // 64 MB
+
+	// now copy the read only snapshot to the backup
+	if err := bbolt.Compact(destination, source, int64(txMaxSize)); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("database backed up")
+
 }
 
 // Stores bbolt's last indexed height - this is for stateful stores on close and reference on open
