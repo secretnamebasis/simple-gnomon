@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -181,8 +180,8 @@ func start_gnomon_indexer() {
 do_it_again: // simple-daemon
 
 	// we'll implement a simple concurrency pattern
-	wg := sync.WaitGroup{}
-	limit := make(chan struct{}, runtime.GOMAXPROCS(0)-2)
+	// wg := sync.WaitGroup{}
+	// limit := make(chan struct{}, runtime.GOMAXPROCS(0)-2)
 	mu := sync.Mutex{}
 
 	// a simple backup strategy
@@ -192,26 +191,32 @@ do_it_again: // simple-daemon
 	backup := func(each int64) {
 
 		// wait for the other objects to finish
-		for len(limit) != 0 {
-			fmt.Println("allowing heights to clear before backing up db", each)
-			time.Sleep(time.Second)
+		// for len(limit) != 0 {
+		// 	fmt.Println("allowing heights to clear before backing up db", each)
+		// 	time.Sleep(time.Second)
 
-			continue
-		}
+		// 	continue
+		// }
 		// full backup
 		back_up_databases(workers, indicies, each, &mu)
 		established_backup = true
 	}
 
 	// this is the indexing action that will be done concurrently
-	indexing := func(workers map[string]*indexer.Worker, indicies map[string][]string, height int64, limit chan struct{}, wg *sync.WaitGroup) {
+	indexing := func(
+		workers map[string]*indexer.Worker,
+		indicies map[string][]string,
+		height int64,
+		// limit chan struct{},
+		// wg *sync.WaitGroup,
+	) {
 		fmt.Println("auditing block:", fmt.Sprint(height), "/", fmt.Sprint(connections.Get_TopoHeight()))
 		err := indexHeight(workers, indicies, height)
 		if err != nil {
 			fmt.Printf("error: %s %s %d %d", err, "height:", height, now)
 		}
-		wg.Done()
-		<-limit
+		// wg.Done()
+		// <-limit
 	}
 
 	// in case db needs to re-parse from a desired height
@@ -232,11 +237,17 @@ do_it_again: // simple-daemon
 			backup(height)
 		}
 
-		limit <- struct{}{}
-		wg.Add(1)
-		go indexing(workers, indicies, height, limit, &wg)
+		// limit <- struct{}{}
+		// wg.Add(1)
+		go indexing(
+			workers,
+			indicies,
+			height,
+			// limit,
+			// &wg,
+		)
 	}
-	wg.Wait()
+	// wg.Wait()
 
 	// height achieved
 	achieved_current_height = connections.Get_TopoHeight()
