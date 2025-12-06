@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -188,7 +187,7 @@ do_it_again: // simple-daemon
 
 	// we'll implement a simple concurrency pattern
 	wg := sync.WaitGroup{}
-	limit := make(chan struct{}, runtime.GOMAXPROCS(0)/2)
+	limit := make(chan struct{}, 4) // soft limit, instead of dynamic
 	mu := sync.Mutex{}
 
 	// a simple backup strategy
