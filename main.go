@@ -78,10 +78,11 @@ func start_gnomon_indexer() {
 	HighestKnownHeight = api.Get_TopoHeight()
 
 	fmt.Println("Saving Batch.............................................................")
+	if UseMem {
+		sqlite.BackupToDisk()
+	}
 	if TargetHeight == last {
-		if UseMem {
-			sqlite.BackupToDisk()
-		}
+
 		UseMem = false
 
 		// Extract filename
