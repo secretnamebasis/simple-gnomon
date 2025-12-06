@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"fyne.io/fyne/v2/storage"
 	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/walletapi"
@@ -188,48 +187,6 @@ func GetSCValues(scid string) rpc.GetSC_Result {
 	})
 }
 
-func GetSCIDImage(keys map[string]interface{}) image.Image {
-	for k, v := range keys {
-		if !strings.Contains(k, "image") && !strings.Contains(k, "icon") {
-			continue
-		}
-		encoded := v.(string)
-		b, e := hex.DecodeString(encoded)
-		if e != nil {
-			Logger.Error(e, encoded)
-			continue
-		}
-		value := string(b)
-		Logger.Info("scid", "key", k, "value", value)
-		uri, err := storage.ParseURI(value)
-		if err != nil {
-			Logger.Error(err, value)
-			return nil
-		} else {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			req, err := http.NewRequestWithContext(ctx, "GET", uri.String(), nil)
-			if err != nil {
-				Logger.Error(err, "get error")
-				return nil
-			}
-			client := http.DefaultClient
-			resp, err := client.Do(req)
-			if err != nil || resp.StatusCode != http.StatusOK {
-				return nil
-			} else {
-				defer resp.Body.Close()
-				i, _, err := image.Decode(resp.Body)
-				if err != nil {
-					return nil
-				}
-				return i
-			}
-		}
-	}
-	return nil
-}
 func GetSCNameFromVars(keys map[string]interface{}) string {
 	var text string
 
