@@ -239,7 +239,7 @@ do_it_again: // simple-daemon
 
 		// limit <- struct{}{}
 		// wg.Add(1)
-		go indexing(
+		indexing(
 			workers,
 			indicies,
 			height,
