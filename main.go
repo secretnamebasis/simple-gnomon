@@ -73,13 +73,17 @@ func start_gnomon_indexer() {
 	wg.Wait()
 	t, _ := time.ParseDuration("1s")
 	time.Sleep(t)
+	last := HighestKnownHeight
+	HighestKnownHeight = api.Get_TopoHeight()
 
 	fmt.Println("Saving Batch.............................................................")
-	sqlite.BackupToDisk()
+	if last != HighestKnownHeight {
+		sqlite.BackupToDisk()
+	}
+
 	fmt.Println("Saving phase over...............................................................")
 	sqlite.ViewTables()
 
-	HighestKnownHeight = api.Get_TopoHeight()
 	start_gnomon_indexer()
 
 }
