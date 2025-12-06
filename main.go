@@ -34,6 +34,7 @@ var help = flag.Bool("help", false, "-help")
 var established_backup bool
 
 func main() {
+	fmt.Println("START", time.Now().String())
 	flag.Parse()
 	if help != nil && *help {
 		fmt.Println(`Usage: simple-gnomon [options]
@@ -65,6 +66,7 @@ Options:
 
 	// now go start gnomon
 	start_gnomon_indexer()
+
 }
 
 // establish some workers
@@ -170,6 +172,8 @@ func start_gnomon_indexer() {
 		}()
 
 	}
+	// now that the backend is set up, start WS
+	go connections.ListenWS(workers)
 
 	fmt.Println("starting to index ", connections.Get_TopoHeight())
 
@@ -235,6 +239,7 @@ do_it_again: // simple-daemon
 	}
 	wg.Wait()
 
+	fmt.Println("DONE", time.Now().String())
 	// height achieved
 	achieved_current_height = connections.Get_TopoHeight()
 
