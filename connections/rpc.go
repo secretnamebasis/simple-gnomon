@@ -6,9 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"image"
 	"log"
-	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -242,6 +241,9 @@ func GetSCIDImageURLFromVars(keys map[string]interface{}) string {
 		if !strings.Contains(k, "imageurl") {
 			continue
 		}
+		if _, ok := v.(string); !ok {
+			continue
+		}
 		b, e := hex.DecodeString(v.(string))
 		if e != nil {
 			continue // what else can we do ?
@@ -249,9 +251,13 @@ func GetSCIDImageURLFromVars(keys map[string]interface{}) string {
 		text = string(b)
 	}
 	if text == "" {
-		return "N/A"
+		return "null"
 	}
-	return text
+	u, err := url.Parse(text)
+	if err != nil {
+		return "null"
+	}
+	return u.String()
 }
 func GetBlockDeserialized(blob string) block.Block {
 
