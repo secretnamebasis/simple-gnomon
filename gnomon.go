@@ -79,7 +79,7 @@ func start_gnomon_indexer() {
 
 	// we'll implement a simple concurrency pattern
 	wg := sync.WaitGroup{}
-	limit := make(chan struct{}, 3) // hot, warm, cold
+	limit := make(chan struct{}, 10)
 
 do_it_again: // simple-daemon
 
