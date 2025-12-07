@@ -367,7 +367,13 @@ func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64
 	nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
 
 	if strings.Contains(sc.Code, nfa_signature) {
-		fast_sync_import.Headers = indexer.GetSCNameFromVars(kv) + ";" + indexer.GetSCDescriptionFromVars(kv) + ";" + indexer.GetSCIDImageURLFromVars(kv)
+
+		fast_sync_import.Headers = indexer.GetSCNameFromVars(kv) + ";"
+
+		fast_sync_import.Headers += indexer.GetSCDescriptionFromVars(kv) + ";"
+
+		fast_sync_import.Headers += indexer.GetSCIDImageURLFromVars(kv)
+
 	}
 
 	if fast_sync_import.Headers == "" && len(kv) != 0 { // there could be a possability that it is a g45
