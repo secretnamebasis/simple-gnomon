@@ -230,7 +230,7 @@ func indexHeight(workers map[string]*indexer.Worker, indices map[string][]string
 	result := connections.GetBlockInfo(rpc.GetBlock_Params{
 		Height: uint64(each),
 	})
-	bl := connections.GetBlockDeserialized(result.Blob)
+	bl := indexer.GetBlockDeserialized(result.Blob)
 
 	if len(bl.Tx_hashes) < 1 {
 		return nil
