@@ -253,8 +253,19 @@ func backup(each int64, limit chan struct{}) {
 func indexHeight(workers map[string]*indexer.Worker, indices map[string][]string, height int64) error {
 	result := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
 
+	// if there is nothing, move on
+	count := result.Block_Header.TXCount
+	if count == 0 {
+		return nil
+	}
+
+	if count > 400 {
+		fmt.Printf("large transaciont count detected: %d height:%d\r", count, height)
+	}
+
 	bl := indexer.GetBlockDeserialized(result.Blob)
 
+	// like... just in case
 	if len(bl.Tx_hashes) < 1 {
 		return nil
 	}
