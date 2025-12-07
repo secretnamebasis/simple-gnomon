@@ -2,13 +2,17 @@ package indexer
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/secretnamebasis/simple-gnomon/db"
@@ -260,4 +264,155 @@ func GetSCVariables(keysstring map[string]any, keysuint64 map[uint64]any) (varia
 	}
 
 	return variables, nil
+}
+
+func GetSCNameFromVars(keys map[string]interface{}) string {
+	var text string
+
+	for k, v := range keys {
+		key := strings.ToLower(k)
+		if !strings.Contains(key, "name") &&
+			(!strings.HasPrefix(key, "name") || !strings.HasSuffix(key, "name")) {
+			// key != "name" || //explicit check
+			// infer a name
+
+			continue
+		}
+
+		str, ok := v.(string)
+		if !ok {
+			continue
+		}
+		b, e := hex.DecodeString(str)
+		if e != nil {
+			continue // what else can we do ?
+		}
+		text = string(b)
+	}
+	if text == "" {
+		return "null"
+	}
+	return text
+}
+func GetSCDescriptionFromVars(keys map[string]interface{}) string {
+	var text string
+
+	for k, v := range keys {
+
+		if !strings.Contains(k, "descr") && !strings.HasPrefix(k, "descr") {
+			continue
+		}
+		value, ok := v.(string)
+		if !ok {
+			continue
+		}
+		b, e := hex.DecodeString(value)
+		if e != nil {
+			continue // what else can we do ?
+		}
+
+		text = string(b)
+	}
+
+	if text == "" {
+		return "null"
+	}
+	return text
+}
+
+func GetSCIDImageURLFromVars(keys map[string]interface{}) string {
+	var text string
+
+	for k, v := range keys {
+		if !strings.Contains(k, "icon") && !strings.HasPrefix(k, "icon") {
+			continue
+		}
+		value, ok := v.(string)
+		if !ok {
+			continue
+		}
+		b, e := hex.DecodeString(value)
+		if e != nil {
+			continue // what else can we do ?
+		}
+
+		text = string(b)
+	}
+	if text == "" {
+		return "null"
+	}
+	u, err := url.Parse(text)
+	if err != nil {
+		return "null"
+	}
+	return u.String()
+}
+func GetBlockDeserialized(blob string) block.Block {
+
+	var bl block.Block
+	b, err := hex.DecodeString(blob)
+	if err != nil {
+		// should probably log or handle this error
+		fmt.Println(err.Error())
+		return block.Block{}
+	}
+	bl.Deserialize(b)
+	return bl
+}
+
+func GetSCHeaderFromMetaData(kv map[string]any) string {
+
+	name, description, image := "null", "null", "null"
+
+	for key, value := range kv {
+
+		k := strings.ToLower(key)
+		if !strings.Contains(k, "metadata") || key == "metadataFormat" {
+			continue
+		}
+
+		v, ok := value.(string)
+		if !ok {
+			continue
+		}
+
+		b, e := hex.DecodeString(v)
+		if e != nil {
+			continue // what else can we do ?
+		}
+
+		var metadata map[string]any
+		if err := json.Unmarshal(b, &metadata); err != nil {
+			fmt.Println(err, k, string(b))
+			continue
+		}
+
+		v, ok = metadata["name"].(string)
+		if !ok {
+			name = "null"
+		} else {
+			name = v
+		}
+
+		b, e = json.Marshal(metadata["attributes"])
+		if e != nil {
+			description = "null"
+		} else {
+			description = string(b)
+		}
+
+		v, ok = metadata["image"].(string)
+		if !ok {
+			image = "null"
+		}
+		u, err := url.Parse(v)
+		if err != nil {
+			image = "null"
+		} else {
+			image = u.String()
+		}
+
+	}
+
+	return name + ";" + description + ";" + image
 }
