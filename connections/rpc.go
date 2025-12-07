@@ -3,15 +3,10 @@ package connections
 import (
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"log"
-	"net/url"
-	"strings"
 	"time"
 
-	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/walletapi"
 	"github.com/sirupsen/logrus"
@@ -184,90 +179,4 @@ func GetSCValues(scid string) rpc.GetSC_Result {
 		Variables:  true,
 		TopoHeight: walletapi.Get_Daemon_Height(),
 	})
-}
-
-func GetSCNameFromVars(keys map[string]interface{}) string {
-	var text string
-
-	for k, v := range keys {
-		key := strings.ToLower(k)
-		if key != "name" || //explicit check
-			// infer a name
-			!strings.Contains(key, "name") ||
-			!strings.HasSuffix(key, "name") ||
-			!strings.HasPrefix(key, "name") {
-
-			continue
-		}
-
-		str, ok := v.(string)
-		if !ok {
-			continue
-		}
-		b, e := hex.DecodeString(str)
-		if e != nil {
-			continue // what else can we do ?
-		}
-		text = string(b)
-	}
-	if text == "" {
-		return "null"
-	}
-	return text
-}
-func GetSCDescriptionFromVars(keys map[string]interface{}) string {
-	var text string
-
-	for k, v := range keys {
-		if !strings.Contains(k, "description") {
-			continue
-		}
-		b, e := hex.DecodeString(v.(string))
-		if e != nil {
-			continue // what else can we do ?
-		}
-		text = string(b)
-	}
-	if text == "" {
-		return "null"
-	}
-	return text
-}
-
-func GetSCIDImageURLFromVars(keys map[string]interface{}) string {
-	var text string
-
-	for k, v := range keys {
-		if !strings.Contains(k, "imageurl") {
-			continue
-		}
-		if _, ok := v.(string); !ok {
-			continue
-		}
-		b, e := hex.DecodeString(v.(string))
-		if e != nil {
-			continue // what else can we do ?
-		}
-		text = string(b)
-	}
-	if text == "" {
-		return "null"
-	}
-	u, err := url.Parse(text)
-	if err != nil {
-		return "null"
-	}
-	return u.String()
-}
-func GetBlockDeserialized(blob string) block.Block {
-
-	var bl block.Block
-	b, err := hex.DecodeString(blob)
-	if err != nil {
-		// should probably log or handle this error
-		fmt.Println(err.Error())
-		return block.Block{}
-	}
-	bl.Deserialize(b)
-	return bl
 }
