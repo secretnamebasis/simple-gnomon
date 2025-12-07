@@ -227,7 +227,7 @@ func (ss *SqlStore) ViewTables() {
 	for rows.Next() {
 		rows.Scan(&name, &value)
 		if name == "lastindexedheight" && value == "0" {
-			panic("Fucking trash")
+			panic("Needs a fix still here")
 		}
 		fmt.Println(name, value)
 	}

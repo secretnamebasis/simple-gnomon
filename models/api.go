@@ -227,10 +227,19 @@ func GetSCNameFromVars(keys map[string]interface{}) string {
 		if !strings.Contains(k, "name") {
 			continue
 		}
-		b, e := hex.DecodeString(v.(string))
-		if e != nil {
+
+		var e error
+		var b []byte
+		switch v := v.(type) {
+		case string:
+			b, e = hex.DecodeString(v)
+			if e != nil {
+				continue
+			}
+		default:
 			continue // what else can we do ?
 		}
+
 		text = string(b)
 		fmt.Println("Name found:", text)
 	}
