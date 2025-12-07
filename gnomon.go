@@ -320,9 +320,10 @@ func processing(workers map[string]*indexer.Worker, indices map[string][]string,
 
 		tags := ""
 		class := ""
-		// range the indexers and add to index 1 at a time to prevent out of memory error
-		for name := range workers {
-			for _, filter := range indices[name] {
+
+		// range the indices and add to queue
+		for name, filters := range indices {
+			for _, filter := range filters {
 				// if the code does not contain the filter, skip
 				if !strings.Contains(sc.Code, filter) {
 					continue
@@ -342,7 +343,6 @@ func processing(workers map[string]*indexer.Worker, indices map[string][]string,
 				// fmt.Printf("%v\n", staged)
 				workers[name].Queue <- staged
 			}
-
 		}
 	}
 
