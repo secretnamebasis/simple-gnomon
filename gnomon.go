@@ -256,97 +256,121 @@ func processing(workers map[string]*indexer.Worker, indices map[string][]string,
 
 	for i, each := range r.Txs_as_hex {
 
-		b, err := hex.DecodeString(each)
-		if err != nil {
-			return err
+		related_info := transaction_result.Txs[i]
+
+		signer := related_info.Signer
+
+		go process(workers, indices, bl.Height, tx, signer)
+	}
+
+}
+
+func process(workers map[string]*indexer.Worker, indices map[string][]string, height uint64, hash, signer string) {
+
+	b, err := hex.DecodeString(hash)
+	if err != nil {
+		return
+	}
+
+	var tx transaction.Transaction
+	if err := tx.Deserialize(b); err != nil {
+		return
+	}
+
+	// fmt.Printf("%+v\n", tx)
+
+	if tx.TransactionType != transaction.SC_TX {
+		return
+	}
+
+	if len(tx.SCDATA) == 0 {
+		return
+	}
+
+	params := rpc.GetSC_Params{}
+
+	if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
+		params = rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, Variables: true, TopoHeight: int64(height)}
+	}
+
+	// contract interactions
+	if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+		scid, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
+		if !ok { // paranoia
+			return
 		}
-		var tx transaction.Transaction
-		if err := tx.Deserialize(b); err != nil {
-			return err
+		if scid.String() == "" { // yeah... weird
+			return
 		}
+		params = rpc.GetSC_Params{SCID: scid.String(), Code: false, Variables: false, TopoHeight: int64(height)}
+	}
 
-		// fmt.Printf("%+v\n", tx)
+	// fmt.Printf("%v\n", params)
 
-		if tx.TransactionType != transaction.SC_TX {
-			return nil
-		}
+	sc := connections.GetSC(params)
 
-		params := rpc.GetSC_Params{}
+	// fmt.Printf("%v\n", sc)
 
-		if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
-			params = rpc.GetSC_Params{SCID: tx.GetHash().String(), Code: true, Variables: true, TopoHeight: int64(bl.Height)}
-		}
+	if signer == "" { // when ringsize is greater than 2...
+		signer = "null"
+	}
 
-		if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-			scid, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
-			if !ok { // paranoia
-				return nil
+	staged := stageSCIDForIndexers(sc, params.SCID, signer, tx.Height)
+
+	// unfortunately, there isn't a way to do this without checking twice
+
+	// roll through the indices to obtain the class
+	for name := range indices {
+
+		// obtain the filters
+		filters := indices[name]
+
+		for _, filter := range filters { // range through the filters
+
+			// if the code does not contain the filter, skip
+			if !strings.Contains(sc.Code, filter) {
+				continue
 			}
-			if scid.String() == "" { // yeah... weird
-				return nil
-			}
-			params = rpc.GetSC_Params{SCID: scid.String(), Code: false, Variables: false, TopoHeight: int64(bl.Height)}
+
+			// if there is a match, add the name of the index to it's list of tags
+			staged.Class = filter
+			break
 		}
 
-		// fmt.Printf("%v\n", params)
-
-		sc := connections.GetSC(params)
-
-		// fmt.Printf("%v\n", sc)
-
-		staged, err := stageSCIDForIndexers(sc, params.SCID, r.Txs[i].Signer, tx.Height)
-		if err != nil {
-			return err
+		if staged.Class != "" {
+			break
 		}
 
-		fmt.Printf(
-			("staged scid: " +
-				"%s:%s " +
-				"%d / %d " +
-				"%s %s " +
-				"%s %s\n"),
-			staged.Scid, staged.Fsi.Owner,
-			staged.Fsi.Height, connections.Get_TopoHeight(),
-			staged.Fsi.Headers,
-			func(staged structures.SCIDToIndexStage) string {
-				varstring := ""
-				for _, each := range staged.ScVars {
-					varstring += fmt.Sprint(each.Key) + fmt.Sprint(each.Value) + " "
-				}
-				return varstring
-			}(staged),
-			staged.Class, staged.Tags,
-		)
+	}
 
-		tags := ""
-		class := ""
+	tags := ""
 
-		// range the indices and add to queue
-		for name, filters := range indices {
-			for _, filter := range filters {
-				// if the code does not contain the filter, skip
-				if !strings.Contains(sc.Code, filter) {
-					continue
-				}
+	// roll through the indices again to obtain tags
+	for name := range indices {
 
-				// to acheieve parity with sqlite db
-				class = name
-				tags = tags + "," + filter
+		// obtain the filters
+		filters := indices[name]
 
-				if tags != "" && tags[0:1] == "" {
-					tags = tags[1:]
-				}
+		for _, filter := range filters { // range through the filters
 
-				staged.Class = class
-				staged.Tags = tags
-
-				// fmt.Printf("%v\n", staged)
-				workers[name].Queue <- staged
+			// if the code does not contina the filter, skip it
+			if !strings.Contains(sc.Code, filter) {
+				continue
 			}
+
+			// if there is a match, add the name of the index to it's list of tags
+			tags += "," + name
 		}
 	}
 
-	return nil
+	tags = strings.TrimPrefix(tags, ",")
+
+	// staged.Tags = strings.TrimPrefix(",", tags)
+
+	for tag := range strings.SplitSeq(tags, ",") {
+		staged.Tags = tags
+		workers[tag].Queue <- staged
+	}
 }
 
 func storeHeight(indexers map[string]*indexer.Worker, height int64) error {
