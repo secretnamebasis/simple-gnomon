@@ -211,7 +211,7 @@ func GetSCNameFromVars(keys map[string]interface{}) string {
 		text = string(b)
 	}
 	if text == "" {
-		return "N/A"
+		return "null"
 	}
 	return text
 }
@@ -229,7 +229,7 @@ func GetSCDescriptionFromVars(keys map[string]interface{}) string {
 		text = string(b)
 	}
 	if text == "" {
-		return "N/A"
+		return "null"
 	}
 	return text
 }
