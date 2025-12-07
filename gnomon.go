@@ -250,10 +250,9 @@ func backup(each int64, limit chan struct{}) {
 	established_backup = true
 }
 
-func indexHeight(workers map[string]*indexer.Worker, indices map[string][]string, each int64) error {
-	result := connections.GetBlockInfo(rpc.GetBlock_Params{
-		Height: uint64(each),
-	})
+func indexHeight(workers map[string]*indexer.Worker, indices map[string][]string, height int64) error {
+	result := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
+
 	bl := indexer.GetBlockDeserialized(result.Blob)
 
 	if len(bl.Tx_hashes) < 1 {
@@ -262,13 +261,14 @@ func indexHeight(workers map[string]*indexer.Worker, indices map[string][]string
 
 	processing(workers, indices, bl)
 
-	return storeHeight(workers, each)
+	return storeHeight(workers, height)
 }
 
 func processing(workers map[string]*indexer.Worker, indices map[string][]string, bl block.Block) {
 	// fmt.Printf("%+v\n", bl)
 	// pick up only desired txs from the block,
 	txs := []string{}
+
 	for _, hash := range bl.Tx_hashes {
 		// skip registrations; maybe process those another day
 		succesful_registration := hash[0] == 0 && hash[1] == 0 && hash[2] == 0
@@ -312,7 +312,6 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 	if len(tx.SCDATA) == 0 {
 		return
 	}
-
 	params := rpc.GetSC_Params{}
 
 	if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
@@ -341,7 +340,7 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 		signer = "null"
 	}
 
-	staged := stageSCIDForIndexers(sc, params.SCID, signer, tx.Height)
+	staged := stageSCIDForIndexers(sc, params.SCID, signer, height)
 
 	// unfortunately, there isn't a way to do this without checking twice
 
