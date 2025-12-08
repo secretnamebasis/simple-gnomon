@@ -389,7 +389,7 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 	staged := stageSCIDForIndexers(sc, params.SCID, signer, height)
 
 	// unfortunately, there isn't a way to do this without checking twice
-
+	class := ""
 	// roll through the indices to obtain the class
 	for name := range indices {
 
@@ -404,14 +404,22 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 			}
 
 			// if there is a match, add the name of the index to it's list of tags
-			staged.Class = filter
+			class = filter
 			break
 		}
 
-		if staged.Class != "" {
+		if class != "" {
 			break
 		}
+	}
 
+	switch class {
+	case "docVersion":
+		staged.Class = "TELA-DOC-1"
+	case "telaVersion":
+		staged.Class = "TELA-INDEX-1"
+	default:
+		staged.Class = class
 	}
 
 	tag_slice := []string{}
