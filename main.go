@@ -29,7 +29,8 @@ func main() {
 	start_gnomon_indexer()
 }
 
-var speed = 25
+var speed = 50
+var maxmet = false
 var TargetHeight = int64(0)
 var HighestKnownHeight = api.Get_TopoHeight()
 var sqlite = &SqlStore{}
@@ -63,6 +64,9 @@ func start_gnomon_indexer() {
 	//var wg sync.WaitGroup
 	var wg sync.WaitGroup
 	for bheight := lowest_height; bheight <= TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
+		if !maxmet && lowest_height == bheight {
+			speed = speed - 10
+		}
 		t, _ := time.ParseDuration(strconv.Itoa(speed) + "ms")
 		time.Sleep(t)
 		wg.Add(1) //
@@ -89,6 +93,8 @@ func start_gnomon_indexer() {
 			fmt.Println("[Main] Err creating sqlite:", err)
 			return
 		}
+		maxmet = true
+		speed = speed - 5
 		api.Status_ok = true
 		start_gnomon_indexer() //without saving
 		return
@@ -137,7 +143,7 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 
 		}
 	}
-	fmt.Print("\rHeight>", bheight)
+	fmt.Print("\rBlock:", strconv.Itoa(int(bheight))+" Speed:"+strconv.Itoa(speed))
 	result := api.GetBlockInfo(rpc.GetBlock_Params{
 		Height: uint64(bheight),
 	})
