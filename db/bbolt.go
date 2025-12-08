@@ -55,7 +55,7 @@ func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
 
 func (bbs *BboltStore) BackUpDatabases() {
 
-	fmt.Println("backing up databases")
+	fmt.Println("backing up database", bbs.DB.Path())
 	// lock this up so we don't break it
 	fmt.Println("Preparing snapshot")
 
