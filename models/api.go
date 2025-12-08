@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -85,7 +84,7 @@ func handleResult[T any](method string, params any) (T, error) {
 			//maybe handle connection errors here with a cancel / rollback instead.
 			Status_ok = false
 			fmt.Println(err)
-			log.Fatal(err)
+			//	log.Fatal(err)
 		}
 	}
 
