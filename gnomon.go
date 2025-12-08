@@ -261,7 +261,7 @@ func indexHeight(workers map[string]*indexer.Worker, indices map[string][]string
 	}
 
 	if count > 400 {
-		fmt.Printf("large transaciont count detected: %d height:%d\n", count, height)
+		fmt.Printf("large transacion count detected: %d height:%d\n", count, height)
 	}
 
 	bl := indexer.GetBlockDeserialized(result.Blob)
