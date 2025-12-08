@@ -122,9 +122,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			logger.Errorf("[wsHandleClient] Unable to parse params")
 			return err
 		}
-		for each := range wss.workers {
-			fmt.Println(each)
-		}
+
 		result := wss.workers[params.IDX].Idx.BBSBackend.GetAllOwnersAndSCIDs()
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
