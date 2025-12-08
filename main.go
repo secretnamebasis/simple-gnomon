@@ -152,12 +152,11 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 	//Speed tuning
 	if Processing%100 == 0 {
 		if Processing-int64(bheight) > Max_preferred_requests {
-			if speed > 5 {
-				speed = speed + 1
-			}
-
+			speed = speed + 1
 		} else if Processing-int64(bheight) < Max_preferred_requests {
-			speed = speed - 1
+			if speed > 5 {
+				speed = speed - 1
+			}
 		}
 	}
 	fmt.Print("\rBlock:", strconv.Itoa(int(bheight))+" Speed:"+strconv.Itoa(speed))
