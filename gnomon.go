@@ -422,7 +422,7 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 		staged.Class = class
 	}
 
-	tag_slice := []string{}
+	tags := []string{}
 
 	// roll through the indices again to obtain tags
 	for name := range indices {
@@ -438,15 +438,15 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 			}
 
 			// if there is a match, add the name of the index to it's list of tags
-			tag_slice = append(tag_slice, name)
+			tags = append(tags, name)
 
 		}
 	}
 
-	slices.Sort(tag_slice)
-	staged.Tags = strings.Join(tag_slice, ",")
+	slices.Sort(tags)
+	staged.Tags = strings.Join(tags, ",")
 
-	for _, tag := range tag_slice {
+	for _, tag := range tags {
 		workers[tag].Queue <- staged
 	}
 }
