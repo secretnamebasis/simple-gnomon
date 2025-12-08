@@ -43,12 +43,15 @@ func Start_gnomon_indexer() {
 	flag.Parse()
 	if help != nil && *help {
 		fmt.Println(`Usage: simple-gnomon [options]
-A simple indexer for the DERO blockchain. 
+A simple indexer for the DERO blockchain.
 
 Options:
   -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
-  -starting_height <N>                Height to pop to the back to.
+  -starting_height <N>         Height to start indexing from.
+  -ending_height <N>           Height to stop indexing at.
+  -progress                    Show current block height under audit.
   -help                        Show this help message.`)
+
 		return
 	}
 
