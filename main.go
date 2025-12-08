@@ -94,7 +94,7 @@ func start_gnomon_indexer() {
 			return
 		}
 		maxmet = true
-		speed = speed - 5
+		speed = speed + 5
 		api.Status_ok = true
 		start_gnomon_indexer() //without saving
 		return
