@@ -413,10 +413,14 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 		}
 	}
 
+	// as class is currently the filter...
+	// make sure to implement more classes as necessary
 	switch class {
-	case "docVersion":
+	case "": // catchall
+		staged.Class = "null"
+	case indices["tela"][0]:
 		staged.Class = "TELA-DOC-1"
-	case "telaVersion":
+	case indices["tela"][1]:
 		staged.Class = "TELA-INDEX-1"
 	default:
 		staged.Class = class
@@ -443,9 +447,13 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 		}
 	}
 
+	// lexicographical order
 	slices.Sort(tags)
+
+	// store as a single string
 	staged.Tags = strings.Join(tags, ",")
 
+	// for each tag, queue up for writing
 	for _, tag := range tags {
 		workers[tag].Queue <- staged
 	}
