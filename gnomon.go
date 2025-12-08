@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -413,7 +414,7 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 
 	}
 
-	tags := ""
+	tag_slice := []string{}
 
 	// roll through the indices again to obtain tags
 	for name := range indices {
@@ -429,16 +430,15 @@ func process(workers map[string]*indexer.Worker, indices map[string][]string, he
 			}
 
 			// if there is a match, add the name of the index to it's list of tags
-			tags += "," + name
+			tag_slice = append(tag_slice, name)
+
 		}
 	}
 
-	tags = strings.TrimPrefix(tags, ",")
+	slices.Sort(tag_slice)
+	staged.Tags = strings.Join(tag_slice, ",")
 
-	// staged.Tags = strings.TrimPrefix(",", tags)
-
-	for tag := range strings.SplitSeq(tags, ",") {
-		staged.Tags = tags
+	for _, tag := range tag_slice {
 		workers[tag].Queue <- staged
 	}
 }
