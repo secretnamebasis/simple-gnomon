@@ -284,7 +284,7 @@ func backup(each int64, limit chan struct{}) {
 	// full backup
 	for _, worker := range workers {
 		mu.Lock()
-		worker.Idx.BBSBackend.BackUpDatabases(each)
+		worker.Idx.BBSBackend.BackUpDatabases()
 		mu.Unlock()
 	}
 
