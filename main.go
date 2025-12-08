@@ -34,7 +34,7 @@ var speed = 40
 // var maxmet = false
 var Processing = int64(0)
 var Max_preferred_requests = int64(128)
-
+var BPH = float64(0)
 var TargetHeight = int64(0)
 var HighestKnownHeight = api.Get_TopoHeight()
 var sqlite = &SqlStore{}
@@ -59,7 +59,7 @@ func start_gnomon_indexer() {
 	//	fmt.Println("starting to index ", api.Get_TopoHeight())
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
-
+	start := time.Now()
 	if TargetHeight < HighestKnownHeight-25000 {
 		TargetHeight = lowest_height + 25000
 	} else {
@@ -82,6 +82,8 @@ func start_gnomon_indexer() {
 	//	wg.Wait() // Wait for all requests to finish
 	fmt.Println("indexed")
 	wg.Wait()
+
+	BPH = float64(TargetHeight-lowest_height) / time.Since(start).Hours()
 
 	//Take a breather
 	t, _ := time.ParseDuration("1s")
@@ -149,8 +151,16 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 
 		}
 	}
+	//---- MAIN PRINTOUT
+	show := "Block:" + strconv.Itoa(int(bheight)) +
+		" Speed:" + strconv.Itoa(speed) + "ms" +
+		" " + strconv.Itoa((1000/speed)*60*60) + "BPH"
+	if BPH != float64(0) {
+		show += " Ave:" + strconv.FormatFloat(BPH, 'f', 2, 64)
+	}
 
-	fmt.Print("\rBlock:", strconv.Itoa(int(bheight))+" Speed:"+strconv.Itoa(speed))
+	fmt.Print("\r", show)
+
 	result := api.GetBlockInfo(rpc.GetBlock_Params{
 		Height: uint64(bheight),
 	})
