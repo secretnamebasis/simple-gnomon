@@ -28,6 +28,8 @@ type Client struct {
 	sync.RWMutex
 }
 
+var Status_ok = true
+
 // var endpoint = "64.226.81.37:10102"
 
 // 64.226.81.37:10102
@@ -61,15 +63,7 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 
 func handleResult[T any](method string, params any) (T, error) {
 	var result T
-	//var ctx context.Context
-	/*
-		var cancel context.CancelFunc
 
-		_, cancel = context.WithTimeout(context.Background(), timeout)
-		if method == "DERO.GetSC" {
-			_, cancel = context.WithDeadline(context.Background(), time.Now().Add(deadline))
-		}
-		defer cancel()*/
 	var err error
 
 	var rpcClient jsonrpc.RPCClient
@@ -80,22 +74,6 @@ func handleResult[T any](method string, params any) (T, error) {
 	} else {
 		err = rpcClient.CallFor(&result, method, params)
 	}
-	/*
-		if walletapi.Get_Daemon_Height() < 1 || !walletapi.Connected {
-			walletapi.Daemon_Endpoint = "wss://" + endpoint + "/ws"
-			fmt.Printf("[Network] Attempting network connection to: %s\n", walletapi.Daemon_Endpoint)
-			err = walletapi.Connect(walletapi.Daemon_Endpoint)
-		}
-
-		if err != nil {
-			log.Fatalln("connection failed", err)
-		}
-		if params == nil {
-			err = RpcClient.CallResult(ctx, method, nil, &result)
-		} else {
-			err = RpcClient.CallResult(ctx, method, params, &result)
-		}
-	*/
 
 	if err != nil {
 		if strings.Contains(err.Error(), "-32098") { //Tx statement roothash mismatch ref blid... skip it
@@ -103,7 +81,10 @@ func handleResult[T any](method string, params any) (T, error) {
 
 			var zero T
 			return zero, err
-		} else {
+		} else if strings.Contains(err.Error(), "wsarecv: A connection attempt failed") {
+			//maybe handle connection errors here with a cancel / rollback instead.
+			Status_ok = false
+			fmt.Println(err)
 			log.Fatal(err)
 		}
 	}

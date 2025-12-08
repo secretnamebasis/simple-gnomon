@@ -72,8 +72,28 @@ func start_gnomon_indexer() {
 	//	wg.Wait() // Wait for all requests to finish
 	fmt.Println("indexed")
 	wg.Wait()
+
+	//Take a breather
 	t, _ := time.ParseDuration("1s")
 	time.Sleep(t)
+
+	//check if there was a missing request
+	if !api.Status_ok { //Start over from last saved.
+		// Extract filename
+		filename := filepath.Base(sqlite.DBPath)
+		dir := filepath.Dir(sqlite.DBPath)
+		ext := filepath.Ext(filename)
+		//start from last saved to disk to ensure integrity (play it safe for now)
+		sqlite, err = NewSqlDB(dir, filename+ext)
+		if err != nil {
+			fmt.Println("[Main] Err creating sqlite:", err)
+			return
+		}
+		api.Status_ok = true
+		start_gnomon_indexer() //without saving
+		return
+	}
+
 	last := HighestKnownHeight
 	HighestKnownHeight = api.Get_TopoHeight()
 
@@ -118,12 +138,6 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 		}
 	}
 	fmt.Print("\rHeight>", bheight)
-	/*
-		//skip broken blocks
-		if bheight >= int64(....) &&...{
-			return
-		}
-	*/
 	result := api.GetBlockInfo(rpc.GetBlock_Params{
 		Height: uint64(bheight),
 	})
@@ -136,10 +150,16 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 
 	// not a mined transaction
 	r := api.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{bl.Tx_hashes[0].String()}})
+	//let the rest go unsaved if one request fails
+	if !api.Status_ok {
+		return
+	}
+
 	//likely an error
 	if len(r.Txs_as_hex) == 0 {
 		return
 	}
+
 	b, err := hex.DecodeString(r.Txs_as_hex[0])
 	if err != nil {
 		panic(err)
@@ -186,7 +206,7 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 	sc := api.GetSC(params) //Variables: true,
 
 	vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
-	if err != nil {
+	if err != nil { //might be worth investigating what errors could occur
 		return
 	}
 
