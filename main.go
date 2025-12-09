@@ -52,9 +52,9 @@ func adjustSpeed(lowest_height int64, start time.Time) {
 		Average = (BPH + Average) / 2
 	}
 
-	if Average < 90000 {
+	if Average < 88000 {
 		Max_allowed = 120
-	} else if Average >= 90000 {
+	} else if Average >= 88000 {
 		Max_allowed = 180
 		if Average > 100000 {
 			Max_allowed = 200
@@ -64,7 +64,7 @@ func adjustSpeed(lowest_height int64, start time.Time) {
 func quickStart(quickstart *int, start time.Time) {
 	if *quickstart == 1000 {
 		Average = float64(1000 / time.Since(start).Hours())
-		if Average >= 90000 {
+		if Average >= 88000 {
 			Max_allowed = int64(180)
 			Max_preferred_requests += 10
 		}
