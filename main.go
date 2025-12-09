@@ -53,9 +53,9 @@ func adjustSpeed(lowest_height int64, start time.Time) {
 	}
 
 	if Average < 90000 {
-		Max_allowed = 128
-	} else if Average > 90000 {
-		Max_allowed = 180
+		Max_allowed = 120
+	} else if Average >= 90000 {
+		Max_allowed = 160
 		if Average > 100000 {
 			Max_allowed = 200
 		}
