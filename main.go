@@ -29,6 +29,12 @@ func main() {
 	start_gnomon_indexer()
 }
 
+var TargetHeight = int64(0)
+var HighestKnownHeight = api.Get_TopoHeight()
+var sqlite = &SqlStore{}
+var sqlindexer = &Indexer{}
+var UseMem = true
+
 var speed = 40
 
 // Request handling
@@ -38,11 +44,33 @@ var Max_preferred_requests = int64(128)
 var BPH = float64(0)
 var Average = float64(0)
 
-var TargetHeight = int64(0)
-var HighestKnownHeight = api.Get_TopoHeight()
-var sqlite = &SqlStore{}
-var sqlindexer = &Indexer{}
-var UseMem = true
+func adjustSpeed(lowest_height int64, start time.Time) {
+	BPH = float64(TargetHeight-lowest_height) / time.Since(start).Hours()
+	if Average == 0 {
+		Average = BPH
+	} else {
+		Average = (BPH + Average) / 2
+	}
+
+	if Average < 90000 {
+		Max_allowed = 128
+	} else if Average > 90000 {
+		Max_allowed = 180
+	} else if Average > 100000 {
+		Max_allowed = 200
+	}
+}
+func quickStart(quickstart int, start time.Time) {
+	if quickstart == 1000 {
+		Average = float64(1000 / time.Since(start).Hours())
+		if Average >= 90000 {
+			Max_allowed = int64(192)
+			Max_preferred_requests += 10
+		}
+	} else {
+		quickstart++
+	}
+}
 
 func start_gnomon_indexer() {
 
@@ -79,16 +107,7 @@ func start_gnomon_indexer() {
 		}
 
 		if Average == 0 && quickstart <= 1000 {
-			if quickstart == 1000 {
-				Average = float64(1000 / time.Since(start).Hours())
-				if Average >= 90000 {
-					Max_allowed = int64(192)
-					Max_preferred_requests += 10
-				}
-			} else {
-				quickstart++
-			}
-
+			quickStart(quickstart, start)
 		}
 		t, _ := time.ParseDuration(strconv.Itoa(speed) + "ms")
 		time.Sleep(t)
@@ -100,15 +119,8 @@ func start_gnomon_indexer() {
 	fmt.Println("indexed")
 	wg.Wait()
 
-	BPH = float64(TargetHeight-lowest_height) / time.Since(start).Hours()
-	if Average == 0 {
-		Average = BPH
-	} else {
-		Average = (BPH + Average) / 2
-	}
-	if Average > 90000 {
-		Max_allowed = 192
-	}
+	adjustSpeed(lowest_height, start)
+
 	//Take a breather
 	t, _ := time.ParseDuration("1s")
 	time.Sleep(t)
