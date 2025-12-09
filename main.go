@@ -81,7 +81,7 @@ func start_gnomon_indexer() {
 		if Average == 0 && quickstart <= 1000 {
 			if quickstart == 1000 {
 				Average = 1000 / time.Since(start).Hours()
-				if Average > 90000 {
+				if Average >= 90000 {
 					Max_allowed = 192
 					Max_preferred_requests += 10
 				}
