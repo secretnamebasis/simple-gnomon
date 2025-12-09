@@ -81,8 +81,10 @@ func start_gnomon_indexer() {
 		if Average == 0 && quickstart <= 1000 {
 			if quickstart == 1000 {
 				Average = 1000 / time.Since(start).Hours()
+				fmt.Println("Average.............................................................", Average)
 			} else {
 				quickstart++
+				fmt.Println("quickstart.............................................................", quickstart)
 			}
 
 		}
@@ -102,7 +104,7 @@ func start_gnomon_indexer() {
 	} else {
 		Average = (BPH + Average) / 2
 	}
-	if Average > 100000 {
+	if Average > 90000 {
 		Max_allowed = 192
 	}
 	//Take a breather
