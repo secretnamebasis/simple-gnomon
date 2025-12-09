@@ -123,7 +123,7 @@ func start_gnomon_indexer() {
 	}
 	//Request amount manager
 	if float64(Max_preferred_requests) < float64(Max_allowed)*.8 {
-		Max_preferred_requests += 10
+		Max_preferred_requests += 20
 		fmt.Println("Increasing max requests by 10 to:", Max_preferred_requests)
 	}
 	//Essentials...
