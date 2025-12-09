@@ -33,6 +33,7 @@ var speed = 40
 
 // var maxmet = false
 var Processing = int64(0)
+var Max_allowed = int64(200)
 var Max_preferred_requests = int64(200)
 var BPH = float64(0)
 var TargetHeight = int64(0)
@@ -109,6 +110,10 @@ func start_gnomon_indexer() {
 		return
 	}
 
+	if float64(Max_preferred_requests) < float64(Max_allowed)*.8 {
+		fmt.Println("Increasing max requests by 10")
+		Max_preferred_requests += 10
+	}
 	last := HighestKnownHeight
 	HighestKnownHeight = api.Get_TopoHeight()
 
