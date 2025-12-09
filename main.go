@@ -64,7 +64,7 @@ func adjustSpeed(lowest_height int64, start time.Time) {
 	}
 }
 func quickAdjust(quickadjust *int, start time.Time) {
-	if *quickadjust%1000 == 0 && *quickadjust != 0 {
+	if *quickadjust%1000 == 0 && *quickadjust != 0 && *quickadjust != 1000 {
 		Average = (Average + float64(*quickadjust)/time.Since(start).Hours()) / 2
 		if Average >= 89000 {
 			Max_allowed = int64(180)
@@ -142,9 +142,9 @@ func start_gnomon_indexer() {
 		// Extract filename
 		filename := filepath.Base(sqlite.DBPath)
 		dir := filepath.Dir(sqlite.DBPath)
-		ext := filepath.Ext(filename)
+		//ext := filepath.Ext(filename)
 		//start from last saved to disk to ensure integrity (play it safe for now)
-		sqlite, err = NewSqlDB(dir, filename+ext)
+		sqlite, err = NewSqlDB(dir, filename)
 		if err != nil {
 			fmt.Println("[Main] Err creating sqlite:", err)
 			return
@@ -175,9 +175,9 @@ func start_gnomon_indexer() {
 		// Extract filename
 		filename := filepath.Base(sqlite.DBPath)
 		dir := filepath.Dir(sqlite.DBPath)
-		ext := filepath.Ext(filename)
+		//	ext := filepath.Ext(filename)
 
-		sqlite, err = NewDiskDB(dir, filename+ext)
+		sqlite, err = NewDiskDB(dir, filename)
 	}
 
 	fmt.Println("Saving phase over...............................................................")
