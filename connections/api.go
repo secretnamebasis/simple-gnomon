@@ -68,12 +68,9 @@ func (apiServer *ApiServer) Start() {
 	apiServer.collectStats()
 
 	go func() {
-		for {
-			select {
-			case <-statsTimer.C:
-				apiServer.collectStats()
-				statsTimer.Reset(apiServer.StatsIntv)
-			}
+		for range statsTimer.C {
+			apiServer.collectStats()
+			statsTimer.Reset(apiServer.StatsIntv)
 		}
 	}()
 
