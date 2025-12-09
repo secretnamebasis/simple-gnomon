@@ -251,7 +251,7 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 
 		if tx.TransactionType != transaction.SC_TX {
 			storeHeight(bheight)
-			return
+			continue
 		}
 
 		fmt.Print("scid found at height:", fmt.Sprint(bheight)+"\n")
@@ -270,10 +270,10 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 			scid, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
 
 			if !ok { // paranoia
-				return
+				continue
 			}
 			if scid.String() == "" { // yeah... weird
-				return
+				continue
 			}
 
 			params = rpc.GetSC_Params{
@@ -287,7 +287,7 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 
 		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 		if err != nil { //might be worth investigating what errors could occur
-			return
+			continue
 		}
 
 		kv := sc.VariableStringKeys
@@ -332,7 +332,7 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 		// if the contract already exists, record the interaction
 		if err := sqlindexer.AddSCIDToIndex(staged); err != nil {
 			fmt.Println(err, " ", staged.Scid, " ", staged.Fsi.Height)
-			return
+			continue
 		}
 		//	}(sqlindexer)
 
