@@ -56,8 +56,9 @@ func adjustSpeed(lowest_height int64, start time.Time) {
 		Max_allowed = 128
 	} else if Average > 90000 {
 		Max_allowed = 180
-	} else if Average > 100000 {
-		Max_allowed = 200
+		if Average > 100000 {
+			Max_allowed = 200
+		}
 	}
 }
 func quickStart(quickstart *int, start time.Time) {

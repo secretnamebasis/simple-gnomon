@@ -33,7 +33,7 @@ var Status_ok = true
 
 // 64.226.81.37:10102
 // var endpoint = "node.derofoundation.org:11012"
-var endpoint = "64.226.81.37:10102"
+var endpoint = "node.derofoundation.org:11012" //"64.226.81.37:10102"
 
 // simple way to set timeouts
 const timeout = time.Second * 9    // the world is a really big place
