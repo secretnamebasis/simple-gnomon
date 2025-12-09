@@ -81,10 +81,8 @@ func start_gnomon_indexer() {
 		if Average == 0 && quickstart <= 1000 {
 			if quickstart == 1000 {
 				Average = 1000 / time.Since(start).Hours()
-				fmt.Println("Average.............................................................", Average)
 			} else {
 				quickstart++
-				fmt.Println("quickstart.............................................................", quickstart)
 			}
 
 		}
