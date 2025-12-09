@@ -63,12 +63,14 @@ func start_gnomon_indexer() {
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
 	start := time.Now()
+	var quickstart = 0
+
 	if TargetHeight < HighestKnownHeight-25000 {
 		TargetHeight = lowest_height + 25000
 	} else {
 		TargetHeight = HighestKnownHeight
 	}
-	//var wg sync.WaitGroup
+
 	var wg sync.WaitGroup
 	for bheight := lowest_height; bheight <= TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
 		Processing = bheight
@@ -76,6 +78,14 @@ func start_gnomon_indexer() {
 			break
 		}
 
+		if Average == 0 && quickstart <= 1000 {
+			if quickstart == 1000 {
+				Average = 1000 / time.Since(start).Hours()
+			} else {
+				quickstart++
+			}
+
+		}
 		t, _ := time.ParseDuration(strconv.Itoa(speed) + "ms")
 		time.Sleep(t)
 		wg.Add(1) //
