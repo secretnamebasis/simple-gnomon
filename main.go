@@ -44,25 +44,6 @@ var Max_preferred_requests = int64(120)
 var BPH = float64(0)
 var Average = float64(0)
 
-func adjustSpeed(lowest_height int64, start time.Time) {
-	BPH = float64(TargetHeight-lowest_height) / time.Since(start).Hours()
-	if Average == 0 {
-		Average = BPH
-	} else {
-		Average = (BPH + Average) / 2
-	}
-
-	if Average < 89000 {
-		Max_allowed = 120
-	} else if Average >= 89000 {
-		Max_allowed = 180
-		if Average > 100000 {
-			Max_allowed = 200
-		} else if Average > 200000 {
-			Max_allowed = 256
-		}
-	}
-}
 func quickAdjust(quickadjust *int, start time.Time) {
 	if *quickadjust%1000 == 0 && *quickadjust != 0 && *quickadjust != 1000 {
 		Average = (Average + float64(*quickadjust)/time.Since(start).Hours()) / 2
@@ -224,9 +205,12 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 	if len(bl.Tx_hashes) < 1 {
 		return
 	}
-
+	var tx_str_list []string
+	for _, hash := range bl.Tx_hashes {
+		tx_str_list = append(tx_str_list, hash.String())
+	}
 	// not a mined transaction
-	r := api.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{bl.Tx_hashes[0].String()}})
+	r := api.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: tx_str_list})
 	//let the rest go unsaved if one request fails
 	if !api.Status_ok {
 		return
@@ -251,105 +235,107 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 	if len(r.Txs_as_hex) == 0 {
 		return
 	}
-
-	b, err := hex.DecodeString(r.Txs_as_hex[0])
-	if err != nil {
-		panic(err)
-	}
-	var tx transaction.Transaction
-	if err := tx.Deserialize(b); err != nil {
-		panic(err)
-	}
-	//fmt.Println("\nTX Height: ", tx.Height)
-	//fmt.Println("\nReq: ", Processing-int64(bheight))
-	//
-
-	if tx.TransactionType != transaction.SC_TX {
-		storeHeight(bheight)
-		return
-	}
-
-	fmt.Print("scid found at height:", fmt.Sprint(bheight)+"\n")
-	params := rpc.GetSC_Params{}
-	if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
-
-		params = rpc.GetSC_Params{
-			SCID:       tx.GetHash().String(),
-			Code:       true,
-			Variables:  true,
-			TopoHeight: bheight,
+	for i := range r.Txs_as_hex {
+		b, err := hex.DecodeString(r.Txs_as_hex[i])
+		if err != nil {
+			panic(err)
 		}
-	}
 
-	if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-		scid, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
-
-		if !ok { // paranoia
-			return
+		var tx transaction.Transaction
+		if err := tx.Deserialize(b); err != nil {
+			panic(err)
 		}
-		if scid.String() == "" { // yeah... weird
+		//fmt.Println("\nTX Height: ", tx.Height)
+		//fmt.Println("\nReq: ", Processing-int64(bheight))
+		//
+
+		if tx.TransactionType != transaction.SC_TX {
+			storeHeight(bheight)
 			return
 		}
 
-		params = rpc.GetSC_Params{
-			SCID:       scid.String(),
-			Code:       false,
-			Variables:  false,
-			TopoHeight: bheight,
-		}
-	}
-	sc := api.GetSC(params) //Variables: true,
+		fmt.Print("scid found at height:", fmt.Sprint(bheight)+"\n")
+		params := rpc.GetSC_Params{}
+		if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
 
-	vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
-	if err != nil { //might be worth investigating what errors could occur
-		return
-	}
-
-	kv := sc.VariableStringKeys
-	//fmt.Println("key", kv)
-	scname := api.GetSCNameFromVars(kv)
-	scdesc := api.GetSCDescriptionFromVars(kv)
-	scimgurl := api.GetSCIDImageURLFromVars(kv)
-
-	//	fmt.Println("headers", headers)
-	tags := ""
-	class := ""
-	// range the indexers and add to index 1 at a time to prevent out of memory error
-	for key, name := range indexes {
-		//fmt.Println("name: ", name)
-		// if the code does not contain the filter, skip
-		//probably could use some suring up here
-		for _, filter := range name {
-			if !strings.Contains(sc.Code, filter) {
-				continue
+			params = rpc.GetSC_Params{
+				SCID:       tx.GetHash().String(),
+				Code:       true,
+				Variables:  true,
+				TopoHeight: bheight,
 			}
-			class = key
-			tags = tags + "," + filter
 		}
 
-		if tags != "" && tags[0:1] == "," {
-			tags = tags[1:]
+		if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+			scid, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
+
+			if !ok { // paranoia
+				return
+			}
+			if scid.String() == "" { // yeah... weird
+				return
+			}
+
+			params = rpc.GetSC_Params{
+				SCID:       scid.String(),
+				Code:       false,
+				Variables:  false,
+				TopoHeight: bheight,
+			}
+		}
+		sc := api.GetSC(params) //Variables: true,
+
+		vars, err := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
+		if err != nil { //might be worth investigating what errors could occur
+			return
 		}
 
-	}
-	staged := SCIDToIndexStage{
-		Scid:   tx.GetHash().String(),
-		Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, SCName: scname, SCDesc: scdesc, SCImgURL: scimgurl}, //
-		ScVars: vars,
-		ScCode: sc.Code,
-		Class:  class, //Class and tags are not in original gnomon
-		Tags:   tags,
-	}
-	fmt.Println("staged scid:", staged.Scid, ":", fmt.Sprint(staged.Fsi.Height))
-	//	wg.Add(1)
-	// now add the scid to the index
-	//go func(*Indexer) {
-	// if the contract already exists, record the interaction
-	if err := sqlindexer.AddSCIDToIndex(staged); err != nil {
-		fmt.Println(err, " ", staged.Scid, " ", staged.Fsi.Height)
-		return
-	}
-	//	}(sqlindexer)
+		kv := sc.VariableStringKeys
+		//fmt.Println("key", kv)
+		scname := api.GetSCNameFromVars(kv)
+		scdesc := api.GetSCDescriptionFromVars(kv)
+		scimgurl := api.GetSCIDImageURLFromVars(kv)
 
-	storeHeight(bheight)
+		//	fmt.Println("headers", headers)
+		tags := ""
+		class := ""
+		// range the indexers and add to index 1 at a time to prevent out of memory error
+		for key, name := range indexes {
+			//fmt.Println("name: ", name)
+			// if the code does not contain the filter, skip
+			//probably could use some suring up here
+			for _, filter := range name {
+				if !strings.Contains(sc.Code, filter) {
+					continue
+				}
+				class = key
+				tags = tags + "," + filter
+			}
+
+			if tags != "" && tags[0:1] == "," {
+				tags = tags[1:]
+			}
+
+		}
+		staged := SCIDToIndexStage{
+			Scid:   tx.GetHash().String(),
+			Fsi:    &FastSyncImport{Height: uint64(bheight), Owner: r.Txs[0].Signer, SCName: scname, SCDesc: scdesc, SCImgURL: scimgurl}, //
+			ScVars: vars,
+			ScCode: sc.Code,
+			Class:  class, //Class and tags are not in original gnomon
+			Tags:   tags,
+		}
+		fmt.Println("staged scid:", staged.Scid, ":", fmt.Sprint(staged.Fsi.Height))
+		//	wg.Add(1)
+		// now add the scid to the index
+		//go func(*Indexer) {
+		// if the contract already exists, record the interaction
+		if err := sqlindexer.AddSCIDToIndex(staged); err != nil {
+			fmt.Println(err, " ", staged.Scid, " ", staged.Fsi.Height)
+			return
+		}
+		//	}(sqlindexer)
+
+		storeHeight(bheight)
+	}
 }
