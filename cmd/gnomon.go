@@ -41,7 +41,7 @@ var established_backup bool
 var achieved_current_height int64
 var lowest_height int64
 var day_of_blocks int64
-var speed = time.Duration(time.Millisecond * 20)
+var speed = time.Duration(time.Millisecond * 5)
 
 var RUNNING bool
 
@@ -164,6 +164,7 @@ Options:
 
 			// limit <- struct{}{}
 			// wg.Add(1)
+			// fmt.Println(speed)
 			time.Sleep(speed)
 
 			go indexing(workers, indices, height, &wg)
@@ -200,8 +201,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		fmt.Println(height, time.Since(measuring))
 	}
 
-	if time.Since(measuring) > time.Duration(time.Second) {
-		speed = time.Duration(measuring.Unix()) / 100
+	if time.Since(measuring) >= speed {
+		speed = time.Duration(measuring.Unix()) / 1000
 		time.Sleep(time.Duration(measuring.Unix()))
 	}
 
@@ -247,8 +248,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	}
 	for _, each := range txs {
 
-		if time.Since(measuring) > time.Duration(time.Second) {
-			speed = time.Duration(measuring.Unix()) / 100
+		if time.Since(measuring) >= speed {
+			speed = time.Duration(measuring.Unix()) / 1000
 			time.Sleep(time.Duration(measuring.Unix()))
 		}
 
@@ -362,8 +363,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 
 		// fmt.Printf("%v\n", params)
 
-		if time.Since(measuring) > time.Duration(time.Second) {
-			speed = time.Duration(measuring.Unix()) / 100
+		if time.Since(measuring) >= speed {
+			speed = time.Duration(measuring.Unix()) / 1000
 			time.Sleep(time.Duration(measuring.Unix()))
 		}
 
