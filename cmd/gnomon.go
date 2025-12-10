@@ -285,13 +285,13 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		related_info := transaction_result.Txs[0]
 
 		if related_info.ValidBlock != result.Block_Header.Hash || len(related_info.InvalidBlock) > 0 {
-			return
+			continue
 		}
 		signer := related_info.Signer
 
 		b, err := hex.DecodeString(transaction_result.Txs_as_hex[0])
 		if err != nil {
-			return
+			continue
 		}
 
 		// because a possible panic arrises from unknown transaction types...
@@ -299,33 +299,33 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		testing, done := binary.Uvarint(dryrun)
 		if done <= 0 {
 			// fmt.Println("Invalid Version in Transaction")
-			return
+			continue
 		}
 		dryrun = dryrun[done:]
 
 		if testing != 1 {
 			// fmt.Println("Transaction version not equal to 1 ")
-			return
+			continue
 		}
 
 		_, done = binary.Uvarint(dryrun)
 		if done <= 0 {
 			// fmt.Println("Invalid SourceNetwork in Transaction")
-			return
+			continue
 		}
 		dryrun = dryrun[done:]
 
 		_, done = binary.Uvarint(dryrun)
 		if done <= 0 {
 			// fmt.Println("Invalid DestNetwork in Transaction")
-			return
+			continue
 		}
 		dryrun = dryrun[done:]
 
 		testing, done = binary.Uvarint(dryrun)
 		if done <= 0 {
 			// fmt.Println("Invalid TransactionType in Transaction")
-			return
+			continue
 		}
 		switch transaction.TransactionType(testing) {
 		case transaction.PREMINE,
@@ -336,22 +336,22 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			transaction.SC_TX:
 			// these are all valid
 		default:
-			return
+			continue
 		}
 
 		var tx transaction.Transaction
 		if err := tx.Deserialize(b); err != nil {
-			return
+			continue
 		}
 
 		// fmt.Printf("%+v\n", tx)
 
 		if tx.TransactionType != transaction.SC_TX {
-			return
+			continue
 		}
 
 		if len(tx.SCDATA) == 0 {
-			return
+			continue
 		}
 		params := rpc.GetSC_Params{}
 
@@ -364,17 +364,17 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
 			value, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
 			if !ok { // paranoia
-				return
+				continue
 			}
 			if value.String() == "" { // yeah... weird
-				return
+				continue
 			}
 			scid := value.String()
 			params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(height)}
 		}
 
 		if params.SCID == "" {
-			return
+			continue
 		}
 
 		// fmt.Printf("%v\n", params)
