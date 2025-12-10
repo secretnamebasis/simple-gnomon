@@ -31,7 +31,7 @@ var workers = make(map[string]*indexer.Worker)
 var backups = make(map[string]*indexer.Indexer)
 
 var (
-	endpoints       = flag.String("endpoints", "", "-endpoints=<DAEMON_IP:PORT>,<DAEMON_IP:PORT>...")
+	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
 	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
 	ending_height   = flag.Int64("ending_height", -1, "-ending_height=123")
 	help            = flag.Bool("help", false, "-help")
@@ -42,9 +42,8 @@ var achieved_current_height int64
 var lowest_height int64
 var day_of_blocks int64
 var speed = time.Duration(time.Millisecond * 20)
-var connectables = make(chan jsonrpc.RPCClient)
+
 var RUNNING bool
-var current int64
 
 // this is the processing thread
 func Start_gnomon_indexer() {
@@ -54,77 +53,37 @@ func Start_gnomon_indexer() {
 A simple indexer for the DERO blockchain.
 
 Options:
-  -endpoints <DAEMON_IP:PORT>,<DAEMON_IP:PORT>...  	Address(es) of the daemons to connect to.
-  -starting_height <N>         						Height to start indexing from.
-  -ending_height <N>           						Height to stop indexing at.
-  -progress                    						Show current block height under audit.
-  -help                        						Show this help message.`)
+  -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
+  -starting_height <N>         Height to start indexing from.
+  -ending_height <N>           Height to stop indexing at.
+  -progress                    Show current block height under audit.
+  -help                        Show this help message.`)
 
 		return
 	}
-	// if they haven't stated a connection, ask for the wallet's websocket
-	if endpoints != nil && *endpoints == "" {
+
+	if endpoint != nil && *endpoint == "" {
 
 		// first call on the wallet ws for authorizations
 		connections.Set_ws_conn()
 
 		// next, establish the daemon endpoint for rpc calls, waaaaay faster than through the wallet
 		daemon := connections.GetDaemonEndpoint()
-		*endpoints = daemon.Endpoint
+		*endpoint = daemon.Endpoint
+	}
+	opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 3}}
+	url := "http://" + *endpoint + "/json_rpc"
+	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
+
+	// if you are getting a zero... yeah, you are not connected
+	if connections.Get_TopoHeight() == 0 {
+		panic(errors.New("please connect through rpc"))
 	}
 
-	// range over the string to obtain the endpoints
-	for endpoint := range strings.SplitSeq(*endpoints, ",") {
-
-		opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 3}}
-		url := "http://" + endpoint + "/json_rpc"
-		connect := jsonrpc.NewClientWithOpts(url, opts)
-
-		// test connection current
-		current = connections.Get_TopoHeight(connect)
-
-		// if you are getting a zero... yeah, you are not connected
-		if current == 0 {
-			fmt.Println(errors.New("cannot obtain topo from connection, skipping"))
-			continue
-		}
-
-		// test connection block
-		result := connections.GetBlockInfo(connect, rpc.GetBlock_Params{
-			Height: 420,
-		})
-
-		bl := indexer.GetBlockDeserialized(result.Blob)
-
-		test := "c1cbc9e888d76dc0d6d4bad7e9144aa198155618e7eb8628e18e8127b1aa5ac9"
-
-		if bl.GetHash().String() != test {
-			fmt.Println(errors.New("cannot obtain block 420 from connection, possible pruned node, skipping"))
-			continue
-		}
-
-		connectables <- connect
-
-	}
-
-	if len(connectables) == 0 {
-		fmt.Println("no endpoints meet minimum specs...")
-		return
-	}
+	day_of_blocks = ((60 * 60 * 24) / int64(connections.GetDaemonInfo().Target))
 
 	// we are going to use this as an upper bound
-	lowest_height = current
-
-	// grab a connection
-	connect := <-connectables
-
-	// measure day worth of blocks, for backup purposes
-	day_of_blocks = ((60 * 60 * 24) / int64(connections.GetDaemonInfo(connect).Target))
-
-	fmt.Println("day worth of blocks:", day_of_blocks)
-
-	// add the connection back to the channel of connections
-	connectables <- connect
+	lowest_height = connections.Get_TopoHeight()
 
 	// build separate databases for each index, for portability
 	fmt.Println("opening dbs")
@@ -165,9 +124,9 @@ Options:
 	fmt.Println("setting up websocket")
 	go connections.ListenWS(workers)
 
-	fmt.Println("starting to index, goal:", current)
+	fmt.Println("starting to index ", connections.Get_TopoHeight())
 
-	fmt.Println("lowest_height", lowest_height)
+	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
 
 	// we'll implement a simple concurrency pattern
 	// wg := sync.WaitGroup{}
@@ -178,7 +137,8 @@ Options:
 	// simple-daemon
 	for RUNNING {
 
-		now := current
+		// a simple backup strategy
+		now := connections.Get_TopoHeight()
 
 		if ending_height != nil && *ending_height > -1 {
 			now = *ending_height
@@ -188,27 +148,12 @@ Options:
 			lowest_height = *starting_height
 		}
 		// main processing loop
-		height_chan := make(chan int64)
 		wg := sync.WaitGroup{}
-
-		go func() {
-			for height := range height_chan {
-				wg.Add(1)
-
-				// limit <- struct{}{}
-				time.Sleep(speed)
-				connect := <-connectables
-				current = connections.Get_TopoHeight(connect)
-				go indexing(connect, workers, indices, height, &wg)
-			}
-		}()
-
 		for height := lowest_height; height < now; height++ {
 			if !RUNNING {
 				return
 			}
-
-			// a simple backup strategy
+			wg.Add(1)
 			if achieved_current_height > 0 &&
 				!established_backup &&
 				find_lowest_height(backups, now) {
@@ -217,7 +162,11 @@ Options:
 				backup(height)
 			}
 
-			height_chan <- height
+			// limit <- struct{}{}
+			// wg.Add(1)
+			time.Sleep(speed)
+
+			go indexing(workers, indices, height, &wg)
 			// continue
 
 			// if time.Since(n) > time.Duration(time.Millisecond*20) {
@@ -229,7 +178,7 @@ Options:
 			fmt.Println("current height acheived, proceeding to passively index")
 		}
 		// height achieved
-		achieved_current_height = current
+		achieved_current_height = connections.Get_TopoHeight()
 
 		lowest_height = min(now, achieved_current_height)
 
@@ -237,17 +186,16 @@ Options:
 }
 
 // this is the indexing action that will be done concurrently
-func indexing(connect jsonrpc.RPCClient, workers map[string]*indexer.Worker, indices map[string][]string, height int64, wg *sync.WaitGroup) {
+func indexing(workers map[string]*indexer.Worker, indices map[string][]string, height int64, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer storeHeight(workers, height)
-	defer func() { connectables <- connect }()
 	// close up when done and remove item from limit
 	if progress != nil && *progress {
 
-		fmt.Printf("auditing block: %d / %d\n", height, current)
+		fmt.Printf("auditing block: %d / %d\n", height, connections.Get_TopoHeight())
 	}
 	measuring := time.Now()
-	result := connections.GetBlockInfo(connect, rpc.GetBlock_Params{Height: uint64(height)})
+	result := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
 	if progress != nil && *progress {
 		fmt.Println(height, time.Since(measuring))
 	}
@@ -321,13 +269,12 @@ func indexing(connect jsonrpc.RPCClient, workers map[string]*indexer.Worker, ind
 			time.Sleep(time.Duration(measuring.Unix()))
 		}
 
-		transaction_result := connections.GetTransaction(connect,
-			rpc.GetTransaction_Params{ // presumably,
-				// one could pass an array of transaction hashes...
-				// but noooooooo.... that's a vector for spam...
-				// so we'll so this one at a time
-				Tx_Hashes: []string{each},
-			})
+		transaction_result := connections.GetTransaction(rpc.GetTransaction_Params{ // presumably,
+			// one could pass an array of transaction hashes...
+			// but noooooooo.... that's a vector for spam...
+			// so we'll so this one at a time
+			Tx_Hashes: []string{each},
+		})
 
 		measuring = time.Now()
 
@@ -438,7 +385,7 @@ func indexing(connect jsonrpc.RPCClient, workers map[string]*indexer.Worker, ind
 		}
 
 		measuring = time.Now()
-		sc := connections.GetSC(connect, params)
+		sc := connections.GetSC(params)
 		if progress != nil && *progress {
 			fmt.Println(height, time.Since(measuring))
 		}
@@ -624,7 +571,7 @@ func asynchronously_process_queues(worker *indexer.Worker, backup *indexer.Index
 			staged.Scid,
 			staged.Fsi.Owner,
 			staged.Fsi.Height,
-			current,
+			connections.Get_TopoHeight(),
 			staged.Fsi.Headers,
 			vars,
 			staged.Class,

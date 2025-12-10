@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -17,16 +15,13 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/deroproject/derohe/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/secretnamebasis/simple-gnomon/cmd"
 	"github.com/secretnamebasis/simple-gnomon/connections"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
-	"github.com/ybbus/jsonrpc"
 )
 
 func main() {
-	var now int64
 	closing := false
 	a := app.NewWithID("simple-gnomon_" + rand.Text())
 	w := a.NewWindow("simple-gnomon")
@@ -36,7 +31,7 @@ func main() {
 		closing = true
 		os.Exit(0)
 	})
-	endpoints := ""
+	endpoint := ""
 	connection := widget.NewEntry()
 	readout := widget.NewLabel("")
 	indexed_height := widget.NewLabel("")
@@ -46,61 +41,10 @@ func main() {
 	progress_bar := widget.NewProgressBar()
 	connection.SetPlaceHolder("127.0.0.1:10102")
 	tapped := func() {
-		ends := []string{}
-
-		endpoints = connection.Text
-
-		if strings.Contains(endpoints, ",") {
-			ends = append(ends, strings.Split(endpoints, ",")...)
-		} else if strings.Contains(endpoints, "\n") {
-			ends = append(ends, strings.Split(endpoints, "\n")...)
-		} else if strings.Contains(endpoints, " ") {
-			ends = append(ends, strings.Split(endpoints, " ")...)
-		} else {
-			ends = append(ends, endpoints)
-		}
-
-		if len(ends) == 0 {
-			return
-		}
-
-		var connect jsonrpc.RPCClient
-
-		for _, endpoint := range ends {
-
-			opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 3}}
-			url := "http://" + endpoint + "/json_rpc"
-			c := jsonrpc.NewClientWithOpts(url, opts)
-
-			// test connection current
-			now = connections.Get_TopoHeight(c)
-			if now == 0 {
-				continue
-			}
-
-			result := connections.GetBlockInfo(c, rpc.GetBlock_Params{Hash: "c1cbc9e888d76dc0d6d4bad7e9144aa198155618e7eb8628e18e8127b1aa5ac9"})
-
-			if result.Block_Header.Height != 420 {
-				continue
-			}
-
-			// the one that works works
-			connect = c
-			// add it to the string
-			endpoints += endpoint + ","
-		}
-
-		// if there happens to be one
-		endpoints = strings.TrimSuffix(endpoints, ",")
-
-		// paranoia
-		endpoints = strings.TrimPrefix(endpoints, ",")
-
-		// squeeky clean
-		endpoints = strings.TrimSpace(endpoints)
-
+		// now go start gnomon
+		endpoint = connection.Text
 		os.Args = append(os.Args,
-			"-endpoint="+endpoints,
+			"-endpoint="+endpoint,
 			// the first g45 nft starts at 678864
 
 			// "-progress",
@@ -115,7 +59,6 @@ func main() {
 					fyne.DoAndWait(func() { readout.SetText(fmt.Sprintf("gnomon failed: \n%v", r)) })
 				}
 			}()
-			// now go start gnomon
 			cmd.Start_gnomon_indexer()
 		}()
 
@@ -146,19 +89,19 @@ func main() {
 			}
 			first := height1.Result
 			for range time.NewTicker(time.Second).C {
-				result, err := getAllSCIDsAndOwners(getParams{IDX: "all"})
+				result, err := getAllSCIDSAndOwners(getParams{IDX: "all"})
 				if err != nil {
 					panic(err)
 				}
 				all := strconv.Itoa(len(result.Result))
 				text := "ALL SCIDS & OWNERS: " + all + "\n"
-				result, err = getAllSCIDsAndOwners(getParams{IDX: "g45"})
+				result, err = getAllSCIDSAndOwners(getParams{IDX: "g45"})
 				if err != nil {
 					panic(err)
 				}
 				g45 := strconv.Itoa(len(result.Result))
 				text += "ALL G45 & OWNERS: " + g45 + "\n"
-				result, err = getAllSCIDsAndOwners(getParams{IDX: "nfa"})
+				result, err = getAllSCIDSAndOwners(getParams{IDX: "nfa"})
 				if err != nil {
 					panic(err)
 				}
@@ -168,7 +111,7 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				now := connections.GetDaemonInfo(connect).TopoHeight
+				now := connections.GetDaemonInfo().TopoHeight
 				if last == 0 {
 					last = height1.Result
 				}
@@ -213,7 +156,7 @@ func main() {
 	w.ShowAndRun()
 }
 
-type getAllSCIDsAndOwnersResult struct {
+type getAllSCIDSAndOwnersResult struct {
 	Result map[string]any `json:"result"`
 }
 
@@ -223,7 +166,7 @@ type getParams struct {
 
 var indexer_connection *websocket.Conn
 
-func getAllSCIDsAndOwners(params getParams) (getAllSCIDsAndOwnersResult, error) {
+func getAllSCIDSAndOwners(params getParams) (getAllSCIDSAndOwnersResult, error) {
 
 	msg := map[string]any{
 		"method": "GetAllOwnersAndSCIDs",
@@ -234,20 +177,20 @@ func getAllSCIDsAndOwners(params getParams) (getAllSCIDsAndOwnersResult, error) 
 	var err error
 
 	if err := indexer_connection.WriteJSON(msg); err != nil {
-		return getAllSCIDsAndOwnersResult{}, errors.New("failed to write")
+		return getAllSCIDSAndOwnersResult{}, errors.New("failed to write")
 	}
 
 	_, b, err := indexer_connection.ReadMessage()
 	if err != nil {
-		return getAllSCIDsAndOwnersResult{}, errors.New("failed to read")
+		return getAllSCIDSAndOwnersResult{}, errors.New("failed to read")
 	}
 
 	var r structures.JSONRpcResp
 	if err := json.Unmarshal(b, &r); err != nil {
-		return getAllSCIDsAndOwnersResult{}, errors.New("failed to unmarshal")
+		return getAllSCIDSAndOwnersResult{}, errors.New("failed to unmarshal")
 	}
 
-	return getAllSCIDsAndOwnersResult{r.Result.(map[string]any)}, nil
+	return getAllSCIDSAndOwnersResult{r.Result.(map[string]any)}, nil
 }
 
 type getLastHeightResult struct {
