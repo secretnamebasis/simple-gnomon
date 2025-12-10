@@ -260,18 +260,27 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		return
 	}
 
-	if time.Since(measuring) > time.Duration(time.Second) {
-		speed = time.Duration(measuring.Unix()) / 100
-		time.Sleep(time.Duration(measuring.Unix()))
-	}
+	for _, each := range txs {
 
-	measuring = time.Now()
-	transaction_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: txs})
-	if progress != nil && *progress {
-		fmt.Println(height, time.Since(measuring))
-	}
+		if time.Since(measuring) > time.Duration(time.Second) {
+			speed = time.Duration(measuring.Unix()) / 100
+			time.Sleep(time.Duration(measuring.Unix()))
+		}
 
-	for i, tx := range transaction_result.Txs_as_hex {
+		transaction_result := connections.GetTransaction(rpc.GetTransaction_Params{ // presumably,
+			// one could pass an array of transaction hashes...
+			// but noooooooo.... that's a vector for spam...
+			// so we'll so this one at a time
+			Tx_Hashes: []string{each},
+		})
+
+		measuring = time.Now()
+
+		if progress != nil && *progress {
+			fmt.Println(height, time.Since(measuring))
+		}
+
+		related_info := transaction_result.Txs[0]
 
 		related_info := transaction_result.Txs[i]
 
