@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
