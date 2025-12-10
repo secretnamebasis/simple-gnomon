@@ -40,7 +40,7 @@ func main() {
 	estimated_time_to_completion := widget.NewLabel("")
 	progress_bar := widget.NewProgressBar()
 	connection.SetPlaceHolder("127.0.0.1:10102")
-	button := widget.NewButtonWithIcon("Start Gnomon Indexer", theme.MediaPlayIcon(), func() {
+	tapped := func() {
 		// now go start gnomon
 		endpoint = connection.Text
 		os.Args = append(os.Args,
@@ -53,12 +53,12 @@ func main() {
 			return
 		}
 		go func() {
-			// defer func() {
-			// 	if r := recover(); r != nil {
-			// 		// Handle/log the panic here
-			// 		fyne.DoAndWait(func() { readout.SetText(fmt.Sprintf("gnomon failed: \n%v", r)) })
-			// 	}
-			// }()
+			defer func() {
+				if r := recover(); r != nil {
+					// Handle/log the panic here
+					fyne.DoAndWait(func() { readout.SetText(fmt.Sprintf("gnomon failed: \n%v", r)) })
+				}
+			}()
 			cmd.Start_gnomon_indexer()
 		}()
 
@@ -139,7 +139,8 @@ func main() {
 			}
 
 		}()
-	})
+	}
+	button := widget.NewButtonWithIcon("Start Gnomon Indexer", theme.MediaPlayIcon(), tapped)
 	connection.OnSubmitted = func(s string) { button.OnTapped() }
 	connection.ActionItem = button
 	content := container.NewVBox(
