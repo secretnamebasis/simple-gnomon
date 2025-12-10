@@ -204,14 +204,14 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 	//Speed tuning
 	if Processing%10 == 0 {
 		concreq := Processing - int64(bheight)
-		if concreq > Max_preferred_requests {
+		if concreq+int64(len(r.Txs_as_hex)) > Max_preferred_requests {
 			if concreq == Max_preferred_requests*2 {
 				speed = speed + 2
 			} else {
 				speed = speed + 1
 			}
 
-		} else if concreq < Max_preferred_requests {
+		} else if concreq+int64(len(r.Txs_as_hex)) < Max_preferred_requests {
 			if speed > 3 {
 				speed = speed - 1
 			}
