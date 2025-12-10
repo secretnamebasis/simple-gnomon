@@ -48,16 +48,16 @@ func main() {
 	tapped := func() {
 		ends := []string{}
 
-		endpoints = connection.Text
+		connects := connection.Text
 
-		if strings.Contains(endpoints, ",") {
-			ends = append(ends, strings.Split(endpoints, ",")...)
-		} else if strings.Contains(endpoints, "\n") {
-			ends = append(ends, strings.Split(endpoints, "\n")...)
-		} else if strings.Contains(endpoints, " ") {
-			ends = append(ends, strings.Split(endpoints, " ")...)
+		if strings.Contains(connects, ",") {
+			ends = append(ends, strings.Split(connects, ",")...)
+		} else if strings.Contains(connects, "\n") {
+			ends = append(ends, strings.Split(connects, "\n")...)
+		} else if strings.Contains(connects, " ") {
+			ends = append(ends, strings.Split(connects, " ")...)
 		} else {
-			ends = append(ends, endpoints)
+			ends = append(ends, connects)
 		}
 
 		if len(ends) == 0 {
@@ -100,7 +100,7 @@ func main() {
 		endpoints = strings.TrimSpace(endpoints)
 
 		os.Args = append(os.Args,
-			"-endpoint="+endpoints,
+			"-endpoints="+endpoints,
 			// the first g45 nft starts at 678864
 
 			// "-progress",
