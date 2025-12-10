@@ -68,8 +68,8 @@ const deadline = time.Second * 300 // some content is just bigger
 // simple way to identify gnomon
 //const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 
-func callRPC[t any](method string, params any, validator func(t) bool) t {
-	result, err := handleResult[t](method, params)
+func callRPC[t any](rpcclient jsonrpc.RPCClient, method string, params any, validator func(t) bool) t {
+	result, err := handleResult[t](rpcclient, method, params)
 	if err != nil {
 		//	log.Fatal(err)
 		var zero t
@@ -85,9 +85,9 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 	return result
 }
 
-var RpcClient jsonrpc.RPCClient
+// var RpcClient jsonrpc.RPCClient
 
-func handleResult[T any](method string, params any) (T, error) {
+func handleResult[T any](rpcclient jsonrpc.RPCClient, method string, params any) (T, error) {
 	var result T
 	//var ctx context.Context
 
@@ -100,9 +100,9 @@ func handleResult[T any](method string, params any) (T, error) {
 
 	var err error
 	if params == nil {
-		err = RpcClient.CallFor(&result, method) // no params argument
+		err = rpcclient.CallFor(&result, method) // no params argument
 	} else {
-		err = RpcClient.CallFor(&result, method, params)
+		err = rpcclient.CallFor(&result, method, params)
 	}
 
 	if err != nil {
@@ -113,58 +113,58 @@ func handleResult[T any](method string, params any) (T, error) {
 
 	return result, nil
 }
-func Get_TopoHeight() int64 {
+func Get_TopoHeight(rpcclient jsonrpc.RPCClient) int64 {
 	validator := func(r rpc.GetInfo_Result) bool {
 		return r.TopoHeight != 0
 	}
-	result := callRPC("DERO.GetInfo", nil, validator)
+	result := callRPC(rpcclient, "DERO.GetInfo", nil, validator)
 	return result.TopoHeight
 }
-func GetTransaction(params rpc.GetTransaction_Params) rpc.GetTransaction_Result {
+func GetTransaction(rpcclient jsonrpc.RPCClient, params rpc.GetTransaction_Params) rpc.GetTransaction_Result {
 	validator := func(r rpc.GetTransaction_Result) bool {
 		return r.Status != ""
 	}
-	result := callRPC("DERO.GetTransaction", params, validator)
+	result := callRPC(rpcclient, "DERO.GetTransaction", params, validator)
 	return result
 }
 
-func GetBlockInfo(params rpc.GetBlock_Params) rpc.GetBlock_Result {
+func GetBlockInfo(rpcclient jsonrpc.RPCClient, params rpc.GetBlock_Params) rpc.GetBlock_Result {
 	validator := func(r rpc.GetBlock_Result) bool {
 		return r.Block_Header.Depth != 0
 	}
-	result := callRPC("DERO.GetBlock", params, validator)
+	result := callRPC(rpcclient, "DERO.GetBlock", params, validator)
 	return result
 }
 
-func GetTxPool() rpc.GetTxPool_Result {
+func GetTxPool(rpcclient jsonrpc.RPCClient) rpc.GetTxPool_Result {
 	validator := func(r rpc.GetTxPool_Result) bool {
 		return r.Status != ""
 	}
-	result := callRPC("DERO.GetTxPool", nil, validator)
+	result := callRPC(rpcclient, "DERO.GetTxPool", nil, validator)
 	return result
 }
 
-func GetDaemonInfo() rpc.GetInfo_Result {
+func GetDaemonInfo(rpcclient jsonrpc.RPCClient) rpc.GetInfo_Result {
 	validator := func(r rpc.GetInfo_Result) bool {
 		return r.TopoHeight != 0
 	}
-	result := callRPC("DERO.GetInfo", nil, validator)
+	result := callRPC(rpcclient, "DERO.GetInfo", nil, validator)
 	return result
 }
 
-func GetSC(scParam rpc.GetSC_Params) rpc.GetSC_Result {
+func GetSC(rpcclient jsonrpc.RPCClient, scParam rpc.GetSC_Params) rpc.GetSC_Result {
 	validator := func(r rpc.GetSC_Result) bool {
 		if scParam.Code {
 			return r.Code != ""
 		}
 		return true
 	}
-	result := callRPC("DERO.GetSC", scParam, validator)
+	result := callRPC(rpcclient, "DERO.GetSC", scParam, validator)
 	return result
 }
 
-func GetSCCode(scid string) rpc.GetSC_Result {
-	return GetSC(rpc.GetSC_Params{
+func GetSCCode(rpcclient jsonrpc.RPCClient, scid string) rpc.GetSC_Result {
+	return GetSC(rpcclient, rpc.GetSC_Params{
 		SCID:       scid,
 		Code:       true,
 		Variables:  false,
@@ -172,8 +172,8 @@ func GetSCCode(scid string) rpc.GetSC_Result {
 	})
 }
 
-func GetSCValues(scid string) rpc.GetSC_Result {
-	return GetSC(rpc.GetSC_Params{
+func GetSCValues(rpcclient jsonrpc.RPCClient, scid string) rpc.GetSC_Result {
+	return GetSC(rpcclient, rpc.GetSC_Params{
 		SCID:       scid,
 		Code:       false,
 		Variables:  true,
