@@ -76,7 +76,10 @@ func main() {
 			var err error
 			url := "ws://127.0.0.1:9190/ws"
 			dialer := websocket.Dialer{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // allow self-signed certs
+
+				TLSClientConfig: &tls.Config{
+
+					InsecureSkipVerify: true}, // allow self-signed certs
 			}
 			indexer_connection, _, err = dialer.Dial(url, nil)
 			if err != nil {
@@ -88,7 +91,7 @@ func main() {
 				panic(err)
 			}
 			first := height1.Result
-			for range time.NewTicker(time.Second).C {
+			action := func() {
 				result, err := getAllSCIDSAndOwners(getParams{IDX: "all"})
 				if err != nil {
 					panic(err)
@@ -136,6 +139,12 @@ func main() {
 					estimated_time_to_completion.SetText("estimated hours until completion:" + strconv.Itoa(int(estimated)))
 					progress_bar.SetValue(last / float64(now))
 				})
+			}
+
+			ticker := time.NewTicker(time.Second)
+
+			for range ticker.C {
+				action()
 			}
 
 		}()
