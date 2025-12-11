@@ -205,7 +205,9 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 
 	measure := time.Now()
 	result := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
-	download.Swap(time.Since(measure).Milliseconds())
+	if time.Since(measure).Milliseconds() > download.Load() {
+		download.Swap(time.Since(measure).Milliseconds())
+	}
 
 	counter.Add(-1)
 	// fmt.Println(result)
@@ -248,12 +250,16 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	for _, each := range txs {
 
 		counter.Add(1)
+		measure := time.Now()
 		transaction_result := connections.GetTransaction(rpc.GetTransaction_Params{ // presumably,
 			// one could pass an array of transaction hashes...
 			// but noooooooo.... that's a vector for spam...
 			// so we'll so this one at a time
 			Tx_Hashes: []string{each},
 		})
+		if time.Since(measure).Milliseconds() > download.Load() {
+			download.Swap(time.Since(measure).Milliseconds())
+		}
 		counter.Add(-1)
 
 		related_info := transaction_result.Txs[0]
@@ -353,8 +359,11 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 
 		var sc rpc.GetSC_Result
 		counter.Add(1)
-		// measure = time.Now()
+		measure = time.Now()
 		sc = connections.GetSC(params)
+		if time.Since(measure).Milliseconds() > download.Load() {
+			download.Swap(time.Since(measure).Milliseconds())
+		}
 		counter.Add(-1)
 		// download.Swap(time.Since(measure).Milliseconds())
 
