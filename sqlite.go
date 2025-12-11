@@ -441,7 +441,7 @@ func (ss *SqlStore) GetOwner(scid string) string {
 */
 // Returns all of the deployed SCIDs with their corresponding owners (who deployed it)
 func (ss *SqlStore) GetAllOwnersAndSCIDs() map[string]string {
-	fmt.Println("SELECT scid, owner FROM scs")
+	//	fmt.Println("SELECT scid, owner FROM scs")
 	results := make(map[string]string)
 	rows, _ := ss.DB.Query("SELECT scid, owner FROM scs", nil)
 	var (

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -32,7 +33,7 @@ var Status_ok = true
 
 // 64.226.81.37:10102
 // var endpoint = "node.derofoundation.org:11012"
-var Endpoints = [2]string{"64.226.81.37:10102", "node.derofoundation.org:11012"} //"64.226.81.37:10102"
+var Endpoints = [2]string{"node.derofoundation.org:11012", "64.226.81.37:10102"} //
 //var endpoint = 0
 
 // simple way to set timeouts
@@ -43,8 +44,12 @@ const timeout = time.Second * 9 // the world is a really big place
 // const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 var RpcClient jrpc2.Client
 
+var Out int
+
 func callRPC[t any](method string, params any, validator func(t) bool) t {
+	Out++
 	result, err := handleResult[t](method, params)
+	Out--
 	if err != nil {
 		//	log.Fatal(err)
 		var zero t
@@ -69,8 +74,8 @@ func handleResult[T any](method string, params any) (T, error) {
 	var err error
 
 	var rpcClient jsonrpc.RPCClient
-
-	rpcClient = jsonrpc.NewClient("http://" + Endpoints[EO] + "/json_rpc")
+	nodeaddr := "http://" + Endpoints[EO] + "/json_rpc"
+	rpcClient = jsonrpc.NewClient(nodeaddr)
 	if Striping {
 		if EO == 0 { //method == "DERO.GetSC" || method == "DERO.GetTransaction"
 			EO = 1
@@ -93,7 +98,10 @@ func handleResult[T any](method string, params any) (T, error) {
 
 			var zero T
 			return zero, err
-		} else if strings.Contains(err.Error(), "wsarecv: A connection attempt failed") {
+		} else if strings.Contains(err.Error(), "-32098") && strings.Contains(err.Error(), "too many") {
+			fmt.Println(err)
+			log.Fatal("Daemon is not compatible (" + nodeaddr + ")")
+		} else if strings.Contains(err.Error(), "wsarecv: A connection attempt failed("+nodeaddr+")") {
 			//maybe handle connection errors here with a cancel / rollback instead.
 			Status_ok = false
 			fmt.Println(err)

@@ -119,7 +119,7 @@ func (indexer *Indexer) AddSCIDToIndex(scidstoadd SCIDToIndexStage) (err error) 
 		indexer.SSSBackend.Writing = true
 	*/
 
-	fmt.Printf("SCIDS TO ADD: %v...", scidstoadd.ScVars)
+	//	fmt.Printf("SCIDS TO ADD: %v...", scidstoadd.ScVars)
 	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
 	if len(scidstoadd.ScVars) != 0 {
 		//	time.Sleep(writeWait)
