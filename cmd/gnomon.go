@@ -492,9 +492,7 @@ func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64
 
 	vars := indexer.GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 
-	staged := structures.SCIDToIndexStage{Scid: scid, Fsi: fast_sync_import, ScVars: vars, ScCode: sc.Code}
-
-	return staged
+	return structures.SCIDToIndexStage{Scid: scid, Fsi: fast_sync_import, ScVars: vars, ScCode: sc.Code}
 }
 
 // BACKEND & BACKUPS
