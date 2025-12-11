@@ -467,6 +467,10 @@ func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64
 
 	fast_sync_import := &structures.FastSyncImport{Height: height, Owner: owner}
 
+	if sc.Code == "" && len(sc.VariableStringKeys) == 0 && len(sc.VariableUint64Keys) == 0 {
+		return structures.SCIDToIndexStage{Scid: scid, Fsi: fast_sync_import}
+	}
+
 	kv := sc.VariableStringKeys
 
 	nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
