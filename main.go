@@ -46,7 +46,7 @@ func main() {
 		os.Args = append(os.Args,
 			"-endpoint="+endpoint,
 			// the first g45 nft starts at 678864
-
+			// "-starting_height=154000",
 			// "-progress",
 		)
 		if cmd.RUNNING {
@@ -86,59 +86,97 @@ func main() {
 				panic(err)
 			}
 			last := float64(0)
-			height1, err := getLastIndexHeight(getParams{IDX: "all"})
+			height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
 			if err != nil {
 				panic(err)
 			}
 			first := height1.Result
 			action := func() {
-				result, err := getAllSCIDSAndOwners(getParams{IDX: "all"})
+				result, err := getTxCount(getTxCountParams{
+					IDX:     "all",
+					Tx_Type: "normal",
+				})
 				if err != nil {
 					panic(err)
 				}
-				all := strconv.Itoa(len(result.Result))
-				text := "ALL SCIDS & OWNERS: " + all + "\n"
-				result, err = getAllSCIDSAndOwners(getParams{IDX: "g45"})
+				normal := strconv.Itoa(int(result.Result))
+
+				text := "ALL Normal: " + normal + "\n"
+
+				result, err = getTxCount(getTxCountParams{
+					IDX:     "all",
+					Tx_Type: "registration",
+				})
 				if err != nil {
 					panic(err)
 				}
-				g45 := strconv.Itoa(len(result.Result))
+				registrations := strconv.Itoa(int(result.Result))
+
+				text += "ALL Registrations: " + registrations + "\n"
+
+				result, err = getTxCount(getTxCountParams{
+					IDX:     "all",
+					Tx_Type: "scids",
+				})
+				if err != nil {
+					panic(err)
+				}
+				all := strconv.Itoa(int(result.Result))
+
+				text += "ALL SCIDS & OWNERS: " + all + "\n"
+
+				result, err = getTxCount(getTxCountParams{
+					IDX:     "g45",
+					Tx_Type: "scids",
+				})
+				if err != nil {
+					panic(err)
+				}
+				g45 := strconv.Itoa(int(result.Result))
+
 				text += "ALL G45 & OWNERS: " + g45 + "\n"
-				result, err = getAllSCIDSAndOwners(getParams{IDX: "nfa"})
+
+				result, err = getTxCount(getTxCountParams{
+					IDX:     "nfa",
+					Tx_Type: "scids",
+				})
 				if err != nil {
 					panic(err)
 				}
-				nfa := strconv.Itoa(len(result.Result))
+				nfa := strconv.Itoa(int(result.Result))
+
 				text += "ALL NFAs & OWNERS: " + nfa
-				height1, err := getLastIndexHeight(getParams{IDX: "all"})
+
+				height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
 				if err != nil {
 					panic(err)
 				}
 				now := connections.GetDaemonInfo().TopoHeight
+
 				if last == 0 {
 					last = height1.Result
 				}
-				tick := height1.Result - last
 				last = height1.Result
-				tick *= 60 * 60
-				duration := time.Since(start).Hours()
+				duration := time.Since(start).Seconds()
 				average := last - first
-				if duration == 0 {
+				if int64(duration) == 0 {
 					duration = 1 // avoid division by zero
 				}
 				average /= duration
-				if average == 0 {
+				if int64(average) == 0 {
 					average = 1
 				}
 				estimated := now / int64(average)
+
 				fyne.DoAndWait(func() {
 					readout.SetText(text)
 					current_height.SetText("current height:" + strconv.Itoa(int(now)))
 					indexed_height.SetText("indexed height:" + strconv.Itoa(int(height1.Result)))
-					average_blocks_per_hour.SetText("average blocks per hour:" + strconv.Itoa(int(average)))
-					estimated_time_to_completion.SetText("estimated hours until completion:" + strconv.Itoa(int(estimated)))
+					average_blocks_per_hour.SetText("average blocks per second:" + strconv.Itoa(int(average)))
+					estimated_time_to_completion.SetText("estimated hours until completion:" + strconv.Itoa(int(estimated/60/60)))
 					progress_bar.SetValue(last / float64(now))
 				})
+
 			}
 
 			ticker := time.NewTicker(time.Second)
@@ -169,13 +207,13 @@ type getAllSCIDSAndOwnersResult struct {
 	Result map[string]any `json:"result"`
 }
 
-type getParams struct {
+type getAllParams struct {
 	IDX string
 }
 
 var indexer_connection *websocket.Conn
 
-func getAllSCIDSAndOwners(params getParams) (getAllSCIDSAndOwnersResult, error) {
+func getAllSCIDSAndOwners(params getAllParams) (getAllSCIDSAndOwnersResult, error) {
 
 	msg := map[string]any{
 		"method": "GetAllOwnersAndSCIDs",
@@ -206,7 +244,7 @@ type getLastHeightResult struct {
 	Result float64 `json:"result"`
 }
 
-func getLastIndexHeight(params getParams) (getLastHeightResult, error) {
+func getLastIndexHeight(params getAllParams) (getLastHeightResult, error) {
 
 	msg := map[string]any{
 		"method": "GetLastIndexHeight",
@@ -231,4 +269,39 @@ func getLastIndexHeight(params getParams) (getLastHeightResult, error) {
 	}
 
 	return getLastHeightResult{r.Result.(float64)}, nil
+}
+
+type getTxCountParams struct {
+	IDX     string
+	Tx_Type string
+}
+type getTxCountResult struct {
+	Result float64 `json:"result"`
+}
+
+func getTxCount(params getTxCountParams) (getTxCountResult, error) {
+
+	msg := map[string]any{
+		"method": "GetTxCount",
+		"id":     "1",
+		"params": params,
+	}
+
+	var err error
+
+	if err := indexer_connection.WriteJSON(msg); err != nil {
+		return getTxCountResult{}, errors.New("failed to write")
+	}
+
+	_, b, err := indexer_connection.ReadMessage()
+	if err != nil {
+		return getTxCountResult{}, errors.New("failed to read")
+	}
+
+	var r structures.JSONRpcResp
+	if err := json.Unmarshal(b, &r); err != nil {
+		return getTxCountResult{}, errors.New("failed to unmarshal")
+	}
+
+	return getTxCountResult{r.Result.(float64)}, nil
 }

@@ -157,6 +157,29 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			logger.Errorf("[wsHandleClient] Server disconnect request")
 			return fmt.Errorf("[wsHandleClient] Server disconnect request")
 		}
+	case "GetTxCount":
+		var params *structures.GnomonTxCountQuery
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			logger.Errorf("[wsHandleClient] Unable to parse params")
+			return err
+		}
+		var result int64
+		switch params.Tx_Type {
+		case "registration", "burn", "normal":
+			result = wss.workers[params.IDX].Idx.BBSBackend.GetTxCount(params.Tx_Type)
+		case "scids":
+			result = int64(len(wss.workers[params.IDX].Idx.BBSBackend.GetAllOwnersAndSCIDs()))
+		}
+
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			logger.Errorf("[wsHandleClient] err writing message: err: %v", err)
+
+			logger.Errorf("[wsHandleClient] Server disconnect request")
+			return fmt.Errorf("[wsHandleClient] Server disconnect request")
+		}
 	case "test":
 		var params *structures.GnomonSCIDQuery
 

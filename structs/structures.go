@@ -43,6 +43,10 @@ type FastSyncImport struct {
 type GnomonAllOwnersAndSCIDsQuery struct {
 	IDX string
 }
+type GnomonTxCountQuery struct {
+	IDX     string
+	Tx_Type string
+}
 type GnomonSCIDQuery struct {
 	Owner  string
 	Height uint64
