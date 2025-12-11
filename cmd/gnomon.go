@@ -339,7 +339,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 				continue
 			}
 			scid := value.String()
-			params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(height)}
+			params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(height)}
 		}
 
 		if params.SCID == "" {
@@ -347,12 +347,11 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		}
 
 		var sc rpc.GetSC_Result
-		if params.Code && params.Variables {
-			counter.Add(1)
-			sc = connections.GetSC(params)
-			counter.Add(-1)
-
-		}
+		counter.Add(1)
+		// measure = time.Now()
+		sc = connections.GetSC(params)
+		counter.Add(-1)
+		// download.Swap(time.Since(measure).Milliseconds())
 
 		// fmt.Printf("%v\n", sc)
 
