@@ -1,11 +1,18 @@
 package connections
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"sync"
@@ -36,6 +43,50 @@ type WSServer struct {
 var WSS *WSServer = &WSServer{}
 
 var options = &jrpc2.ServerOptions{AllowPush: true}
+
+// let's make our own certs
+//
+//	"credit: https://gist.github.com/shaneutt/5e1995295cff6721c89a71d13a71c251"
+func certification() {
+	certificate_authority := x509.Certificate{
+		SerialNumber: big.NewInt(9001),
+		Subject: pkix.Name{
+			Organization:  []string{"simple-gnomon"},
+			Country:       []string{"DERO"},
+			Province:      []string{"NETWORK1"},
+			Locality:      []string{"MAINNET"},
+			StreetAddress: []string{"1337 Street"},
+			PostalCode:    []string{"00000"},
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add((time.Hour * 24) * 365),
+		IsCA:      true,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+	certificate_authority_priv_key, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return
+	}
+	certificate_authority_bytes, err := x509.CreateCertificate(
+		rand.Reader,
+		&certificate_authority,
+		&certificate_authority,
+		certificate_authority_priv_key.PublicKey,
+		certificate_authority_priv_key,
+	)
+
+	certificate_authority_priv_key_PEM := new(bytes.Buffer)
+	pem.Encode(certificate_authority_priv_key_PEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certificate_authority_bytes,
+	})
+
+}
 
 // Starts websocket listening for web miners
 func ListenWS(workers map[string]*indexer.Worker) {
