@@ -166,14 +166,14 @@ Options:
 			}
 			switch {
 			case counter.Load() < governer.Load() && download.Load()/100 < governer.Load():
+				governer.Add(-1)
 				go indexing(workers, indices, height, &wg)
 				fmt.Println("scheduling", height, counter.Load(), download.Load(), governer.Load())
 			case counter.Load() > governer.Load() && download.Load() > governer.Load():
-				governer.Add(-1)
 				fmt.Println("fallthrough", height, counter.Load(), download.Load(), governer.Load())
 				fallthrough
 			default:
-				governer.Add(1)
+				governer.Add(100)
 				fmt.Println("direct", height, counter.Load(), download.Load())
 				indexing(workers, indices, height, &wg)
 				storeHeight(workers, height)
