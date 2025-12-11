@@ -149,6 +149,8 @@ Options:
 			lowest_height = *starting_height
 		}
 		// main processing loop
+		var governer atomic.Int64
+
 		wg := sync.WaitGroup{}
 		for height := lowest_height; height < now; height++ {
 			if !RUNNING {
@@ -162,14 +164,17 @@ Options:
 
 				backup(height)
 			}
-
-			fmt.Println(height, counter.Load(), download.Load())
 			switch {
-			case counter.Load() < 3 && download.Load()/100 < 3:
+			case counter.Load() < governer.Load() && download.Load()/100 < governer.Load():
 				go indexing(workers, indices, height, &wg)
-			case counter.Load() > 3 && download.Load() > 3:
+				fmt.Println("scheduling", height, counter.Load(), download.Load(), governer.Load())
+			case counter.Load() > governer.Load() && download.Load() > governer.Load():
+				governer.Add(-1)
+				fmt.Println("fallthrough", height, counter.Load(), download.Load(), governer.Load())
 				fallthrough
 			default:
+				governer.Add(1)
+				fmt.Println("direct", height, counter.Load(), download.Load())
 				indexing(workers, indices, height, &wg)
 				storeHeight(workers, height)
 			}
