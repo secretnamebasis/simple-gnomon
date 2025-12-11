@@ -190,7 +190,6 @@ Options:
 // this is the indexing action that will be done concurrently
 func indexing(workers map[string]*indexer.Worker, indices map[string][]string, height int64, wg *sync.WaitGroup) {
 	defer wg.Done()
-	defer storeHeight(workers, height)
 	// close up when done and remove item from limit
 	if progress != nil && *progress {
 
