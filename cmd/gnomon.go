@@ -280,9 +280,11 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// we are going to process these transactions as fast as simplicity will allow for
 	for _, hash := range bl.Tx_hashes {
 
-		// skip registrations; maybe process those another day
+		// we are going to perform a short cut and count these now instead of deserializing them later
 		succesful_registration := hash[0] == 0 && hash[1] == 0 && hash[2] == 0
 		if succesful_registration {
+			count := workers["all"].Idx.BBSBackend.GetTxCount("registration")
+			workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "registration")
 			return
 		}
 
@@ -295,7 +297,6 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	}
 	for _, each := range txs {
 
-		counter.Add(1)
 		measure := time.Now()
 		transaction_result := connections.GetTransaction(rpc.GetTransaction_Params{ // presumably,
 			// one could pass an array of transaction hashes...
@@ -354,15 +355,19 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			// fmt.Println("Invalid TransactionType in Transaction")
 			continue
 		}
+
+		// test the dry run
 		switch transaction.TransactionType(testing) {
+
+		// these are all valid
 		case transaction.PREMINE,
-			transaction.REGISTRATION,
 			transaction.COINBASE,
+			transaction.REGISTRATION,
 			transaction.BURN_TX,
 			transaction.NORMAL,
 			transaction.SC_TX:
-			// these are all valid
-		default:
+
+		default: // everything else is not
 			continue
 		}
 
@@ -371,42 +376,51 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			continue
 		}
 
-		// fmt.Printf("%+v\n", tx)
-
-		if tx.TransactionType != transaction.SC_TX {
+		// now lets count stuff
+		switch tx.TransactionType {
+		case transaction.PREMINE, // not being processed
+			transaction.COINBASE,     // not being processed
+			transaction.REGISTRATION: // already processed
 			continue
-		}
-
-		if len(tx.SCDATA) == 0 {
+		case transaction.BURN_TX:
+			count := workers["all"].Idx.BBSBackend.GetTxCount("burn")
+			workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "burn")
 			continue
-		}
-		params := rpc.GetSC_Params{}
+		case transaction.NORMAL:
+			count := workers["all"].Idx.BBSBackend.GetTxCount("normal")
+			workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "normal")
+			continue
 
-		if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
-			scid := tx.GetHash().String()
-			params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(height)}
-		}
-
-		// contract interactions
-		if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-			value, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
-			if !ok { // paranoia
+			// time for the meat and potatoes
+		case transaction.SC_TX:
+			if len(tx.SCDATA) == 0 {
 				continue
 			}
-			if value.String() == "" { // yeah... weird
+			params := rpc.GetSC_Params{}
+
+			if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
+				scid := tx.GetHash().String()
+				params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(height)}
+			}
+
+			// contract interactions
+			if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+				value, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
+				if !ok { // paranoia
+					continue
+				}
+				if value.String() == "" { // yeah... weird
+					continue
+				}
+				scid := value.String()
+				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(height)}
+			}
+
+			if params.SCID == "" {
 				continue
 			}
-			scid := value.String()
-			params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(height)}
-		}
 
-		if params.SCID == "" {
-			continue
-		}
-
-		var sc rpc.GetSC_Result
-		if params.SCID != globals.MAINNET_GNOMON_SCID && params.SCID != globals.Hardcoded_SCIDS[0] {
-			counter.Add(1)
+			var sc rpc.GetSC_Result
 			measure = time.Now()
 			sc = connections.GetSC(params)
 
@@ -417,82 +431,88 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			// stop_scheduling = download.Load() <= request.Load()
 			download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
 
-		// fmt.Printf("%v\n", sc)
+			// fmt.Printf("%v\n", sc)
 
-		if signer == "" { // when ringsize is greater than 2...
-			signer = "null"
-		}
+			if signer == "" { // when ringsize is greater than 2...
+				signer = "null"
+			}
 
-		staged := stageSCIDForIndexers(sc, params.SCID, signer, bl.Height)
+			staged := stageSCIDForIndexers(sc, params.SCID, signer, bl.Height)
 
-		// unfortunately, there isn't a way to do this without checking twice
-		class := ""
-		// roll through the indices to obtain the class
-		for name := range indices {
+			// unfortunately, there isn't a way to do this without checking twice
+			class := ""
+			// roll through the indices to obtain the class
+			for name := range indices {
 
-			// obtain the filters
-			filters := indices[name]
+				// obtain the filters
+				filters := indices[name]
 
-			for _, filter := range filters { // range through the filters
+				for _, filter := range filters { // range through the filters
 
-				// if the code does not contain the filter, skip
-				if !strings.Contains(sc.Code, filter) {
-					continue
+					// if the code does not contain the filter, skip
+					if !strings.Contains(sc.Code, filter) {
+						continue
+					}
+
+					// if there is a match, add the name of the index to it's list of tags
+					class = filter
+					break
 				}
 
-				// if there is a match, add the name of the index to it's list of tags
-				class = filter
-				break
+				if class != "" {
+					break
+				}
 			}
 
-			if class != "" {
-				break
+			// as class is currently the filter...
+			// make sure to implement more classes as necessary
+			switch class {
+			case "": // catchall
+				staged.Class = "null"
+			case indices["tela"][0]:
+				staged.Class = "TELA-DOC-1"
+			case indices["tela"][1]:
+				staged.Class = "TELA-INDEX-1"
+			default:
+				staged.Class = class
 			}
-		}
 
-		// as class is currently the filter...
-		// make sure to implement more classes as necessary
-		switch class {
-		case "": // catchall
-			staged.Class = "null"
-		case indices["tela"][0]:
-			staged.Class = "TELA-DOC-1"
-		case indices["tela"][1]:
-			staged.Class = "TELA-INDEX-1"
+			tags := []string{}
+
+			// roll through the indices again to obtain tags
+			for name := range indices {
+
+				// obtain the filters
+				filters := indices[name]
+
+				for _, filter := range filters { // range through the filters
+
+					// if the code does not contina the filter, skip it
+					if !strings.Contains(sc.Code, filter) {
+						continue
+					}
+
+					// if there is a match, add the name of the index to it's list of tags
+					tags = append(tags, name)
+
+				}
+			}
+
+			// lexicographical order
+			slices.Sort(tags)
+
+			// store as a single string
+			staged.Tags = strings.Join(tags, ",")
+
+			// for each tag, queue up for writing
+			for _, tag := range tags {
+				// because these are being processed asynchronously...
+				// don't block on writing them to the db,
+				// just queue em and write em when the writer has a moment
+				workers[tag].Queue <- staged
+			}
 		default:
-			staged.Class = class
-		}
-
-		tags := []string{}
-
-		// roll through the indices again to obtain tags
-		for name := range indices {
-
-			// obtain the filters
-			filters := indices[name]
-
-			for _, filter := range filters { // range through the filters
-
-				// if the code does not contina the filter, skip it
-				if !strings.Contains(sc.Code, filter) {
-					continue
-				}
-
-				// if there is a match, add the name of the index to it's list of tags
-				tags = append(tags, name)
-
-			}
-		}
-
-		// lexicographical order
-		slices.Sort(tags)
-
-		// store as a single string
-		staged.Tags = strings.Join(tags, ",")
-
-		// for each tag, queue up for writing
-		for _, tag := range tags {
-			workers[tag].Queue <- staged
+			log.Fatal("invalid tx type should not happen", height, tx.GetHash().String())
 		}
 	}
 }
