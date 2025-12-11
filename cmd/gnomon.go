@@ -221,12 +221,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		return
 	}
 
-	var ( // pick up only desired txs from the block,
-		txs = []string{}
-
-		// simple concurrency pattern
-
-	)
+	// pick up only desired txs from the block,
+	txs := []string{}
 
 	// we are going to process these transactions as fast as simplicity will allow for
 	for _, hash := range bl.Tx_hashes {
