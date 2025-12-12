@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -190,11 +191,10 @@ Options:
 			case fast:
 				// as more objects are scheduled, the machine does it really fast
 				// like micro... pico... fast. so don't schedule too many
-				governor.Add(1) // later, the govener will be adjusted
+				governor.Add(2) // later, the govener will be adjusted
 
 				// think of concurrency as scheduling and things become much faster
 				go indexing(workers, indices, height, &wg)
-
 				// fmt.Println(height, "schedule",
 				// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
 				// )
@@ -207,12 +207,23 @@ Options:
 				// fmt.Println(height, "slowdown",
 				// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
 				// )
+				// if height%10000 == 0 {
+				// 	print_stats()
+				storeHeight(workers, height)
+				runtime.Gosched()
+				// }
+				for _, each := range workers {
+					for len(each.Queue) > 1 {
+						time.Sleep(time.Duration(download.Load()))
+					}
+				}
+				// fallthrough
 			default:
 				// at this point, no more scheduling should be done.
 				// however, the machine probably waited long enough to be able to schedule more requests
-				governor.Add(-100) // drop the govener waay down and let the scheduler take over
+				governor.Add(-10) // drop the govener waay down and let the scheduler take over
 				indexing(workers, indices, height, &wg)
-				storeHeight(workers, height)
+
 				// fmt.Println(height, "default",
 				// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
 				// )
