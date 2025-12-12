@@ -86,6 +86,7 @@ func main() {
 				panic(err)
 			}
 			last := float64(0)
+
 			height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
 			if err != nil {
 				panic(err)
@@ -153,10 +154,10 @@ func main() {
 				}
 				now := connections.GetDaemonInfo().TopoHeight
 
+				last = float64(cmd.TOPO.Load())
 				if last == 0 {
 					last = height1.Result
 				}
-				last = height1.Result
 				duration := time.Since(start).Seconds()
 				average := last - first
 				if int64(duration) == 0 {

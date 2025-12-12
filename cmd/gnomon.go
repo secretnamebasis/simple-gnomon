@@ -49,7 +49,7 @@ var day_of_blocks int64
 var download atomic.Int64
 var request atomic.Int64
 var governor atomic.Int64
-
+var TOPO atomic.Int64
 var RUNNING bool
 
 // this is the processing thread
@@ -174,18 +174,19 @@ Options:
 			//
 			// when the number of requests is less than the govenor...
 			// obviously, the machine can take more
-			more_requests_please := governor.Load() <= request.Load()
+			more := governor.Load() <= request.Load()
 
 			// we are measuring the time for node responses
 			// when the downloads take longer, scale back.
 			// the primary way is to stop scheduling new requests, handle them one at a time.
 			// then, when speeds improve, scale back in by scheduling more
-			stop_scheduling := download.Load() <= request.Load()
+			stop := download.Load() <= request.Load() || len(workers["all"].Queue) >= 10
 
-			fast := more_requests_please && !stop_scheduling
+			fast := more && !stop
 
-			slow := more_requests_please && stop_scheduling
+			slow := more && stop
 
+			TOPO.Swap(height)
 			switch {
 
 			case fast:
@@ -209,19 +210,24 @@ Options:
 				// )
 				// if height%10000 == 0 {
 				// 	print_stats()
-				storeHeight(workers, height)
-				runtime.Gosched()
-				// }
+				// runtime.Gosched()
+
+				// wait for all the requests to finish
+				for request.Load() != 0 {
+					time.Sleep(time.Duration(download.Load()))
+				}
+				// wait for all the queued staged items to clear
 				for _, each := range workers {
 					for len(each.Queue) > 1 {
 						time.Sleep(time.Duration(download.Load()))
 					}
 				}
+				storeHeight(workers, height)
 				// fallthrough
 			default:
 				// at this point, no more scheduling should be done.
 				// however, the machine probably waited long enough to be able to schedule more requests
-				governor.Add(-10) // drop the govener waay down and let the scheduler take over
+				governor.Add(-100) // drop the govener waay down and let the scheduler take over
 				indexing(workers, indices, height, &wg)
 
 				// fmt.Println(height, "default",
@@ -264,7 +270,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// blocks are fast when there is little in them.
 	// when the centralized scheduler reviews the download metric,
 	// should be floating around the highest to govern request load
-	// stop_scheduling = download.Load() <= request.Load()
+	// stop = download.Load() <= request.Load()
 	download.Swap(max(download.Load(), time.Since(measure).Milliseconds()))
 
 	// fmt.Println(result)
@@ -318,7 +324,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		// transactions are almost always the same size,
 		// except for when they have stuff in them: like sc_data or tx_payload data
 		// scheduling will want to make sure that the download metric is closer to equal with request load
-		// stop_scheduling = download.Load() <= request.Load()
+		// stop = download.Load() <= request.Load()
 		download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
 
 		related_info := transaction_result.Txs[0]
@@ -439,7 +445,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			// there might be small code, there might be few vars...
 			// with that said, the name service contract and gnomonSC,
 			// will always push the download metric towards the request limit
-			// stop_scheduling = download.Load() <= request.Load()
+			// stop = download.Load() <= request.Load()
 			download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
 
 			// fmt.Printf("%v\n", sc)
@@ -598,7 +604,7 @@ func set_up_backend(name string) error {
 
 	// initialize each indexer
 	workers[name] = &indexer.Worker{
-		Queue: make(chan structures.SCIDToIndexStage, 1000),
+		Queue: make(chan structures.SCIDToIndexStage, 100),
 		Idx:   indexer.NewIndexer(b, height, []string{globals.MAINNET_GNOMON_SCID}),
 	}
 
