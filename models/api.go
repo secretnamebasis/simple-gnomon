@@ -47,33 +47,12 @@ func Ask() bool {
 	}
 }
 
-var Blocked = false
 var Out int
 var Speed = 10
 var Max_preferred_requests = int64(10)
 var Average = float64(0)
 var SpeedAverage = float64(50)
 
-func Adjust() {
-	//	fmt.Println(" Actual En Route:", strconv.Itoa(int(Out)))
-	//	offset := int(Max_preferred_requests) - Out
-	/*	if Out >= int(Max_preferred_requests) {
-			Speed = 10000
-		} else {
-			Speed = 1
-		}
-
-
-			ratio := float64(Max_preferred_requests) / float64(Out)
-			Speed = int(float64(Speed) / float64(ratio))
-			if Speed < 2 {
-				Speed = 1
-			}
-			if Speed > 1000 {
-				Speed = 1000
-			}
-	*/
-}
 func callRPC[t any](method string, params any, validator func(t) bool) t {
 
 	result, err := handleResult[t](method, params)

@@ -36,13 +36,6 @@ var sqlite = &SqlStore{}
 var sqlindexer = &Indexer{}
 var UseMem = true
 
-var inarow = 1
-
-// Request handling
-var Processing = int64(0)
-
-var Bcountstrart time.Time
-
 func start_gnomon_indexer() {
 
 	var lowest_height int64
@@ -61,7 +54,6 @@ func start_gnomon_indexer() {
 	fmt.Println("topoheight ", api.Get_TopoHeight())
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
 	//start := time.Now()
-	//var quickadjust = 0
 
 	if TargetHeight < HighestKnownHeight-25000 {
 		TargetHeight = lowest_height + 25000
@@ -70,16 +62,11 @@ func start_gnomon_indexer() {
 	}
 
 	var wg sync.WaitGroup
-	for bheight := lowest_height; bheight < TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
-		Processing = bheight //maybe remove
+	for bheight := lowest_height; bheight < TargetHeight; bheight++ {
 		if !api.Status_ok {
 			break
 		}
-
 		api.Ask()
-		//	quickAdjust(&quickadjust, start)
-		//api.Adjust()
-		time.Sleep(time.Millisecond)
 		wg.Add(1)
 		go ProcessBlock(&wg, bheight)
 
@@ -87,8 +74,6 @@ func start_gnomon_indexer() {
 	// Wait for all requests to finish
 	fmt.Println("indexed")
 	wg.Wait()
-
-	//adjustSpeed(lowest_height, start)
 
 	//Take a breather
 	w, _ := time.ParseDuration("1s")
@@ -105,10 +90,6 @@ func start_gnomon_indexer() {
 			fmt.Println("[Main] Err creating sqlite:", err)
 			return
 		}
-
-		api.Speed = 50
-		//Max_preferred_requests = 50
-		//Max_allowed = 50
 
 		api.Status_ok = true
 		start_gnomon_indexer() //without saving
@@ -140,8 +121,7 @@ func start_gnomon_indexer() {
 		// Extract filename
 		filename := filepath.Base(sqlite.DBPath)
 		dir := filepath.Dir(sqlite.DBPath)
-		//	ext := filepath.Ext(filename)
-
+		// Start disk mode
 		sqlite, err = NewDiskDB(dir, filename)
 	}
 
@@ -157,7 +137,6 @@ func start_gnomon_indexer() {
 func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 	defer wg.Done()
 	if !api.Status_ok {
-		api.Speed = 50
 		return
 	}
 
@@ -166,8 +145,7 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 		" Max En Route:" + strconv.Itoa(int(api.Max_preferred_requests)) +
 		" Actual En Route:" + strconv.Itoa(int(api.Out)) +
 		" Speed:" + strconv.Itoa(api.Speed) + "ms" +
-		" " + strconv.Itoa((1000/api.Speed)*60*60) + "bph" +
-		" Block:" + strconv.Itoa(int(bheight))
+		" " + strconv.Itoa((1000/api.Speed)*60*60) + "bph"
 
 	fmt.Print("\r", show)
 	//api.Adjust()
@@ -198,7 +176,6 @@ func ProcessBlock(wg *sync.WaitGroup, bheight int64) {
 
 	//let the rest go unsaved if one request fails
 	if !api.Status_ok {
-		api.Speed = 50
 		return
 	}
 
