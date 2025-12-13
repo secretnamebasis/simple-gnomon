@@ -38,9 +38,10 @@ func (ss *SqlStore) BackupToDisk() error {
 
 	// Use the SQLite backup API
 	// This requires the mattn/go-sqlite3 driver
-	ctx, _ := context.WithTimeout(context.Background(), 10)
-	connSrc, _ := ss.DB.Conn(ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 1000)
+	defer cancel()
 
+	connSrc, err := ss.DB.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get source connection: %w", err)
 	}
