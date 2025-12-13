@@ -27,7 +27,7 @@ func main() {
 		fmt.Println("[Main] Err creating sqlite:", err)
 		return
 	}
-
+	api.Init()
 	start_gnomon_indexer()
 }
 
@@ -71,23 +71,21 @@ func start_gnomon_indexer() {
 	}
 
 	var wg sync.WaitGroup
-	for bheight := lowest_height; bheight < TargetHeight; bheight++ { //program.wallet.Get_TopoHeight()
+	for bheight := lowest_height; bheight < TargetHeight; { //program.wallet.Get_TopoHeight()
 		Processing = bheight //maybe remove
 		if !api.Status_ok {
 			break
 		}
-		fmt.Println("\n  processing: ", bheight)
-		fmt.Println("TargetHeight: ", TargetHeight)
-		if bheight > TargetHeight {
-			fmt.Println("\nproceffffssing: ", bheight)
-			fmt.Println("TargetHfffffffffeight: ", TargetHeight)
-			panic("")
+		if api.Blocked {
+			t, _ := time.ParseDuration("1ms")
+			time.Sleep(t)
+			continue
 		}
-
+		api.Blocked = true
+		bheight++
 		//	quickAdjust(&quickadjust, start)
 		//api.Adjust()
-		t, _ := time.ParseDuration(strconv.Itoa(api.Speed) + "ms")
-		time.Sleep(t)
+
 		wg.Add(1)
 		go ProcessBlock(&wg, bheight)
 

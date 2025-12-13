@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,29 +39,47 @@ const timeout = time.Second * 9 // the world is a really big place
 // const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 var RpcClient jrpc2.Client
 
+func Init() {
+	go regulate()
+}
+
+func regulate() {
+	for {
+		//fmt.Printf("%v+\n", time.Now())
+		time.Sleep(time.Millisecond)
+		if Out >= int(Max_preferred_requests) {
+			Blocked = true
+		} else {
+			Blocked = false
+		}
+	}
+}
+
+var Blocked = false
 var Out int
-var Speed = 80
-var Max_preferred_requests = int64(80)
+var Speed = 10
+var Max_preferred_requests = int64(10)
 var Average = float64(0)
 var SpeedAverage = float64(50)
 
 func Adjust() {
-	offset := int(Max_preferred_requests) - Out
-	if offset > 0 {
-		Speed = 1
-	} else {
-		Speed = 1000
-	}
-	/*
-
-		ratio := float64(Max_preferred_requests) / float64(Out)
-		Speed = int(float64(Speed) / float64(ratio))
-		if Speed < 2 {
+	fmt.Println(" Actual En Route:", strconv.Itoa(int(Out)))
+	//	offset := int(Max_preferred_requests) - Out
+	/*	if Out >= int(Max_preferred_requests) {
+			Speed = 10000
+		} else {
 			Speed = 1
 		}
-		if Speed > 1000 {
-			Speed = 1000
-		}
+
+
+			ratio := float64(Max_preferred_requests) / float64(Out)
+			Speed = int(float64(Speed) / float64(ratio))
+			if Speed < 2 {
+				Speed = 1
+			}
+			if Speed > 1000 {
+				Speed = 1000
+			}
 	*/
 }
 func callRPC[t any](method string, params any, validator func(t) bool) t {
