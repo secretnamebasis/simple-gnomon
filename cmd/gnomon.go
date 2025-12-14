@@ -120,11 +120,6 @@ Options:
 
 	fmt.Println("setting up queue processors")
 
-	// set up a listener for staged scids in the indexer queue
-	for name := range workers {
-		go asynchronously_process_queues(workers[name], backups[name])
-	}
-
 	// now that the backend is set up, start WS
 
 	fmt.Println("setting up websocket")
@@ -173,65 +168,56 @@ Options:
 			//
 			// when the number of requests is less than the govenor...
 			// obviously, the machine can take more
-			// more := governor.Load() <= request.Load()
+			more := governor.Load() <= download.Load()
 
 			// // we are measuring the time for node responses
 			// // when the downloads take longer, scale back.
 			// // the primary way is to stop scheduling new requests, handle them one at a time.
 			// // then, when speeds improve, scale back in by scheduling more
-			// stop := download.Load() <= request.Load() || len(workers["all"].Queue) >= 10
+			stop := download.Load() <= request.Load()
 
-			// fast := more && !stop
+			fast := more && !stop
 
-			// slow := more && stop
+			slow := more && stop
 
 			TOPO.Swap(height)
 			switch {
 
-			// case fast:
-			// 	// as more objects are scheduled, the machine does it really fast
-			// 	// like micro... pico... fast. so don't schedule too many
-			// 	governor.Add(2) // later, the govener will be adjusted
+			case fast:
+				// 	// 	// as more objects are scheduled, the machine does it really fast
+				// 	// 	// like micro... pico... fast. so don't schedule too many
+				governor.Add(2) // later, the govener will be adjusted
 
-			// 	// think of concurrency as scheduling and things become much faster
-			// 	go indexing(workers, indices, height, &wg)
-			// 	// fmt.Println(height, "schedule",
-			// 	// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
-			// 	// )
+				// 	// 	// think of concurrency as scheduling and things become much faster
+				go indexing(workers, indices, height, &wg)
+				fmt.Println(height, "schedule",
+					"reqeusts", request.Load(), "/", "download", download.Load(), "/", "governor", governor.Load(),
+				)
+				storeHeight(workers, height)
 
-			// case slow:
-			// 	// because we can still take on requests just not that many...
-			// 	// adjust the govener upward towards the number of outgoing requests
-			// 	governor.Add(1)
-			// 	go indexing(workers, indices, height, &wg)
-			// 	// fmt.Println(height, "slowdown",
-			// 	// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
-			// 	// )
-			// 	// if height%10000 == 0 {
-			// 	// 	print_stats()
-			// 	// runtime.Gosched()
+			case slow:
+				// 	// 	// because we can still take on requests just not that many...
+				// 	// 	// adjust the govener upward towards the number of outgoing requests
+				governor.Add(1)
+				indexing(workers, indices, height, &wg)
+				fmt.Println(height, "slowdown",
+					"reqeusts", request.Load(), "/", "download", download.Load(), "/", "governor", governor.Load(),
+				)
 
-			// 	// wait for all the requests to finish
-			// 	for request.Load() != 0 {
-			// 		time.Sleep(time.Duration(download.Load()))
-			// 	}
-			// 	// wait for all the queued staged items to clear
-			// 	for _, each := range workers {
-			// 		for len(each.Queue) > 1 {
-			// 			time.Sleep(time.Duration(download.Load()))
-			// 		}
-			// 	}
-			// 	storeHeight(workers, height)
+				// 	// 	// wait for all the requests to finish
+				for request.Load() > 100 {
+					time.Sleep(time.Duration(download.Load()))
+				}
 			// fallthrough
 			default:
 				// at this point, no more scheduling should be done.
 				// however, the machine probably waited long enough to be able to schedule more requests
-				governor.Add(-100) // drop the govener waay down and let the scheduler take over
-				indexing(workers, indices, height, &wg)
+				governor.Add(-50) // drop the govener waay down and let the scheduler take over
+				go indexing(workers, indices, height, &wg)
 
-				// fmt.Println(height, "default",
-				// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
-				// )
+				fmt.Println(height, "default",
+					"reqeusts", request.Load(), "/", "download", download.Load(), "/", "governor", governor.Load(),
+				)
 			}
 
 		}
@@ -271,7 +257,6 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// should be floating around the highest to govern request load
 	// stop = download.Load() <= request.Load()
 	download.Swap(max(download.Load(), time.Since(measure).Milliseconds()))
-
 	// fmt.Println(result)
 	// if there is nothing, move on
 	count := result.Block_Header.TXCount
@@ -368,7 +353,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		}
 	}
 
-	download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
+	download.Swap(max(download.Load(), time.Since(measure).Milliseconds()))
 
 	// transactions are almost always the same size,
 	// except for when they have stuff in them: like sc_data or tx_payload data
@@ -494,7 +479,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			// with that said, the name service contract and gnomonSC,
 			// will always push the download metric towards the request limit
 			// stop = download.Load() <= request.Load()
-			download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
+			download.Swap(max(download.Load(), time.Since(measure).Milliseconds()))
 
 			// fmt.Printf("%v\n", sc)
 
@@ -574,7 +559,37 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 				// because these are being processed asynchronously...
 				// don't block on writing them to the db,
 				// just queue em and write em when the writer has a moment
-				workers[tag].Queue <- staged
+				format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
+				a := []any{
+					staged.Scid,
+					staged.Fsi.Owner,
+					staged.Fsi.Height,
+					connections.Get_TopoHeight(),
+					staged.Fsi.Headers,
+					len(staged.ScVars),
+					staged.Class,
+					staged.Tags,
+				}
+
+				fmt.Printf(format, a...)
+				measure = time.Now()
+				if err := workers[tag].Idx.AddSCIDToIndex(staged); err != nil {
+					// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
+					fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
+					// }
+					continue
+				}
+
+				if achieved_current_height > 0 { // once the indexer has reached the top...
+					// do incremental backups
+					if err := backups[tag].AddSCIDToIndex(staged); err != nil {
+						// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
+						fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
+						// }
+						continue
+					}
+				}
+				download.Swap(max(download.Load(), time.Since(measure).Milliseconds()))
 			}
 		default:
 			log.Fatal("invalid tx type should not happen", height, tx.GetHash().String())
@@ -662,50 +677,6 @@ func set_up_backend(name string) error {
 		return err
 	}
 	return nil
-}
-
-func asynchronously_process_queues(worker *indexer.Worker, backup *indexer.Indexer) {
-	for staged := range worker.Queue {
-
-		// vars := func(staged structures.SCIDToIndexStage) string {
-		// 	varstring := ""
-		// 	for _, each := range staged.ScVars {
-		// 		varstring += fmt.Sprint(each.Key) + ":" + fmt.Sprint(each.Value) + " "
-		// 	}
-		// 	return varstring
-		// }(staged)
-
-		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
-		a := []any{
-			staged.Scid,
-			staged.Fsi.Owner,
-			staged.Fsi.Height,
-			connections.Get_TopoHeight(),
-			staged.Fsi.Headers,
-			len(staged.ScVars),
-			staged.Class,
-			staged.Tags,
-		}
-
-		fmt.Printf(format, a...)
-
-		if err := worker.Idx.AddSCIDToIndex(staged); err != nil {
-			// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-			fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-			// }
-			continue
-		}
-
-		if achieved_current_height > 0 { // once the indexer has reached the top...
-			// do incremental backups
-			if err := backup.AddSCIDToIndex(staged); err != nil {
-				// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-				fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-				// }
-				continue
-			}
-		}
-	}
 }
 
 func find_lowest_height(backups map[string]*indexer.Indexer, now int64) bool {
