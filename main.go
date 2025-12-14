@@ -53,12 +53,7 @@ func main() {
 			return
 		}
 		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					// Handle/log the panic here
-					fyne.DoAndWait(func() { readout.SetText(fmt.Sprintf("gnomon failed: \n%v", r)) })
-				}
-			}()
+
 			cmd.Start_gnomon_indexer()
 		}()
 
