@@ -309,7 +309,6 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		txs = append(txs, hash.String())
 
 	}
-	fmt.Println(txs)
 
 	// pick this up
 	tx_count := float64(len(txs))
@@ -330,7 +329,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// because the number is now below 1 second, convert it to milliseconds
 	limit := theoretical_maximum_blocks_per_second * 1000
 
-	results := []rpc.GetTransaction_Result{}
+	results := rpc.GetTransaction_Result{}
 	measure = time.Now()
 
 	if tx_count < limit {
@@ -345,8 +344,6 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	} else {
 
 		batches := int(tx_count / limit)
-
-		fmt.Println("BATCHES", batches)
 
 		if batches == 0 {
 			batches += 1
@@ -369,7 +366,6 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			results.Txs_as_hex = append(results.Txs_as_hex, get_result.Txs_as_hex...)
 			results.Txs_as_json = append(results.Txs_as_json, get_result.Txs_as_json...)
 		}
-		fmt.Println(len(results.Txs))
 		if len(results.Txs) != int(tx_count) {
 			log.Fatal("results do not match tx count ", len(results.Txs), "!=", int(tx_count))
 		}
@@ -389,7 +385,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		}
 		signer := related_info.Signer
 
-		b, err := hex.DecodeString(each.Txs_as_hex[i])
+		b, err := hex.DecodeString(results.Txs_as_hex[i])
 		if err != nil {
 			continue
 		}
