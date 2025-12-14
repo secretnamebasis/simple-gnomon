@@ -34,6 +34,7 @@ func main() {
 	endpoint := ""
 	connection := widget.NewEntry()
 	readout := widget.NewLabel("")
+	topo_height := widget.NewLabel("")
 	indexed_height := widget.NewLabel("")
 	current_height := widget.NewLabel("")
 	average_blocks_per_hour := widget.NewLabel("")
@@ -46,7 +47,7 @@ func main() {
 		os.Args = append(os.Args,
 			"-endpoint="+endpoint,
 			// the first g45 nft starts at 678864
-			// "-starting_height=154000",
+			// "-starting_height=155000",
 			// "-progress",
 		)
 		if cmd.RUNNING {
@@ -167,7 +168,8 @@ func main() {
 				fyne.DoAndWait(func() {
 					readout.SetText(text)
 					current_height.SetText("current height:" + strconv.Itoa(int(now)))
-					indexed_height.SetText("indexed height:" + strconv.Itoa(int(height1.Result)))
+					topo_height.SetText("Topo height:" + strconv.Itoa(int(cmd.TOPO.Load())))
+					indexed_height.SetText("Last Indexed height:" + strconv.Itoa(int(height1.Result)))
 					average_blocks_per_hour.SetText("average blocks per second:" + strconv.Itoa(int(average)))
 					estimated_time_to_completion.SetText("estimated hours until completion:" + strconv.Itoa(int(estimated/60/60)))
 					progress_bar.SetValue(last / float64(now))
@@ -189,6 +191,7 @@ func main() {
 	content := container.NewVBox(
 		readout,
 		current_height,
+		topo_height,
 		indexed_height,
 		average_blocks_per_hour,
 		estimated_time_to_completion,

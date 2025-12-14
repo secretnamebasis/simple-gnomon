@@ -152,6 +152,7 @@ Options:
 
 		wg := sync.WaitGroup{}
 		for height := lowest_height; height < now; height++ {
+			TOPO.Swap(height)
 			if !RUNNING {
 				return
 			}
@@ -164,61 +165,10 @@ Options:
 				backup(height)
 			}
 
-			// SCHEDULER
-			//
-			// when the number of requests is less than the govenor...
-			// obviously, the machine can take more
-			more := governor.Load() <= download.Load()
-
-			// // we are measuring the time for node responses
-			// // when the downloads take longer, scale back.
-			// // the primary way is to stop scheduling new requests, handle them one at a time.
-			// // then, when speeds improve, scale back in by scheduling more
-			stop := download.Load() <= request.Load()
-
-			fast := more && !stop
-
-			slow := more && stop
-
-			TOPO.Swap(height)
-			switch {
-
-			case fast:
-				// 	// 	// as more objects are scheduled, the machine does it really fast
-				// 	// 	// like micro... pico... fast. so don't schedule too many
-				governor.Add(2) // later, the govener will be adjusted
-
-				// 	// 	// think of concurrency as scheduling and things become much faster
-				go indexing(workers, indices, height, &wg)
-				fmt.Println(height, "schedule",
-					"reqeusts", request.Load(), "/", "download", download.Load(), "/", "governor", governor.Load(),
-				)
-				storeHeight(workers, height)
-
-			case slow:
-				// 	// 	// because we can still take on requests just not that many...
-				// 	// 	// adjust the govener upward towards the number of outgoing requests
-				governor.Add(1)
-				indexing(workers, indices, height, &wg)
-				fmt.Println(height, "slowdown",
-					"reqeusts", request.Load(), "/", "download", download.Load(), "/", "governor", governor.Load(),
-				)
-
-				// 	// 	// wait for all the requests to finish
-				for request.Load() > 100 {
-					time.Sleep(time.Duration(download.Load()))
-				}
-			// fallthrough
-			default:
-				// at this point, no more scheduling should be done.
-				// however, the machine probably waited long enough to be able to schedule more requests
-				governor.Add(-50) // drop the govener waay down and let the scheduler take over
-				go indexing(workers, indices, height, &wg)
-
-				fmt.Println(height, "default",
-					"reqeusts", request.Load(), "/", "download", download.Load(), "/", "governor", governor.Load(),
-				)
+			for request.Load() > 10 {
+				time.Sleep(time.Duration(download.Load()))
 			}
+			go indexing(workers, indices, height, &wg)
 
 		}
 		wg.Wait()
@@ -244,6 +194,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// regardless of what happens...
 	defer request.Add(-1) // drop the request count
 
+	defer storeHeight(workers, height)
+
 	if progress != nil && *progress {
 
 		fmt.Printf("auditing block: %d / %d\n", height, connections.Get_TopoHeight())
@@ -256,7 +208,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// when the centralized scheduler reviews the download metric,
 	// should be floating around the highest to govern request load
 	// stop = download.Load() <= request.Load()
-	download.Swap(max(download.Load(), time.Since(measure).Milliseconds()))
+	download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
 	// fmt.Println(result)
 	// if there is nothing, move on
 	count := result.Block_Header.TXCount
