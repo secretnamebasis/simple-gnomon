@@ -336,8 +336,12 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	if tx_count < limit {
 		// do it this way
 		get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: txs})
-		results = append(results, get_result)
-
+		results.Txs = append(results.Txs, get_result.Txs...)
+		results.Txs_as_hex = append(results.Txs_as_hex, get_result.Txs_as_hex...)
+		results.Txs_as_json = append(results.Txs_as_json, get_result.Txs_as_json...)
+		if len(results.Txs) != int(tx_count) {
+			log.Fatal("results do not match tx count ", len(results.Txs), "!=", int(tx_count))
+		}
 	} else {
 
 		batches := int(tx_count / limit)
@@ -348,17 +352,27 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			batches += 1
 		}
 
+		var group []string
 		// instead
 		for batch := 0; batch <= batches; batch++ {
-			fmt.Println("BATCH", batch)
 			start := batch * int(limit)
 			end := start + int(limit)
-			group := txs[start:end]
-			fmt.Println(group)
-			get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: group})
-			results = append(results, get_result)
-		}
 
+			if batch == batches {
+				group = txs[start:]
+			} else {
+				group = txs[start:end]
+			}
+
+			get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: group})
+			results.Txs = append(results.Txs, get_result.Txs...)
+			results.Txs_as_hex = append(results.Txs_as_hex, get_result.Txs_as_hex...)
+			results.Txs_as_json = append(results.Txs_as_json, get_result.Txs_as_json...)
+		}
+		fmt.Println(len(results.Txs))
+		if len(results.Txs) != int(tx_count) {
+			log.Fatal("results do not match tx count ", len(results.Txs), "!=", int(tx_count))
+		}
 	}
 
 	download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
@@ -367,9 +381,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 	// except for when they have stuff in them: like sc_data or tx_payload data
 	// scheduling will want to make sure that the download metric is closer to equal with request load
 	// stop = download.Load() <= request.Load()
-	for i, each := range results {
-
-		related_info := each.Txs[i]
+	for i := range results.Txs_as_hex {
+		related_info := results.Txs[i]
 
 		if related_info.ValidBlock != result.Block_Header.Hash || len(related_info.InvalidBlock) > 0 {
 			continue
