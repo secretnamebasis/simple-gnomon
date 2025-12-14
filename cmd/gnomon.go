@@ -302,39 +302,81 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		if succesful_registration {
 			count := workers["all"].Idx.BBSBackend.GetTxCount("registration")
 			workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "registration")
-			return
+			continue
 		}
 
+		// what remains are txids, scids, burns(if any)
 		txs = append(txs, hash.String())
 
 	}
+	fmt.Println(txs)
 
-	if len(txs) == 0 {
+	// pick this up
+	tx_count := float64(len(txs))
+
+	fmt.Println("TX COUNT", tx_count)
+
+	if tx_count == 0 {
 		return
 	}
-	for _, each := range txs {
 
-		measure := time.Now()
-		transaction_result := connections.GetTransaction(rpc.GetTransaction_Params{ // presumably,
-			// one could pass an array of transaction hashes...
-			// but noooooooo.... that's a vector for spam...
-			// so we'll do this one at a time
-			Tx_Hashes: []string{each},
-		})
-		// transactions are almost always the same size,
-		// except for when they have stuff in them: like sc_data or tx_payload data
-		// scheduling will want to make sure that the download metric is closer to equal with request load
-		// stop = download.Load() <= request.Load()
-		download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
+	// float64(4800 blocks a day / 24 hours a day / 60 minutes per hour / 60 seconds per minute) * 1000
+	theoretical_maximum_blocks_per_second := float64(
+		float64(day_of_blocks) /
+			float64(24) /
+			float64(60) /
+			float64(60))
 
-		related_info := transaction_result.Txs[0]
+	// because the number is now below 1 second, convert it to milliseconds
+	blocks_per_millisecond := theoretical_maximum_blocks_per_second * 1000
+
+	results := []rpc.GetTransaction_Result{}
+	measure = time.Now()
+
+	if tx_count < blocks_per_millisecond {
+		// do it this way
+		get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: txs})
+		results = append(results, get_result)
+
+	} else {
+
+		batches := int(tx_count / blocks_per_millisecond)
+
+		fmt.Println("BATCHES", batches)
+
+		if batches == 0 {
+			batches += 1
+		}
+
+		// instead
+		for batch := 0; batch <= batches; batch++ {
+			fmt.Println("BATCH", batch)
+			start := batch * int(blocks_per_millisecond)
+			end := start + int(blocks_per_millisecond)
+			group := txs[start:end]
+			fmt.Println(group)
+			get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: group})
+			results = append(results, get_result)
+		}
+
+	}
+
+	download.Swap(min(download.Load(), time.Since(measure).Milliseconds()))
+
+	// transactions are almost always the same size,
+	// except for when they have stuff in them: like sc_data or tx_payload data
+	// scheduling will want to make sure that the download metric is closer to equal with request load
+	// stop = download.Load() <= request.Load()
+	for i, each := range results {
+
+		related_info := each.Txs[i]
 
 		if related_info.ValidBlock != result.Block_Header.Hash || len(related_info.InvalidBlock) > 0 {
 			continue
 		}
 		signer := related_info.Signer
 
-		b, err := hex.DecodeString(transaction_result.Txs_as_hex[0])
+		b, err := hex.DecodeString(each.Txs_as_hex[i])
 		if err != nil {
 			continue
 		}
@@ -430,7 +472,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 					continue
 				}
 				scid := value.String()
-				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(height)}
+				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(height)}
 			}
 
 			if params.SCID == "" {
@@ -532,6 +574,7 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			log.Fatal("invalid tx type should not happen", height, tx.GetHash().String())
 		}
 	}
+
 }
 
 func storeHeight(indexers map[string]*indexer.Worker, height int64) error {
