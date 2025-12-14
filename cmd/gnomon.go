@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -174,56 +173,56 @@ Options:
 			//
 			// when the number of requests is less than the govenor...
 			// obviously, the machine can take more
-			more := governor.Load() <= request.Load()
+			// more := governor.Load() <= request.Load()
 
-			// we are measuring the time for node responses
-			// when the downloads take longer, scale back.
-			// the primary way is to stop scheduling new requests, handle them one at a time.
-			// then, when speeds improve, scale back in by scheduling more
-			stop := download.Load() <= request.Load() || len(workers["all"].Queue) >= 10
+			// // we are measuring the time for node responses
+			// // when the downloads take longer, scale back.
+			// // the primary way is to stop scheduling new requests, handle them one at a time.
+			// // then, when speeds improve, scale back in by scheduling more
+			// stop := download.Load() <= request.Load() || len(workers["all"].Queue) >= 10
 
-			fast := more && !stop
+			// fast := more && !stop
 
-			slow := more && stop
+			// slow := more && stop
 
 			TOPO.Swap(height)
 			switch {
 
-			case fast:
-				// as more objects are scheduled, the machine does it really fast
-				// like micro... pico... fast. so don't schedule too many
-				governor.Add(2) // later, the govener will be adjusted
+			// case fast:
+			// 	// as more objects are scheduled, the machine does it really fast
+			// 	// like micro... pico... fast. so don't schedule too many
+			// 	governor.Add(2) // later, the govener will be adjusted
 
-				// think of concurrency as scheduling and things become much faster
-				go indexing(workers, indices, height, &wg)
-				// fmt.Println(height, "schedule",
-				// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
-				// )
+			// 	// think of concurrency as scheduling and things become much faster
+			// 	go indexing(workers, indices, height, &wg)
+			// 	// fmt.Println(height, "schedule",
+			// 	// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
+			// 	// )
 
-			case slow:
-				// because we can still take on requests just not that many...
-				// adjust the govener upward towards the number of outgoing requests
-				governor.Add(1)
-				indexing(workers, indices, height, &wg)
-				// fmt.Println(height, "slowdown",
-				// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
-				// )
-				// if height%10000 == 0 {
-				// 	print_stats()
-				// runtime.Gosched()
+			// case slow:
+			// 	// because we can still take on requests just not that many...
+			// 	// adjust the govener upward towards the number of outgoing requests
+			// 	governor.Add(1)
+			// 	go indexing(workers, indices, height, &wg)
+			// 	// fmt.Println(height, "slowdown",
+			// 	// 	"governor", governor.Load(), "/", "reqeusts", request.Load(), "/", "download", download.Load(),
+			// 	// )
+			// 	// if height%10000 == 0 {
+			// 	// 	print_stats()
+			// 	// runtime.Gosched()
 
-				// wait for all the requests to finish
-				for request.Load() != 0 {
-					time.Sleep(time.Duration(download.Load()))
-				}
-				// wait for all the queued staged items to clear
-				for _, each := range workers {
-					for len(each.Queue) > 1 {
-						time.Sleep(time.Duration(download.Load()))
-					}
-				}
-				storeHeight(workers, height)
-				// fallthrough
+			// 	// wait for all the requests to finish
+			// 	for request.Load() != 0 {
+			// 		time.Sleep(time.Duration(download.Load()))
+			// 	}
+			// 	// wait for all the queued staged items to clear
+			// 	for _, each := range workers {
+			// 		for len(each.Queue) > 1 {
+			// 			time.Sleep(time.Duration(download.Load()))
+			// 		}
+			// 	}
+			// 	storeHeight(workers, height)
+			// fallthrough
 			default:
 				// at this point, no more scheduling should be done.
 				// however, the machine probably waited long enough to be able to schedule more requests
@@ -312,8 +311,6 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 
 	// pick this up
 	tx_count := float64(len(txs))
-
-	fmt.Println("TX COUNT", tx_count)
 
 	if tx_count == 0 {
 		return
