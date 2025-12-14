@@ -328,19 +328,19 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 			float64(60))
 
 	// because the number is now below 1 second, convert it to milliseconds
-	blocks_per_millisecond := theoretical_maximum_blocks_per_second * 1000
+	limit := theoretical_maximum_blocks_per_second * 1000
 
 	results := []rpc.GetTransaction_Result{}
 	measure = time.Now()
 
-	if tx_count < blocks_per_millisecond {
+	if tx_count < limit {
 		// do it this way
 		get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: txs})
 		results = append(results, get_result)
 
 	} else {
 
-		batches := int(tx_count / blocks_per_millisecond)
+		batches := int(tx_count / limit)
 
 		fmt.Println("BATCHES", batches)
 
@@ -351,8 +351,8 @@ func indexing(workers map[string]*indexer.Worker, indices map[string][]string, h
 		// instead
 		for batch := 0; batch <= batches; batch++ {
 			fmt.Println("BATCH", batch)
-			start := batch * int(blocks_per_millisecond)
-			end := start + int(blocks_per_millisecond)
+			start := batch * int(limit)
+			end := start + int(limit)
 			group := txs[start:end]
 			fmt.Println(group)
 			get_result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: group})
