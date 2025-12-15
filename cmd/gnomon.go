@@ -233,7 +233,7 @@ func Start_gnomon_indexer() {
 	}
 }
 
-var height_stage = make(chan int64, 1000)
+var height_stage = make(chan int64, 3)
 
 type processingStruct struct {
 	Start        time.Time
@@ -245,7 +245,7 @@ type processingStruct struct {
 	Staged       []structures.SCIDToIndexStage
 }
 
-var start_chan = make(chan processingStruct, 10)
+var start_chan = make(chan processingStruct, 2)
 
 // this is the indexing action
 func indexing() {
@@ -275,31 +275,19 @@ func indexing() {
 			// fmt.Println("ENTERED TX HANDLING:", time.Since(staged.Start).Milliseconds())
 		}
 	}()
-	wg := sync.WaitGroup{}
 	for height := range height_stage {
 		if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 			fmt.Printf("HEIGHTS%1d RESULTS%d BLOCKS%d TXS%d\n", len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		}
 
-		time.Sleep(time.Millisecond * 5)
-
-		wg.Add(1)
-
-		go func(height int64, wg *sync.WaitGroup) {
-
-			defer wg.Done()
-
-			start_chan <- processingStruct{
-				Start:  time.Now(),
-				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
-			}
-
-		}(height, &wg)
+		start_chan <- processingStruct{
+			Start:  time.Now(),
+			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+		}
 	}
-	wg.Wait()
 }
 
-var block_stage = make(chan processingStruct, 10)
+var block_stage = make(chan processingStruct, 1)
 
 func tx_handling() {
 	wg := sync.WaitGroup{}
@@ -367,7 +355,7 @@ func tx_handling() {
 	wg.Wait()
 }
 
-var transaction_stage = make(chan processingStruct, 10)
+var transaction_stage = make(chan processingStruct, 1)
 var holding_queue struct {
 	registration int64
 	burn         int64
