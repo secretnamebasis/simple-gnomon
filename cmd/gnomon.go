@@ -38,7 +38,16 @@ var (
 	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
 	ending_height   = flag.Int64("ending_height", -1, "-ending_height=123")
 	help            = flag.Bool("help", false, "-help")
-	progress        = flag.Bool("progress", false, "-progress")
+	help_msg        = `Usage: simple-gnomon [options]
+A simple indexer for the DERO blockchain.
+
+Options:
+  -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
+  -starting_height <N>         Height to start indexing from.
+  -ending_height <N>           Height to stop indexing at.
+  -progress                    Show current block height under audit.
+  -help                        Show this help message.`
+	progress = flag.Bool("progress", false, "-progress")
 )
 var established_backup bool
 var achieved_current_height int64
@@ -87,6 +96,10 @@ func asynchronously_process_queues(name string) {
 			}
 		}
 
+		// store counts
+		workers["all"].Idx.BBSBackend.StoreTxCount(holding_queue.registration, "registration")
+		workers["all"].Idx.BBSBackend.StoreTxCount(holding_queue.burn, "burn")
+		workers["all"].Idx.BBSBackend.StoreTxCount(holding_queue.normal, "normal")
 		storeHeight(int64(staged.Fsi.Height))
 
 	}
@@ -104,16 +117,7 @@ func storeHeight(height int64) error {
 func Start_gnomon_indexer() {
 	flag.Parse()
 	if help != nil && *help {
-		fmt.Println(`Usage: simple-gnomon [options]
-A simple indexer for the DERO blockchain.
-
-Options:
-  -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
-  -starting_height <N>         Height to start indexing from.
-  -ending_height <N>           Height to stop indexing at.
-  -progress                    Show current block height under audit.
-  -help                        Show this help message.`)
-
+		fmt.Println(help_msg)
 		return
 	}
 
@@ -202,6 +206,7 @@ Options:
 		if starting_height != nil && *starting_height < now && *starting_height > -1 && achieved_current_height == 0 {
 			lowest_height = *starting_height
 		}
+
 		// main processing loop
 		for height := lowest_height; height < now; height++ {
 			TOPO = height
@@ -228,7 +233,7 @@ Options:
 	}
 }
 
-var height_stage = make(chan int64, 1000)
+var height_stage = make(chan int64, 3)
 
 type processingStruct struct {
 	Result       rpc.GetBlock_Result
@@ -239,9 +244,25 @@ type processingStruct struct {
 	Staged       []structures.SCIDToIndexStage
 }
 
-// this is the indexing action that will be done concurrently
+var max_outgoing = 10
+
+// this is the indexing action
 func indexing() {
+	// wg := sync.WaitGroup{}
 	for height := range height_stage {
+
+		if len(height_stage) != 3 || len(block_stage) != 0 || len(transaction_stage) != 0 {
+			fmt.Println(len(height_stage), len(block_stage), len(transaction_stage))
+			// 	time.Sleep(20 * time.Millisecond)
+		}
+		// wg.Add(1)
+		// go func(wg *sync.WaitGroup) {
+
+		// 	defer wg.Done()
+		// 	defer download.Add(-1)
+
+		// 	download.Add(1)
+
 		if progress != nil && *progress {
 
 			fmt.Printf("auditing block: %d / %d\n", height, connections.Get_TopoHeight())
@@ -253,7 +274,6 @@ func indexing() {
 		if count == 0 {
 			continue
 		}
-
 		if count > 400 {
 			fmt.Printf("large transacion count detected: %d height:%d\n", count, height)
 		}
@@ -268,211 +288,242 @@ func indexing() {
 		}
 
 		block_stage <- processingStruct{Block: bl}
+
 	}
+	// wg.Wait()
 }
 
-var block_stage = make(chan processingStruct, 100)
+var block_stage = make(chan processingStruct, 1)
 
 func tx_handling() {
+	wg := sync.WaitGroup{}
 	for staged := range block_stage {
+		wg.Add(1)
+		go func(staged processingStruct, wg *sync.WaitGroup) {
+			defer wg.Done()
+			hashes := []string{}
+			txs := []rpc.Tx_Related_Info{}
+			transactions := []transaction.Transaction{}
 
-		hashes := []string{}
-		txs := []rpc.Tx_Related_Info{}
-		transactions := []transaction.Transaction{}
+			for _, each := range staged.Block.Tx_hashes {
 
-		for _, each := range staged.Block.Tx_hashes {
+				hashes = append(hashes, each.String())
+			}
+			tx_count := len(hashes)
 
-			hashes = append(hashes, each.String())
-		}
-		tx_count := len(hashes)
-
-		if tx_count == 0 {
-			continue
-		}
-
-		batch_size := 4
-		//Find total number of batches
-		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
-		//Make an array to hold the result sets
-
-		//Go through the array of batches and collect the results
-		for i := range batch_count {
-			//var transaction_result rpc.GetTransaction_Result
-			end := batch_size * i
-			if i == batch_count-1 {
-				end = tx_count
+			if tx_count == 0 {
+				return
 			}
 
-			result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
+			batch_size := 4
+			//Find total number of batches
+			batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
+			//Make an array to hold the result sets
 
-			for i, each := range result.Txs_as_hex {
-
-				b, err := hex.DecodeString(each)
-				if err != nil {
-					fmt.Println(err)
-					continue
-				}
-				var tx transaction.Transaction
-				if err := tx.Deserialize(b); err != nil {
-					fmt.Println(err)
-					continue
+			//Go through the array of batches and collect the results
+			for i := range batch_count {
+				//var transaction_result rpc.GetTransaction_Result
+				end := batch_size * i
+				if i == batch_count-1 {
+					end = tx_count
 				}
 
-				txs = append(txs, result.Txs[i])
-				transactions = append(transactions, tx)
+				result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
+				wg := sync.WaitGroup{}
+				mu := sync.Mutex{}
+				for i, each := range result.Txs_as_hex {
 
+					wg.Add(1)
+					go func(wg *sync.WaitGroup) {
+						defer wg.Done()
+
+						b, err := hex.DecodeString(each)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+						var tx transaction.Transaction
+						if err := tx.Deserialize(b); err != nil {
+							fmt.Println(err)
+							return
+						}
+						mu.Lock()
+						txs = append(txs, result.Txs[i])
+						transactions = append(transactions, tx)
+						mu.Unlock()
+
+					}(&wg)
+				}
+				wg.Wait()
 			}
-		}
 
-		if len(hashes) < 1 {
-			continue
-		}
+			if len(hashes) < 1 {
+				return
+			}
 
-		staged.Tx_Hashes = hashes
-		staged.Txs = txs
-		staged.Transactions = transactions
+			staged.Tx_Hashes = hashes
+			staged.Txs = txs
+			staged.Transactions = transactions
 
-		transaction_stage <- staged
+			transaction_stage <- staged
+		}(staged, &wg)
+
 	}
+	wg.Wait()
 }
 
 var transaction_stage = make(chan processingStruct, 10)
+var holding_queue struct {
+	registration int64
+	burn         int64
+	normal       int64
+}
 
 func filtering(indices map[string][]string) {
+	// initial number collection
+	count := workers["all"].Idx.BBSBackend.GetTxCount("registration")
+	holding_queue.registration = count
+	count = workers["all"].Idx.BBSBackend.GetTxCount("burn")
+	holding_queue.burn = count
+	count = workers["all"].Idx.BBSBackend.GetTxCount("normal")
+	holding_queue.normal = count
+
 	for staged := range transaction_stage {
+		wg := sync.WaitGroup{}
 		for i, each := range staged.Transactions {
 
-			related_info := staged.Txs[i]
-			switch each.TransactionType {
+			wg.Add(1)
+			go func(wg *sync.WaitGroup) {
+				defer wg.Done()
 
-			case transaction.PREMINE, // not being processed
-				transaction.COINBASE: // not being processed
-				continue
-			case transaction.REGISTRATION: // already processed
-				count := workers["all"].Idx.BBSBackend.GetTxCount("registration")
-				workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "registration")
-				continue
-			case transaction.BURN_TX:
-				count := workers["all"].Idx.BBSBackend.GetTxCount("burn")
-				workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "burn")
-				continue
-			case transaction.NORMAL:
-				count := workers["all"].Idx.BBSBackend.GetTxCount("normal")
-				workers["all"].Idx.BBSBackend.StoreTxCount((count + 1), "normal")
-				continue
-			case transaction.SC_TX:
-				if len(each.SCDATA) == 0 {
-					continue
-				}
-				params := rpc.GetSC_Params{}
+				related_info := staged.Txs[i]
+				switch each.TransactionType {
 
-				if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
-					scid := each.GetHash().String()
-					params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(staged.Block.Height)}
-				}
-
-				// contract interactions
-				if each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-					value, ok := each.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
-					if !ok { // paranoia
-						continue
+				case transaction.PREMINE, transaction.COINBASE: // not being processed
+					return
+				case transaction.REGISTRATION: // already processed
+					holding_queue.registration++
+					return
+				case transaction.BURN_TX:
+					holding_queue.burn++
+					return
+				case transaction.NORMAL:
+					holding_queue.normal++
+					return
+				case transaction.SC_TX:
+					if len(each.SCDATA) == 0 {
+						return
 					}
-					if value.String() == "" { // yeah... weird
-						continue
+					params := rpc.GetSC_Params{}
+
+					if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
+						scid := each.GetHash().String()
+						params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(staged.Block.Height)}
 					}
-					scid := value.String()
-					params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(staged.Block.Height)}
-				}
 
-				if params.SCID == "" {
-					continue
-				}
-				sc := connections.GetSC(params)
-				signer := related_info.Signer
+					// contract interactions
+					if each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+						value, ok := each.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
+						if !ok { // paranoia
+							return
+						}
+						if value.String() == "" { // yeah... weird
+							return
+						}
+						scid := value.String()
+						params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(staged.Block.Height)}
+					}
 
-				if signer == "" { // when ringsize is greater than 2...
-					signer = "null"
-				}
+					if params.SCID == "" {
+						return
+					}
+					sc := connections.GetSC(params)
+					signer := related_info.Signer
 
-				to_be_indexed := stageSCIDForIndexers(sc, params.SCID, signer, staged.Block.Height)
+					if signer == "" { // when ringsize is greater than 2...
+						signer = "null"
+					}
 
-				// unfortunately, there isn't a way to do this without checking twice
-				class := ""
-				// roll through the indices to obtain the class
-				for name := range indices {
+					to_be_indexed := stageSCIDForIndexers(sc, params.SCID, signer, staged.Block.Height)
 
-					// obtain the filters
-					filters := indices[name]
+					// unfortunately, there isn't a way to do this without checking twice
+					class := ""
+					// roll through the indices to obtain the class
+					for name := range indices {
 
-					for _, filter := range filters { // range through the filters
+						// obtain the filters
+						filters := indices[name]
 
-						// if the code does not contain the filter, skip
-						if !strings.Contains(sc.Code, filter) {
-							continue
+						for _, filter := range filters { // range through the filters
+
+							// if the code does not contain the filter, skip
+							if !strings.Contains(sc.Code, filter) {
+								continue
+							}
+
+							// if there is a match, add the name of the index to it's list of tags
+							class = filter
+							break
 						}
 
-						// if there is a match, add the name of the index to it's list of tags
-						class = filter
-						break
+						if class != "" {
+							break
+						}
 					}
 
-					if class != "" {
-						break
+					// as class is currently the filter...
+					// make sure to implement more classes as necessary
+					switch class {
+					case "": // catchall
+						to_be_indexed.Class = "null"
+					case indices["tela"][0]:
+						to_be_indexed.Class = "TELA-DOC-1"
+					case indices["tela"][1]:
+						to_be_indexed.Class = "TELA-INDEX-1"
+					default:
+						to_be_indexed.Class = class
 					}
-				}
 
-				// as class is currently the filter...
-				// make sure to implement more classes as necessary
-				switch class {
-				case "": // catchall
-					to_be_indexed.Class = "null"
-				case indices["tela"][0]:
-					to_be_indexed.Class = "TELA-DOC-1"
-				case indices["tela"][1]:
-					to_be_indexed.Class = "TELA-INDEX-1"
+					tags := []string{}
+
+					// roll through the indices again to obtain tags
+					for name := range indices {
+
+						// obtain the filters
+						filters := indices[name]
+
+						for _, filter := range filters { // range through the filters
+
+							// if the code does not contina the filter, skip it
+							if !strings.Contains(sc.Code, filter) {
+								continue
+							}
+
+							// if there is a match, add the name of the index to it's list of tags
+							tags = append(tags, name)
+
+						}
+					}
+
+					// lexicographical order
+					slices.Sort(tags)
+
+					// store as a single string
+					to_be_indexed.Tags = strings.Join(tags, ",")
+
+					// for each tag, queue up for writing
+					for _, tag := range tags {
+						// because these are being processed asynchronously...
+						// don't block on writing them to the db,
+						// just queue em and write em when the writer has a moment
+						workers[tag].Queue <- to_be_indexed
+					}
 				default:
-					to_be_indexed.Class = class
+					log.Fatal("unknown transaction", staged)
 				}
-
-				tags := []string{}
-
-				// roll through the indices again to obtain tags
-				for name := range indices {
-
-					// obtain the filters
-					filters := indices[name]
-
-					for _, filter := range filters { // range through the filters
-
-						// if the code does not contina the filter, skip it
-						if !strings.Contains(sc.Code, filter) {
-							continue
-						}
-
-						// if there is a match, add the name of the index to it's list of tags
-						tags = append(tags, name)
-
-					}
-				}
-
-				// lexicographical order
-				slices.Sort(tags)
-
-				// store as a single string
-				to_be_indexed.Tags = strings.Join(tags, ",")
-
-				// for each tag, queue up for writing
-				for _, tag := range tags {
-					// because these are being processed asynchronously...
-					// don't block on writing them to the db,
-					// just queue em and write em when the writer has a moment
-					workers[tag].Queue <- to_be_indexed
-				}
-			default:
-				log.Fatal("unknown transaction", staged)
-			}
+			}(&wg)
 		}
-
+		wg.Wait()
 	}
 }
 func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64) structures.SCIDToIndexStage {
