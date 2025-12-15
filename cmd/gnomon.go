@@ -246,7 +246,7 @@ type processingStruct struct {
 }
 
 var start_chan = make(chan processingStruct, 1)
-var soft_limit int64 = 10
+var soft_limit int64 = 1
 
 // this is the indexing action
 func indexing() {
