@@ -309,7 +309,14 @@ func tx_handling() {
 
 		for _, each := range staged.Block.Tx_hashes {
 
+			// we'll count them, but we'll skip them
+			if each[0] == 0 && each[1] == 0 && each[2] == 0 {
+				holding_queue.registration++
+				continue
+			}
+
 			hashes = append(hashes, each.String())
+
 		}
 
 		tx_count := len(hashes)
@@ -391,7 +398,7 @@ func filtering(indices map[string][]string) {
 				case transaction.PREMINE, transaction.COINBASE: // not being processed
 					return
 				case transaction.REGISTRATION: // already processed
-					holding_queue.registration++
+					// holding_queue.registration++
 					return
 				case transaction.BURN_TX:
 					holding_queue.burn++
