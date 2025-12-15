@@ -150,7 +150,7 @@ func main() {
 				}
 				now := connections.GetDaemonInfo().TopoHeight
 
-				last = float64(cmd.TOPO.Load())
+				last = float64(cmd.TOPO)
 				if last == 0 {
 					last = height1.Result
 				}
@@ -168,7 +168,7 @@ func main() {
 				fyne.DoAndWait(func() {
 					readout.SetText(text)
 					current_height.SetText("current height:" + strconv.Itoa(int(now)))
-					topo_height.SetText("Topo height:" + strconv.Itoa(int(cmd.TOPO.Load())))
+					topo_height.SetText("Topo height:" + strconv.Itoa(int(cmd.TOPO)))
 					indexed_height.SetText("Last Indexed height:" + strconv.Itoa(int(height1.Result)))
 					average_blocks_per_hour.SetText("average blocks per second:" + strconv.Itoa(int(average)))
 					estimated_time_to_completion.SetText("estimated hours until completion:" + strconv.Itoa(int(estimated/60/60)))
