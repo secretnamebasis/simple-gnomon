@@ -90,6 +90,7 @@ func main() {
 			}
 			first := height1.Result
 			action := func() {
+				text := "AT LAST INDEXED HEIGHT...\n"
 				result, err := getTxCount(getTxCountParams{
 					IDX:     "all",
 					Tx_Type: "normal",
@@ -99,7 +100,7 @@ func main() {
 				}
 				normal := strconv.Itoa(int(result.Result))
 
-				text := "ALL Normal: " + normal + "\n"
+				text += "ALL Normal: " + normal + "\n"
 
 				result, err = getTxCount(getTxCountParams{
 					IDX:     "all",
@@ -167,13 +168,13 @@ func main() {
 				estimated := now / int64(average)
 				remaining := (now - int64(last)) / int64(average)
 				fyne.DoAndWait(func() {
-					readout.SetText(text)
 					current_height.SetText("current height:" + strconv.Itoa(int(now)))
 					topo_height.SetText("Topo height:" + strconv.Itoa(int(cmd.TOPO)))
 					indexed_height.SetText("Last Indexed height:" + strconv.Itoa(int(height1.Result)))
+					readout.SetText(text)
 					average_blocks_per_hour.SetText("average blocks per Hour:" + strconv.Itoa(int(average*60*60)))
-					estimated_time_remaining.SetText("remaining estimated hours until completion:" + strconv.Itoa(int(remaining/60/60)))
-					estimated_time_to_completion.SetText("total estimated hours until completion:" + strconv.Itoa(int(estimated/60/60)))
+					estimated_time_remaining.SetText("estimated remaining hours:" + strconv.Itoa(int(remaining/60/60)))
+					estimated_time_to_completion.SetText("estimated total hours:" + strconv.Itoa(int(estimated/60/60)))
 					progress_bar.SetValue(last / float64(now))
 				})
 
@@ -191,10 +192,10 @@ func main() {
 	connection.OnSubmitted = func(s string) { button.OnTapped() }
 	connection.ActionItem = button
 	content := container.NewVBox(
-		readout,
 		current_height,
 		topo_height,
 		indexed_height,
+		readout,
 		average_blocks_per_hour,
 		estimated_time_remaining,
 		estimated_time_to_completion,

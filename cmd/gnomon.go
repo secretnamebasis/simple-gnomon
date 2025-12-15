@@ -233,9 +233,10 @@ func Start_gnomon_indexer() {
 	}
 }
 
-var height_stage = make(chan int64, 3)
+var height_stage = make(chan int64, 1000)
 
 type processingStruct struct {
+	Start        time.Time
 	Result       rpc.GetBlock_Result
 	Block        block.Block
 	Tx_Hashes    []string
@@ -244,60 +245,66 @@ type processingStruct struct {
 	Staged       []structures.SCIDToIndexStage
 }
 
-var max_outgoing = 10
+var start_chan = make(chan processingStruct, 10)
 
 // this is the indexing action
 func indexing() {
 	// wg := sync.WaitGroup{}
+	go func() {
+		for staged := range start_chan {
+
+			count := staged.Result.Block_Header.TXCount
+			if count == 0 {
+				continue
+			}
+			if count > 400 {
+				fmt.Printf("large transacion count detected: %d height:%d\n", count, staged.Result.Block_Header.TopoHeight)
+			}
+			bl := indexer.GetBlockDeserialized(staged.Result.Blob)
+
+			tx_count := float64(len(bl.Tx_hashes))
+
+			// like... just in case
+			if tx_count < 1 {
+				continue
+			}
+
+			staged.Block = bl
+
+			block_stage <- staged
+			// fmt.Println("ENTERED TX HANDLING:", time.Since(staged.Start).Milliseconds())
+		}
+	}()
+	wg := sync.WaitGroup{}
 	for height := range height_stage {
-
-		if len(height_stage) != 3 || len(block_stage) != 0 || len(transaction_stage) != 0 {
-			fmt.Println(len(height_stage), len(block_stage), len(transaction_stage))
-			// 	time.Sleep(20 * time.Millisecond)
-		}
-		// wg.Add(1)
-		// go func(wg *sync.WaitGroup) {
-
-		// 	defer wg.Done()
-		// 	defer download.Add(-1)
-
-		// 	download.Add(1)
-
-		if progress != nil && *progress {
-
-			fmt.Printf("auditing block: %d / %d\n", height, connections.Get_TopoHeight())
+		if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
+			fmt.Printf("HEIGHTS%1d RESULTS%d BLOCKS%d TXS%d\n", len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		}
 
-		result := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
+		time.Sleep(time.Millisecond * 5)
 
-		count := result.Block_Header.TXCount
-		if count == 0 {
-			continue
-		}
-		if count > 400 {
-			fmt.Printf("large transacion count detected: %d height:%d\n", count, height)
-		}
+		wg.Add(1)
 
-		bl := indexer.GetBlockDeserialized(result.Blob)
+		go func(height int64, wg *sync.WaitGroup) {
 
-		tx_count := float64(len(bl.Tx_hashes))
+			defer wg.Done()
 
-		// like... just in case
-		if tx_count < 1 {
-			continue
-		}
+			start_chan <- processingStruct{
+				Start:  time.Now(),
+				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+			}
 
-		block_stage <- processingStruct{Block: bl}
-
+		}(height, &wg)
 	}
-	// wg.Wait()
+	wg.Wait()
 }
 
-var block_stage = make(chan processingStruct, 1)
+var block_stage = make(chan processingStruct, 10)
 
 func tx_handling() {
 	wg := sync.WaitGroup{}
 	for staged := range block_stage {
+
 		wg.Add(1)
 		go func(staged processingStruct, wg *sync.WaitGroup) {
 			defer wg.Done()
@@ -309,6 +316,7 @@ func tx_handling() {
 
 				hashes = append(hashes, each.String())
 			}
+
 			tx_count := len(hashes)
 
 			if tx_count == 0 {
@@ -327,38 +335,24 @@ func tx_handling() {
 				if i == batch_count-1 {
 					end = tx_count
 				}
-
 				result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
-				wg := sync.WaitGroup{}
-				mu := sync.Mutex{}
+
 				for i, each := range result.Txs_as_hex {
 
-					wg.Add(1)
-					go func(wg *sync.WaitGroup) {
-						defer wg.Done()
+					b, err := hex.DecodeString(each)
+					if err != nil {
+						fmt.Println(err)
+						continue
+					}
+					var tx transaction.Transaction
+					if err := tx.Deserialize(b); err != nil {
+						fmt.Println(err)
+						continue
+					}
+					txs = append(txs, result.Txs[i])
+					transactions = append(transactions, tx)
 
-						b, err := hex.DecodeString(each)
-						if err != nil {
-							fmt.Println(err)
-							return
-						}
-						var tx transaction.Transaction
-						if err := tx.Deserialize(b); err != nil {
-							fmt.Println(err)
-							return
-						}
-						mu.Lock()
-						txs = append(txs, result.Txs[i])
-						transactions = append(transactions, tx)
-						mu.Unlock()
-
-					}(&wg)
 				}
-				wg.Wait()
-			}
-
-			if len(hashes) < 1 {
-				return
 			}
 
 			staged.Tx_Hashes = hashes
@@ -366,6 +360,7 @@ func tx_handling() {
 			staged.Transactions = transactions
 
 			transaction_stage <- staged
+			// fmt.Println("ENTERED FILTERING:", time.Since(staged.Start).Milliseconds())
 		}(staged, &wg)
 
 	}
@@ -389,6 +384,7 @@ func filtering(indices map[string][]string) {
 	holding_queue.normal = count
 
 	for staged := range transaction_stage {
+
 		wg := sync.WaitGroup{}
 		for i, each := range staged.Transactions {
 
@@ -518,6 +514,7 @@ func filtering(indices map[string][]string) {
 						// just queue em and write em when the writer has a moment
 						workers[tag].Queue <- to_be_indexed
 					}
+					fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
 				default:
 					log.Fatal("unknown transaction", staged)
 				}
