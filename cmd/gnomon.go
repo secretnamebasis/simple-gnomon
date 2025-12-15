@@ -398,7 +398,8 @@ func filtering(indices map[string][]string) {
 				case transaction.PREMINE, transaction.COINBASE: // not being processed
 					return
 				case transaction.REGISTRATION: // already processed
-					// holding_queue.registration++
+					// but just in case there are some that get by...
+					holding_queue.registration++
 					return
 				case transaction.BURN_TX:
 					holding_queue.burn++
