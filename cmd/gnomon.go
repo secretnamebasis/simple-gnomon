@@ -245,7 +245,7 @@ type processingStruct struct {
 	Staged       []structures.SCIDToIndexStage
 }
 
-var start_chan = make(chan processingStruct, 2)
+var start_chan = make(chan processingStruct, 1)
 
 // this is the indexing action
 func indexing() {
@@ -276,9 +276,9 @@ func indexing() {
 		}
 	}()
 	for height := range height_stage {
-		if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
-			fmt.Printf("HEIGHTS%1d RESULTS%d BLOCKS%d TXS%d\n", len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
-		}
+		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
+		// fmt.Printf("HEIGHTS%1d RESULTS%d BLOCKS%d TXS%d\n", len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
+		// }
 
 		start_chan <- processingStruct{
 			Start:  time.Now(),
@@ -290,69 +290,63 @@ func indexing() {
 var block_stage = make(chan processingStruct, 1)
 
 func tx_handling() {
-	wg := sync.WaitGroup{}
 	for staged := range block_stage {
 
-		wg.Add(1)
-		go func(staged processingStruct, wg *sync.WaitGroup) {
-			defer wg.Done()
-			hashes := []string{}
-			txs := []rpc.Tx_Related_Info{}
-			transactions := []transaction.Transaction{}
+		hashes := []string{}
+		txs := []rpc.Tx_Related_Info{}
+		transactions := []transaction.Transaction{}
 
-			for _, each := range staged.Block.Tx_hashes {
+		for _, each := range staged.Block.Tx_hashes {
 
-				hashes = append(hashes, each.String())
+			hashes = append(hashes, each.String())
+		}
+
+		tx_count := len(hashes)
+
+		if tx_count == 0 {
+			continue
+		}
+
+		batch_size := 4
+		//Find total number of batches
+		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
+		//Make an array to hold the result sets
+
+		//Go through the array of batches and collect the results
+		for i := range batch_count {
+			//var transaction_result rpc.GetTransaction_Result
+			end := batch_size * i
+			if i == batch_count-1 {
+				end = tx_count
 			}
+			result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
 
-			tx_count := len(hashes)
+			for i, each := range result.Txs_as_hex {
 
-			if tx_count == 0 {
-				return
-			}
-
-			batch_size := 4
-			//Find total number of batches
-			batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
-			//Make an array to hold the result sets
-
-			//Go through the array of batches and collect the results
-			for i := range batch_count {
-				//var transaction_result rpc.GetTransaction_Result
-				end := batch_size * i
-				if i == batch_count-1 {
-					end = tx_count
+				b, err := hex.DecodeString(each)
+				if err != nil {
+					fmt.Println(err)
+					continue
 				}
-				result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
-
-				for i, each := range result.Txs_as_hex {
-
-					b, err := hex.DecodeString(each)
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					var tx transaction.Transaction
-					if err := tx.Deserialize(b); err != nil {
-						fmt.Println(err)
-						continue
-					}
-					txs = append(txs, result.Txs[i])
-					transactions = append(transactions, tx)
-
+				var tx transaction.Transaction
+				if err := tx.Deserialize(b); err != nil {
+					fmt.Println(err)
+					continue
 				}
+				txs = append(txs, result.Txs[i])
+				transactions = append(transactions, tx)
+
 			}
+		}
 
-			staged.Tx_Hashes = hashes
-			staged.Txs = txs
-			staged.Transactions = transactions
+		staged.Tx_Hashes = hashes
+		staged.Txs = txs
+		staged.Transactions = transactions
 
-			transaction_stage <- staged
-			// fmt.Println("ENTERED FILTERING:", time.Since(staged.Start).Milliseconds())
-		}(staged, &wg)
+		transaction_stage <- staged
+		// fmt.Println("ENTERED FILTERING:", time.Since(staged.Start).Milliseconds())
 
 	}
-	wg.Wait()
 }
 
 var transaction_stage = make(chan processingStruct, 1)
@@ -502,7 +496,7 @@ func filtering(indices map[string][]string) {
 						// just queue em and write em when the writer has a moment
 						workers[tag].Queue <- to_be_indexed
 					}
-					fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
+					// fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
 				default:
 					log.Fatal("unknown transaction", staged)
 				}
