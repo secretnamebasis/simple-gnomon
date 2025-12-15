@@ -233,7 +233,7 @@ func Start_gnomon_indexer() {
 	}
 }
 
-var height_stage = make(chan int64, 3)
+var height_stage = make(chan int64, 1000)
 
 type processingStruct struct {
 	Start        time.Time
@@ -246,6 +246,7 @@ type processingStruct struct {
 }
 
 var start_chan = make(chan processingStruct, 1)
+var soft_limit int64 = 10
 
 // this is the indexing action
 func indexing() {
@@ -275,16 +276,26 @@ func indexing() {
 			// fmt.Println("ENTERED TX HANDLING:", time.Since(staged.Start).Milliseconds())
 		}
 	}()
+	wg := sync.WaitGroup{}
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
-		// fmt.Printf("HEIGHTS%1d RESULTS%d BLOCKS%d TXS%d\n", len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
+		fmt.Printf("DOWNLOADS%3d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", download.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		// }
-
-		start_chan <- processingStruct{
-			Start:  time.Now(),
-			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+		if download.Load() > soft_limit {
+			time.Sleep(time.Millisecond * time.Duration(download.Load()))
 		}
+		wg.Add(1)
+		go func(height int64, wg *sync.WaitGroup) {
+			defer download.Add(-1)
+			defer wg.Done()
+			download.Add(1)
+			start_chan <- processingStruct{
+				Start:  time.Now(),
+				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+			}
+		}(height, &wg)
 	}
+	wg.Wait()
 }
 
 var block_stage = make(chan processingStruct, 1)
