@@ -18,11 +18,10 @@ import (
 	"github.com/deroproject/derohe/rpc"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"go.etcd.io/bbolt"
-	bolt "go.etcd.io/bbolt"
 )
 
 type BboltStore struct {
-	DB      *bolt.DB
+	DB      *bbolt.DB
 	DBPath  string
 	Writing bool
 	//Writer  string
@@ -38,7 +37,7 @@ func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
 		return nil, fmt.Errorf("directory creation err %s - dirpath %s", err, dbPath)
 	}
 	db_path := filepath.Join(dbPath, dbName)
-	Bbolt_backend.DB, err = bolt.Open(db_path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	Bbolt_backend.DB, err = bbolt.Open(db_path, 0600, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return Bbolt_backend, fmt.Errorf("[NewBBoltDB] Coult not create bbolt db store: %v", err)
 	}
@@ -202,7 +201,7 @@ func (bbs *BboltStore) BackUpDatabases() {
 func (bbs *BboltStore) StoreLastIndexHeight(last_indexedheight int64) (changes bool, err error) {
 	bName := "stats"
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -223,7 +222,7 @@ func (bbs *BboltStore) StoreLastIndexHeight(last_indexedheight int64) (changes b
 func (bbs *BboltStore) GetLastIndexHeight() (topoheight int64, err error) {
 	bName := "stats"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := "lastindexedheight"
@@ -250,7 +249,7 @@ func (bbs *BboltStore) GetLastIndexHeight() (topoheight int64, err error) {
 func (bbs *BboltStore) StoreTxCount(count int64, txType string) (changes bool, err error) {
 	bName := "stats"
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -272,7 +271,7 @@ func (bbs *BboltStore) StoreTxCount(count int64, txType string) (changes bool, e
 func (bbs *BboltStore) GetTxCount(txType string) (txCount int64) {
 	bName := "stats"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := txType + "txcount"
@@ -293,7 +292,7 @@ func (bbs *BboltStore) GetTxCount(txType string) (txCount int64) {
 
 // Stores the owner (who deployed it) of a given scid
 func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags string) (changes bool, err error) {
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte("scowner"))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -346,7 +345,7 @@ func (bbs *BboltStore) GetOwner(scid string) string {
 	var v []byte
 	bName := "scowner"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := scid
@@ -371,7 +370,7 @@ func (bbs *BboltStore) GetAllOwnersAndSCIDs() map[string]string {
 
 	bName := "scowner"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			c := b.Cursor()
@@ -403,7 +402,7 @@ func (bbs *BboltStore) StoreInvokeDetails(scid string, signer string, entrypoint
 	txidLen := len(invokedetails.Txid)
 	key := signer + ":" + invokedetails.Txid[0:3] + invokedetails.Txid[txidLen-3:txidLen] + ":" + strconv.FormatInt(topoheight, 10) + ":" + entrypoint
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -421,7 +420,7 @@ func (bbs *BboltStore) StoreInvokeDetails(scid string, signer string, entrypoint
 func (bbs *BboltStore) GetAllSCIDInvokeDetails(scid string) (invokedetails []*structures.SCTXParse) {
 	bName := scid
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 
@@ -453,7 +452,7 @@ func (bbs *BboltStore) GetAllSCIDInvokeDetails(scid string) (invokedetails []*st
 func (bbs *BboltStore) GetAllSCIDInvokeDetailsByEntrypoint(scid string, entrypoint string) (invokedetails []*structures.SCTXParse) {
 	bName := scid
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 
@@ -487,7 +486,7 @@ func (bbs *BboltStore) GetAllSCIDInvokeDetailsByEntrypoint(scid string, entrypoi
 func (bbs *BboltStore) GetAllSCIDInvokeDetailsBySigner(scid string, signerPart string) (invokedetails []*structures.SCTXParse) {
 	bName := scid
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 
@@ -529,7 +528,7 @@ func (bbs *BboltStore) StoreGetInfoDetails(getinfo *rpc.GetInfo_Result) (changes
 
 	key := "getinfo"
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -548,7 +547,7 @@ func (bbs *BboltStore) GetGetInfoDetails() (getinfo *rpc.GetInfo_Result) {
 	var v []byte
 	bName := "getinfo"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := "getinfo"
@@ -577,7 +576,7 @@ func (bbs *BboltStore) StoreSCIDVariableDetails(scid string, variables []*struct
 
 	key := strconv.FormatInt(topoheight, 10)
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -598,7 +597,7 @@ func (bbs *BboltStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheigh
 
 	bName := scid + "vars"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 
@@ -756,7 +755,7 @@ func (bbs *BboltStore) GetAllSCIDVariableDetails(scid string) (hVars []*structur
 
 	bName := scid + "vars"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 
@@ -1048,7 +1047,7 @@ func (bbs *BboltStore) StoreSCIDInteractionHeight(scid string, height int64) (ch
 	bName := scid + "heights"
 	key := scid
 
-	err = bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			value := b.Get([]byte(key))
@@ -1060,7 +1059,7 @@ func (bbs *BboltStore) StoreSCIDInteractionHeight(scid string, height int64) (ch
 		return
 	})
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -1101,7 +1100,7 @@ func (bbs *BboltStore) StoreSCIDInteractionHeight(scid string, height int64) (ch
 func (bbs *BboltStore) GetSCIDInteractionHeight(scid string) (scidinteractions []int64) {
 	bName := scid + "heights"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := scid
@@ -1152,7 +1151,7 @@ func (bbs *BboltStore) StoreInvalidSCIDDeploys(scid string, fee uint64) (changes
 	bName := "invalidscids"
 	key := "invalid"
 
-	err = bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			currSCIDInteractionHeight = b.Get([]byte(key))
@@ -1160,7 +1159,7 @@ func (bbs *BboltStore) StoreInvalidSCIDDeploys(scid string, fee uint64) (changes
 		return
 	})
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -1193,7 +1192,7 @@ func (bbs *BboltStore) GetInvalidSCIDDeploys() map[string]uint64 {
 
 	bName := "invalidscids"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := "invalid"
@@ -1225,7 +1224,7 @@ func (bbs *BboltStore) StoreMiniblockCountByAddress(addr string) (changes bool, 
 
 	key := addr
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -1243,7 +1242,7 @@ func (bbs *BboltStore) StoreMiniblockCountByAddress(addr string) (changes bool, 
 func (bbs *BboltStore) GetMiniblockCountByAddress(addr string) (miniblocks int64) {
 	bName := "blockcount"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			key := addr
@@ -1268,7 +1267,7 @@ func (bbs *BboltStore) StoreIntegrators(integrator string) (changes bool, err er
 	newIntegratorsStag := make(map[string]int64)
 	var newIntegrators []byte
 
-	err = bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			currIntegrators = b.Get([]byte(key))
@@ -1276,7 +1275,7 @@ func (bbs *BboltStore) StoreIntegrators(integrator string) (changes bool, err er
 		return
 	})
 
-	err = bbs.DB.Update(func(tx *bolt.Tx) (err error) {
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
@@ -1309,7 +1308,7 @@ func (bbs *BboltStore) GetIntegrators() (integrators map[string]int64) {
 	bName := "integrators"
 	key := "integrators"
 
-	bbs.DB.View(func(tx *bolt.Tx) (err error) {
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			v := b.Get([]byte(key))
