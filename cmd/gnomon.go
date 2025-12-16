@@ -216,10 +216,7 @@ func Start_gnomon_indexer() {
 			if !RUNNING {
 				return
 			}
-			if achieved_current_height > 0 &&
-				!established_backup &&
-				find_lowest_height(backups, now) {
-				// if the current height is greater than a day of blocks...
+			if achieved_current_height > 0 && !established_backup && find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
 				backup(height)
 			}
 
@@ -386,143 +383,145 @@ func filtering(indices map[string][]string) {
 	count = workers["all"].Idx.BBSBackend.GetTxCount("normal")
 	holding_queue.normal = count
 
-	for staged := range transaction_stage {
+	sieve := func(staged processingStruct, i int, each transaction.Transaction, wg *sync.WaitGroup) {
+		defer wg.Done()
 
+		switch each.TransactionType {
+
+		case transaction.PREMINE, transaction.COINBASE: // not being processed
+			return
+		case transaction.REGISTRATION: // already processed
+			// but just in case there are some that get by...
+			holding_queue.registration++
+			return
+		case transaction.BURN_TX:
+			holding_queue.burn++
+			return
+		case transaction.NORMAL:
+			holding_queue.normal++
+			return
+		case transaction.SC_TX:
+			if len(each.SCDATA) == 0 {
+				return
+			}
+			params := rpc.GetSC_Params{}
+
+			if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
+				scid := each.GetHash().String()
+				params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(staged.Block.Height)}
+			}
+
+			// contract interactions
+			if each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+				value, ok := each.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
+				if !ok { // paranoia
+					return
+				}
+				if value.String() == "" { // yeah... weird
+					return
+				}
+				scid := value.String()
+				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(staged.Block.Height)}
+			}
+
+			if params.SCID == "" {
+				return
+			}
+			sc := connections.GetSC(params)
+
+			related_info := staged.Txs[i]
+			signer := related_info.Signer
+
+			if signer == "" { // when ringsize is greater than 2...
+				signer = "null"
+			}
+
+			to_be_indexed := stageSCIDForIndexers(sc, params.SCID, signer, staged.Block.Height)
+
+			// unfortunately, there isn't a way to do this without checking twice
+			class := ""
+			// roll through the indices to obtain the class
+			for name := range indices {
+
+				// obtain the filters
+				filters := indices[name]
+
+				for _, filter := range filters { // range through the filters
+
+					// if the code does not contain the filter, skip
+					if !strings.Contains(sc.Code, filter) {
+						continue
+					}
+
+					// if there is a match, add the name of the index to it's list of tags
+					class = filter
+					break
+				}
+
+				if class != "" {
+					break
+				}
+			}
+
+			// as class is currently the filter...
+			// make sure to implement more classes as necessary
+			switch class {
+			case "": // catchall
+				to_be_indexed.Class = "null"
+			case indices["tela"][0]:
+				to_be_indexed.Class = "TELA-DOC-1"
+			case indices["tela"][1]:
+				to_be_indexed.Class = "TELA-INDEX-1"
+			default:
+				to_be_indexed.Class = class
+			}
+
+			tags := []string{}
+
+			// roll through the indices again to obtain tags
+			for name := range indices {
+
+				// obtain the filters
+				filters := indices[name]
+
+				for _, filter := range filters { // range through the filters
+
+					// if the code does not contina the filter, skip it
+					if !strings.Contains(sc.Code, filter) {
+						continue
+					}
+
+					// if there is a match, add the name of the index to it's list of tags
+					tags = append(tags, name)
+
+				}
+			}
+
+			// lexicographical order
+			slices.Sort(tags)
+
+			// store as a single string
+			to_be_indexed.Tags = strings.Join(tags, ",")
+
+			// for each tag, queue up for writing
+			for _, tag := range tags {
+				// because these are being processed asynchronously...
+				// don't block on writing them to the db,
+				// just queue em and write em when the writer has a moment
+				workers[tag].Queue <- to_be_indexed
+			}
+			// fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
+		default:
+			log.Fatal("unknown transaction", staged)
+		}
+	}
+
+	// sift transactions over the sieve
+	for staged := range transaction_stage {
 		wg := sync.WaitGroup{}
 		for i, each := range staged.Transactions {
-
 			wg.Add(1)
-			go func(wg *sync.WaitGroup) {
-				defer wg.Done()
-
-				related_info := staged.Txs[i]
-				switch each.TransactionType {
-
-				case transaction.PREMINE, transaction.COINBASE: // not being processed
-					return
-				case transaction.REGISTRATION: // already processed
-					// but just in case there are some that get by...
-					holding_queue.registration++
-					return
-				case transaction.BURN_TX:
-					holding_queue.burn++
-					return
-				case transaction.NORMAL:
-					holding_queue.normal++
-					return
-				case transaction.SC_TX:
-					if len(each.SCDATA) == 0 {
-						return
-					}
-					params := rpc.GetSC_Params{}
-
-					if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
-						scid := each.GetHash().String()
-						params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(staged.Block.Height)}
-					}
-
-					// contract interactions
-					if each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-						value, ok := each.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
-						if !ok { // paranoia
-							return
-						}
-						if value.String() == "" { // yeah... weird
-							return
-						}
-						scid := value.String()
-						params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(staged.Block.Height)}
-					}
-
-					if params.SCID == "" {
-						return
-					}
-					sc := connections.GetSC(params)
-					signer := related_info.Signer
-
-					if signer == "" { // when ringsize is greater than 2...
-						signer = "null"
-					}
-
-					to_be_indexed := stageSCIDForIndexers(sc, params.SCID, signer, staged.Block.Height)
-
-					// unfortunately, there isn't a way to do this without checking twice
-					class := ""
-					// roll through the indices to obtain the class
-					for name := range indices {
-
-						// obtain the filters
-						filters := indices[name]
-
-						for _, filter := range filters { // range through the filters
-
-							// if the code does not contain the filter, skip
-							if !strings.Contains(sc.Code, filter) {
-								continue
-							}
-
-							// if there is a match, add the name of the index to it's list of tags
-							class = filter
-							break
-						}
-
-						if class != "" {
-							break
-						}
-					}
-
-					// as class is currently the filter...
-					// make sure to implement more classes as necessary
-					switch class {
-					case "": // catchall
-						to_be_indexed.Class = "null"
-					case indices["tela"][0]:
-						to_be_indexed.Class = "TELA-DOC-1"
-					case indices["tela"][1]:
-						to_be_indexed.Class = "TELA-INDEX-1"
-					default:
-						to_be_indexed.Class = class
-					}
-
-					tags := []string{}
-
-					// roll through the indices again to obtain tags
-					for name := range indices {
-
-						// obtain the filters
-						filters := indices[name]
-
-						for _, filter := range filters { // range through the filters
-
-							// if the code does not contina the filter, skip it
-							if !strings.Contains(sc.Code, filter) {
-								continue
-							}
-
-							// if there is a match, add the name of the index to it's list of tags
-							tags = append(tags, name)
-
-						}
-					}
-
-					// lexicographical order
-					slices.Sort(tags)
-
-					// store as a single string
-					to_be_indexed.Tags = strings.Join(tags, ",")
-
-					// for each tag, queue up for writing
-					for _, tag := range tags {
-						// because these are being processed asynchronously...
-						// don't block on writing them to the db,
-						// just queue em and write em when the writer has a moment
-						workers[tag].Queue <- to_be_indexed
-					}
-					// fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
-				default:
-					log.Fatal("unknown transaction", staged)
-				}
-			}(&wg)
+			go sieve(staged, i, each, &wg)
 		}
 		wg.Wait()
 	}
@@ -611,14 +610,6 @@ func find_lowest_height(backups map[string]*indexer.Indexer, now int64) bool {
 // this will serve as the backup action
 func backup(each int64) {
 	mu := sync.Mutex{}
-
-	// wait for the other objects to finish
-	// for len(limit) != 0 {
-	// 	fmt.Println("allowing heights to clear before backing up db", each)
-	// 	time.Sleep(time.Second)
-
-	// 	continue
-	// }
 
 	// full backup
 	for _, worker := range workers {

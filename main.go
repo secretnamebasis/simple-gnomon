@@ -43,6 +43,11 @@ func main() {
 	progress_bar := widget.NewProgressBar()
 	connection.SetPlaceHolder("127.0.0.1:10102")
 	tapped := func() {
+
+		if cmd.RUNNING {
+			return
+		}
+
 		// now go start gnomon
 		endpoint = connection.Text
 		os.Args = append(os.Args,
@@ -51,13 +56,8 @@ func main() {
 			// "-starting_height=155000",
 			// "-progress",
 		)
-		if cmd.RUNNING {
-			return
-		}
-		go func() {
 
-			cmd.Start_gnomon_indexer()
-		}()
+		go cmd.Start_gnomon_indexer()
 
 		for !cmd.RUNNING {
 			if closing {
@@ -89,7 +89,44 @@ func main() {
 				panic(err)
 			}
 			first := height1.Result
-			action := func() {
+
+			action := func(now int64) {
+				last = float64(cmd.TOPO)
+				if last == 0 {
+					last = height1.Result
+				}
+
+				duration := time.Since(start).Seconds()
+				average := last - first
+				if int64(duration) == 0 {
+					duration = 1 // avoid division by zero
+				}
+				average /= duration
+				if int64(average) == 0 {
+					average = 1
+				}
+				estimated := now / int64(average)
+				remaining := (now - int64(last)) / int64(average)
+				fyne.DoAndWait(func() {
+					average_blocks_per_hour.SetText("average blocks per Hour:" + strconv.Itoa(int(average*60*60)))
+					estimated_time_remaining.SetText("estimated remaining hours:" + strconv.Itoa(int(remaining/60/60)))
+					estimated_time_to_completion.SetText("estimated total hours:" + strconv.Itoa(int(estimated/60/60)))
+					progress_bar.SetValue(last / float64(now))
+				})
+			}
+			passive := func() {
+				fyne.DoAndWait(func() {
+					average_blocks_per_hour.Hide()
+					estimated_time_remaining.Hide()
+					estimated_time_to_completion.Hide()
+					progress_bar.SetValue(1)
+				})
+			}
+
+			ticker := time.NewTicker(time.Second)
+
+			for range ticker.C {
+				now := connections.GetDaemonInfo().TopoHeight
 				text := "AT LAST INDEXED HEIGHT...\n"
 				result, err := getTxCount(getTxCountParams{
 					IDX:     "all",
@@ -150,42 +187,20 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				now := connections.GetDaemonInfo().TopoHeight
-
-				last = float64(cmd.TOPO)
-				if last == 0 {
-					last = height1.Result
-				}
-				duration := time.Since(start).Seconds()
-				average := last - first
-				if int64(duration) == 0 {
-					duration = 1 // avoid division by zero
-				}
-				average /= duration
-				if int64(average) == 0 {
-					average = 1
-				}
-				estimated := now / int64(average)
-				remaining := (now - int64(last)) / int64(average)
 				fyne.DoAndWait(func() {
 					current_height.SetText("current height:" + strconv.Itoa(int(now)))
 					topo_height.SetText("Topo height:" + strconv.Itoa(int(cmd.TOPO)))
 					indexed_height.SetText("Last Indexed height:" + strconv.Itoa(int(height1.Result)))
 					readout.SetText(text)
-					average_blocks_per_hour.SetText("average blocks per Hour:" + strconv.Itoa(int(average*60*60)))
-					estimated_time_remaining.SetText("estimated remaining hours:" + strconv.Itoa(int(remaining/60/60)))
-					estimated_time_to_completion.SetText("estimated total hours:" + strconv.Itoa(int(estimated/60/60)))
-					progress_bar.SetValue(last / float64(now))
 				})
+				switch now {
+				case cmd.TOPO + 1:
+					passive()
+				default:
+					action(now)
+				}
 
 			}
-
-			ticker := time.NewTicker(time.Second)
-
-			for range ticker.C {
-				action()
-			}
-
 		}()
 	}
 	button := widget.NewButtonWithIcon("Start Gnomon Indexer", theme.MediaPlayIcon(), tapped)
