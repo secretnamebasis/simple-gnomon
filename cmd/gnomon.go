@@ -195,6 +195,9 @@ func Start_gnomon_indexer() {
 
 	// simple-daemon
 	for RUNNING {
+		if achieved_current_height != 0 {
+			time.Sleep(time.Second * 9)
+		}
 
 		// a simple backup strategy
 		now := connections.Get_TopoHeight()
@@ -279,7 +282,7 @@ func indexing() {
 	wg := sync.WaitGroup{}
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
-		fmt.Printf("DOWNLOADS%3d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", download.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
+		// fmt.Printf("DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", download.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		// }
 		if download.Load() > soft_limit {
 			time.Sleep(time.Millisecond * time.Duration(download.Load()))
