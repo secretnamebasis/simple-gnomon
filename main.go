@@ -123,7 +123,7 @@ func main() {
 
 			var last int64
 
-			height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
+			height1, err := getLastIndexHeight(getAllParams{DB_Name: "all"})
 			if err != nil {
 				panic(err)
 			}
@@ -174,7 +174,7 @@ func main() {
 				now := connections.GetDaemonInfo().TopoHeight
 
 				result, err := getTxCount(getTxCountParams{
-					IDX:     "all",
+					DB_Name: "all",
 					Tx_Type: "normal",
 				})
 				if err != nil {
@@ -184,7 +184,7 @@ func main() {
 				all_normal = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
-					IDX:     "all",
+					DB_Name: "all",
 					Tx_Type: "registration",
 				})
 				if err != nil {
@@ -194,7 +194,7 @@ func main() {
 				all_registration = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
-					IDX:     "all",
+					DB_Name: "all",
 					Tx_Type: "scids",
 				})
 				if err != nil {
@@ -203,7 +203,7 @@ func main() {
 				all_scids = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
-					IDX:     "g45",
+					DB_Name: "g45",
 					Tx_Type: "scids",
 				})
 				if err != nil {
@@ -213,7 +213,7 @@ func main() {
 				all_g45s = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
-					IDX:     "nfa",
+					DB_Name: "nfa",
 					Tx_Type: "scids",
 				})
 				if err != nil {
@@ -221,7 +221,7 @@ func main() {
 				}
 				all_nfas = strconv.Itoa(int(result.Result))
 
-				height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
+				height1, err := getLastIndexHeight(getAllParams{DB_Name: "all"})
 				if err != nil {
 					panic(err)
 				}
@@ -298,7 +298,7 @@ type getAllSCIDSAndOwnersResult struct {
 }
 
 type getAllParams struct {
-	IDX string
+	DB_Name string
 }
 
 var indexer_connection *websocket.Conn
@@ -362,7 +362,7 @@ func getLastIndexHeight(params getAllParams) (getLastHeightResult, error) {
 }
 
 type getTxCountParams struct {
-	IDX     string
+	DB_Name string
 	Tx_Type string
 }
 type getTxCountResult struct {
