@@ -23,8 +23,8 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/secretnamebasis/simple-gnomon/db"
 	"github.com/secretnamebasis/simple-gnomon/globals"
-	"github.com/secretnamebasis/simple-gnomon/indexer"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"github.com/sirupsen/logrus"
 )
@@ -32,9 +32,9 @@ import (
 var ioTimeout = flag.Duration("io_timeout", time.Millisecond*100, "i/o operations timeout")
 
 type WSServer struct {
-	workers map[string]*indexer.Worker
-	srv     *http.Server
-	mux     *http.ServeMux
+	database map[string]*db.BboltStore
+	srv      *http.Server
+	mux      *http.ServeMux
 	sync.RWMutex
 	Writer io.WriteCloser
 	Reader io.Reader
@@ -89,7 +89,7 @@ func certification() {
 }
 
 // Starts websocket listening for web miners
-func ListenWS(workers map[string]*indexer.Worker) {
+func ListenWS(databases map[string]*db.BboltStore) {
 	logger = globals.Logger.WithFields(logrus.Fields{})
 
 	bindAddr := "127.0.0.1:9190"
@@ -100,7 +100,7 @@ func ListenWS(workers map[string]*indexer.Worker) {
 		logger.Fatalf("[ListenWS] Error: %v", err)
 	}
 	_ = addr
-	WSS.workers = workers
+	WSS.database = databases
 	WSS.mux = http.NewServeMux()
 
 	WSS.Lock()
@@ -174,7 +174,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return err
 		}
 
-		result := wss.workers[params.IDX].Idx.BBSBackend.GetAllOwnersAndSCIDs()
+		result := wss.database[params.DB_Name].GetAllOwnersAndSCIDs()
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		err = wsjson.Write(ctx, c, message)
@@ -193,7 +193,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return err
 		}
 
-		result, err := wss.workers[params.IDX].Idx.BBSBackend.GetLastIndexHeight()
+		result, err := wss.database[params.DB_Name].GetLastIndexHeight()
 		if err != nil {
 			logger.Errorf("[wsHandleClient] err writing message: err: %v", err)
 
@@ -218,9 +218,9 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		var result int64
 		switch params.Tx_Type {
 		case "registration", "burn", "normal":
-			result = wss.workers[params.IDX].Idx.BBSBackend.GetTxCount(params.Tx_Type)
+			result = wss.database[params.DB_Name].GetTxCount(params.Tx_Type)
 		case "scids":
-			result = int64(len(wss.workers[params.IDX].Idx.BBSBackend.GetAllOwnersAndSCIDs()))
+			result = int64(len(wss.database[params.DB_Name].GetAllOwnersAndSCIDs()))
 		}
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}

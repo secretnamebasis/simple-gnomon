@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"crypto"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -16,22 +15,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ybbus/jsonrpc"
-
 	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/cryptography/crypto"
 	network "github.com/deroproject/derohe/globals"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/transaction"
 	"github.com/secretnamebasis/simple-gnomon/connections"
 	"github.com/secretnamebasis/simple-gnomon/db"
-	"github.com/secretnamebasis/simple-gnomon/globals"
-	"github.com/secretnamebasis/simple-gnomon/indexer"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
+	"github.com/ybbus/jsonrpc"
 )
 
 // establish some workers
-var workers = make(map[string]*indexer.Worker)
-var backups = make(map[string]*indexer.Indexer)
+var databases = make(map[string]*db.BboltStore)
+var backups = make(map[string]*db.BboltStore)
 
 var (
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
@@ -60,58 +57,6 @@ var download atomic.Int64
 // var governor atomic.Int64
 var TOPO int64
 var RUNNING bool
-
-func asynchronously_process_queues(name string) {
-
-	for staged := range workers[name].Queue {
-
-		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
-		a := []any{
-			staged.Scid,
-			staged.Fsi.Owner,
-			staged.Fsi.Height,
-			connections.Get_TopoHeight(),
-			staged.Fsi.Headers,
-			len(staged.ScVars),
-			staged.Class,
-			staged.Tags,
-		}
-
-		fmt.Printf(format, a...)
-
-		if err := workers[name].Idx.AddSCIDToIndex(staged); err != nil {
-			// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-			fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-			// }
-			continue
-		}
-
-		if achieved_current_height > 0 { // once the indexer has reached the top...
-			// do incremental backups
-			if err := backups[name].AddSCIDToIndex(staged); err != nil {
-				// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-				fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-				// }
-				continue
-			}
-		}
-
-		// store counts
-		workers["all"].Idx.BBSBackend.StoreTxCount(holding_queue.registration, "registration")
-		workers["all"].Idx.BBSBackend.StoreTxCount(holding_queue.burn, "burn")
-		workers["all"].Idx.BBSBackend.StoreTxCount(holding_queue.normal, "normal")
-		storeHeight(int64(staged.Fsi.Height))
-
-	}
-}
-func storeHeight(height int64) error {
-	for _, worker := range workers {
-		if ok, err := worker.Idx.BBSBackend.StoreLastIndexHeight(height); !ok && err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // this is the processing thread
 func Start_gnomon_indexer() {
@@ -172,16 +117,15 @@ func Start_gnomon_indexer() {
 	}
 
 	fmt.Println("setting up queue processors")
-	for name := range workers {
-		go asynchronously_process_queues(name)
-	}
+
+	go db_writer()
 	go filtering(indices)
 	go tx_handling()
 	go indexing()
 	// now that the backend is set up, start WS
 
 	fmt.Println("setting up websocket")
-	go connections.ListenWS(workers)
+	go connections.ListenWS(databases)
 
 	fmt.Println("starting to index ", connections.Get_TopoHeight())
 
@@ -233,6 +177,7 @@ func Start_gnomon_indexer() {
 	}
 }
 
+// anything less and it will drain the queue
 var height_stage = make(chan int64, 1000)
 
 type processingStruct struct {
@@ -250,7 +195,6 @@ var soft_limit int64 = 1
 
 // this is the indexing action
 func indexing() {
-	// wg := sync.WaitGroup{}
 	go func() {
 		for staged := range start_chan {
 
@@ -261,7 +205,7 @@ func indexing() {
 			if count > 400 {
 				fmt.Printf("large transacion count detected: %d height:%d\n", count, staged.Result.Block_Header.TopoHeight)
 			}
-			bl := indexer.GetBlockDeserialized(staged.Result.Blob)
+			bl := GetBlockDeserialized(staged.Result.Blob)
 
 			tx_count := float64(len(bl.Tx_hashes))
 
@@ -376,11 +320,11 @@ var holding_queue struct {
 
 func filtering(indices map[string][]string) {
 	// initial number collection
-	count := workers["all"].Idx.BBSBackend.GetTxCount("registration")
+	count := databases["all"].GetTxCount("registration")
 	holding_queue.registration = count
-	count = workers["all"].Idx.BBSBackend.GetTxCount("burn")
+	count = databases["all"].GetTxCount("burn")
 	holding_queue.burn = count
-	count = workers["all"].Idx.BBSBackend.GetTxCount("normal")
+	count = databases["all"].GetTxCount("normal")
 	holding_queue.normal = count
 
 	sieve := func(staged processingStruct, i int, each transaction.Transaction, wg *sync.WaitGroup) {
@@ -436,7 +380,7 @@ func filtering(indices map[string][]string) {
 				signer = "null"
 			}
 
-			to_be_indexed := stageSCIDForIndexers(sc, params.SCID, signer, staged.Block.Height)
+			to_be_indexed := stageSCIDFordatabases(sc, params.SCID, signer, staged.Block.Height)
 
 			// unfortunately, there isn't a way to do this without checking twice
 			class := ""
@@ -503,13 +447,11 @@ func filtering(indices map[string][]string) {
 			// store as a single string
 			to_be_indexed.Tags = strings.Join(tags, ",")
 
-			// for each tag, queue up for writing
-			for _, tag := range tags {
-				// because these are being processed asynchronously...
-				// don't block on writing them to the db,
-				// just queue em and write em when the writer has a moment
-				workers[tag].Queue <- to_be_indexed
-			}
+			// because these are being processed asynchronously...
+			// don't block on writing them to the db,
+			// just queue em and write em when the writer has a moment
+			db_queue <- to_be_indexed
+
 			// fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
 		default:
 			log.Fatal("unknown transaction", staged)
@@ -526,7 +468,66 @@ func filtering(indices map[string][]string) {
 		wg.Wait()
 	}
 }
-func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64) structures.SCIDToIndexStage {
+
+var db_queue = make(chan structures.SCIDToIndexStage, 1)
+
+func db_writer() {
+
+	for staged := range db_queue {
+
+		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
+		a := []any{
+			staged.Scid,
+			staged.Fsi.Owner,
+			staged.Fsi.Height,
+			connections.Get_TopoHeight(),
+			staged.Fsi.Headers,
+			len(staged.ScVars),
+			staged.Class,
+			staged.Tags,
+		}
+
+		fmt.Printf(format, a...)
+
+		for _, name := range strings.Split(staged.Tags, ",") {
+
+			if err := databases[name].AddSCIDToIndex(staged); err != nil {
+				// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
+				fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
+				// }
+				continue
+			}
+
+			if achieved_current_height > 0 { // once the indexer has reached the top...
+				// do incremental backups
+				if err := backups[name].AddSCIDToIndex(staged); err != nil {
+					// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
+					fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
+					// }
+					continue
+				}
+			}
+		}
+
+		// store counts
+		databases["all"].StoreTxCount(holding_queue.registration, "registration")
+		databases["all"].StoreTxCount(holding_queue.burn, "burn")
+		databases["all"].StoreTxCount(holding_queue.normal, "normal")
+		storeHeight(int64(staged.Fsi.Height))
+
+	}
+}
+
+func storeHeight(height int64) error {
+	for _, index := range databases {
+		if ok, err := index.StoreLastIndexHeight(height); !ok && err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func stageSCIDFordatabases(sc rpc.GetSC_Result, scid, owner string, height uint64) structures.SCIDToIndexStage {
 
 	fast_sync_import := &structures.FastSyncImport{Height: height, Owner: owner}
 
@@ -539,11 +540,11 @@ func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64
 	nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
 
 	if strings.Contains(sc.Code, nfa_signature) {
-		fast_sync_import.Headers = indexer.GetSCNameFromVars(kv) + ";" + indexer.GetSCDescriptionFromVars(kv) + ";" + indexer.GetSCIDImageURLFromVars(kv)
+		fast_sync_import.Headers = GetSCNameFromVars(kv) + ";" + GetSCDescriptionFromVars(kv) + ";" + GetSCIDImageURLFromVars(kv)
 	}
 
 	if fast_sync_import.Headers == "" && len(kv) != 0 { // there could be a possability that it is a g45
-		fast_sync_import.Headers = indexer.GetSCHeaderFromMetaData(kv)
+		fast_sync_import.Headers = GetSCHeaderFromMetaData(kv)
 	}
 
 	if fast_sync_import.Headers == "" {
@@ -551,7 +552,7 @@ func stageSCIDForIndexers(sc rpc.GetSC_Result, scid, owner string, height uint64
 		fast_sync_import.Headers = name + ";" + description + ";" + image
 	}
 
-	vars := indexer.GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
+	vars := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 
 	return structures.SCIDToIndexStage{Scid: scid, Fsi: fast_sync_import, ScVars: vars, ScCode: sc.Code}
 }
@@ -586,23 +587,23 @@ func set_up_backend(name string) error {
 	lowest_height = min(lowest_height, height)
 
 	// initialize each indexer
-	workers[name] = &indexer.Worker{
-		Queue: make(chan structures.SCIDToIndexStage, 1),
-		Idx:   indexer.NewIndexer(b, height, []string{globals.MAINNET_GNOMON_SCID}),
-	}
+	databases[name] = b
 
-	backups[name] = indexer.NewIndexer(bb, height, []string{globals.MAINNET_GNOMON_SCID})
-	if err != nil {
-		return err
-	}
+	backups[name] = bb
+
 	return nil
 }
 
-func find_lowest_height(backups map[string]*indexer.Indexer, now int64) bool {
+func find_lowest_height(backups map[string]*db.BboltStore, now int64) bool {
 
 	lowest := now
 	for _, each := range backups {
-		lowest = min(lowest, each.LastIndexedHeight)
+		height, err := each.GetLastIndexHeight()
+		if err != nil {
+			fmt.Println(err)
+			continue // what else could you do?
+		}
+		lowest = min(lowest, height)
 	}
 	return (achieved_current_height - day_of_blocks) > lowest
 }
@@ -612,9 +613,9 @@ func backup(each int64) {
 	mu := sync.Mutex{}
 
 	// full backup
-	for _, worker := range workers {
+	for _, index := range databases {
 		mu.Lock()
-		worker.Idx.BBSBackend.BackUpDatabases()
+		index.BackUpDatabases()
 		mu.Unlock()
 	}
 

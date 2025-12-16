@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -51,6 +52,63 @@ func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
 	Bbolt_backend.DBPath = dbPath
 
 	return Bbolt_backend, err
+}
+
+// Manually add/inject a SCID to be indexed. Checks validity and then stores within owner tree (no signer addr) and stores a set of current variables.
+func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (err error) {
+
+	defer func() { bbs.Writing = false }()
+
+	if scidstoadd.Scid == "" {
+		return errors.New("no scid")
+	}
+
+	if scidstoadd.Fsi == nil {
+		return errors.New("nothing to import")
+	}
+
+	writeWait, _ := time.ParseDuration("10ms")
+
+	for bbs.Writing {
+
+		time.Sleep(writeWait)
+	}
+
+	bbs.Writing = true
+
+	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
+	if len(scidstoadd.ScVars) != 0 {
+		changed, err := bbs.StoreSCIDVariableDetails(scidstoadd.Scid, scidstoadd.ScVars, int64(scidstoadd.Fsi.Height))
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return errors.New("did not store scid/vars")
+		}
+
+		changed, err = bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Fsi.Owner, scidstoadd.Fsi.Headers, scidstoadd.Class, scidstoadd.Tags)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return errors.New("did not store scid/owner")
+		}
+
+	} else {
+
+		changed, err := bbs.StoreSCIDInteractionHeight(scidstoadd.Scid, int64(scidstoadd.Fsi.Height))
+		if err != nil {
+			return err
+		}
+
+		// multiple interactions are possible
+		if !changed {
+			return nil
+		}
+
+	}
+
+	return nil
 }
 
 func (bbs *BboltStore) BackUpDatabases() {

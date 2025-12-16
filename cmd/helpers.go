@@ -1,140 +1,18 @@
-package indexer
+package cmd
 
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"regexp"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/rpc"
-	"github.com/secretnamebasis/simple-gnomon/db"
-	"github.com/secretnamebasis/simple-gnomon/globals"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
-	"github.com/sirupsen/logrus"
-	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
-
-type Indexer struct {
-	LastIndexedHeight int64
-	ChainHeight       int64
-	SearchFilter      []string
-	SFSCIDExclusion   []string
-	BBSBackend        *db.BboltStore
-	Closing           bool
-	ValidatedSCs      []string
-	Status            string
-	sync.RWMutex
-}
-type Worker struct {
-	Queue chan structures.SCIDToIndexStage
-	Idx   *Indexer
-}
-
-var Connected bool = false
-
-// local logger
-var l *logrus.Entry
-
-func InitLog(args map[string]interface{}, console io.Writer) {
-	loglevel_console := logrus.InfoLevel
-
-	if args["--debug"] != nil && args["--debug"].(bool) {
-		loglevel_console = logrus.DebugLevel
-	}
-
-	format := &prefixed.TextFormatter{
-		ForceColors:     true,
-		DisableColors:   false,
-		TimestampFormat: "01/02/2006 15:04:05",
-		FullTimestamp:   true,
-		ForceFormatting: true,
-	}
-
-	globals.Logger = logrus.Logger{Out: console, Level: loglevel_console, Formatter: format}
-}
-
-func NewIndexer(Bbs_backend *db.BboltStore, last_indexedheight int64, sfscidexclusion []string) *Indexer {
-
-	l = globals.Logger.WithFields(logrus.Fields{})
-
-	return &Indexer{LastIndexedHeight: last_indexedheight, SFSCIDExclusion: sfscidexclusion, BBSBackend: Bbs_backend}
-}
-
-// Manually add/inject a SCID to be indexed. Checks validity and then stores within owner tree (no signer addr) and stores a set of current variables.
-func (indexer *Indexer) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (err error) {
-
-	defer func() { indexer.BBSBackend.Writing = false }()
-
-	if scidstoadd.Scid == "" {
-		return errors.New("no scid")
-	}
-
-	if scidstoadd.Fsi == nil {
-		return errors.New("nothing to import")
-	}
-
-	writeWait, _ := time.ParseDuration("10ms")
-
-	for indexer.BBSBackend.Writing {
-		if indexer.Closing {
-			return
-		}
-		//l.Debugf("[AddSCIDToIndex-StoreAltDBInput] GravitonDB is writing... sleeping for %v...", writeWait)
-		time.Sleep(writeWait)
-	}
-
-	indexer.BBSBackend.Writing = true
-
-	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
-	if len(scidstoadd.ScVars) != 0 {
-		// l.Info("[AddSCIDToIndex] Storing Vars: ", fmt.Sprint(scidstoadd))
-		changed, err := indexer.BBSBackend.StoreSCIDVariableDetails(scidstoadd.Scid, scidstoadd.ScVars, int64(scidstoadd.Fsi.Height))
-		if err != nil {
-			return err
-		}
-		if !changed {
-			return errors.New("did not store scid/vars")
-		}
-		// l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllSCIDVariableDetails(scidstoadd.Scid))))
-
-		// l.Info("[AddSCIDToIndex] Storing Owner: ", fmt.Sprint(scidstoadd))
-		changed, err = indexer.BBSBackend.StoreOwner(scidstoadd.Scid, scidstoadd.Fsi.Owner, scidstoadd.Fsi.Headers, scidstoadd.Class, scidstoadd.Tags)
-		if err != nil {
-			return err
-		}
-		if !changed {
-			return errors.New("did not store scid/owner")
-		}
-
-		// l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetAllOwnersAndSCIDs())))
-	} else {
-
-		// l.Info("[AddSCIDToIndex] Storing Interaction: ", fmt.Sprint(scidstoadd.Scid), " ", fmt.Sprint(scidstoadd.Fsi.Height))
-
-		changed, err := indexer.BBSBackend.StoreSCIDInteractionHeight(scidstoadd.Scid, int64(scidstoadd.Fsi.Height))
-		if err != nil {
-			return err
-		}
-
-		// multiple interactions are possible
-		if !changed {
-			// l.Info("[AddSCIDToIndex] Interaction Height already recorded: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
-			return nil
-		}
-
-		// l.Info("[AddSCIDToIndex] New stored disk: ", fmt.Sprint(len(indexer.BBSBackend.GetSCIDInteractionHeight(scidstoadd.Scid))))
-	}
-
-	return nil
-}
 
 // Gets SC variable details
 func GetSCVariables(keysstring map[string]any, keysuint64 map[uint64]any) (variables []*structures.SCIDVariable) {

@@ -41,10 +41,10 @@ type FastSyncImport struct {
 }
 
 type GnomonAllOwnersAndSCIDsQuery struct {
-	IDX string
+	DB_Name string
 }
 type GnomonTxCountQuery struct {
-	IDX     string
+	DB_Name string
 	Tx_Type string
 }
 type GnomonSCIDQuery struct {
