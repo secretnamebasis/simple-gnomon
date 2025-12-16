@@ -123,18 +123,18 @@ func main() {
 				panic(err)
 			}
 
-			last := float64(0)
+			var last int64
 
 			height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
 			if err != nil {
 				panic(err)
 			}
-			first := height1.Result
+			first := int64(height1.Result)
 
 			action := func(now int64) {
-				last = float64(cmd.TOPO)
+				last = cmd.TOPO
 				if last == 0 {
-					last = height1.Result
+					last = int64(height1.Result)
 				}
 
 				duration := time.Since(start).Seconds()
@@ -142,11 +142,11 @@ func main() {
 				if int64(duration) == 0 {
 					duration = 1 // avoid division by zero
 				}
-				average /= duration
-				if int64(average) == 0 {
+				average /= int64(duration)
+				if average == 0 {
 					average = 1
 				}
-				estimated := now / int64(average)
+				estimated := now / average
 				remaining := (now - int64(last)) / int64(average)
 
 				average_per_hour = strconv.Itoa(int(average * 60 * 60))
@@ -154,12 +154,12 @@ func main() {
 				total_hours = strconv.Itoa(int(estimated / 60 / 60))
 
 				fyne.DoAndWait(func() {
-					progress_bar.SetValue(last / float64(now))
+					progress_bar.SetValue(float64(last / now))
 				})
 			}
 
 			passive := func() {
-
+				start = time.Now()
 				average_per_hour = strconv.Itoa(int((4800 / 24)))
 				estimated_hours = "PASSIVE MODE"
 				total_hours = "NEXT BLOCK"
