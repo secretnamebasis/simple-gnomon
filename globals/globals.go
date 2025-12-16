@@ -2,11 +2,7 @@ package globals
 
 import (
 	"github.com/blang/semver/v4"
-	"github.com/sirupsen/logrus"
 )
-
-// Global logger
-var Logger logrus.Logger
 
 // Gnomon Index SCID
 const MAINNET_GNOMON_SCID = "a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4"
