@@ -54,7 +54,7 @@ var (
 		"NORMAL TXS:",
 		"REGISTRATIONS:",
 		"SCIDS & OWNERS:",
-		"G45s & ONWERS:",
+		"G45s & OWNERS:",
 		"NFAs & OWNERS:",
 	}
 )
