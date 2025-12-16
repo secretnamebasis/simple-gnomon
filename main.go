@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -15,35 +16,72 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/deroproject/derohe/globals"
 	"github.com/gorilla/websocket"
 	"github.com/secretnamebasis/simple-gnomon/cmd"
 	"github.com/secretnamebasis/simple-gnomon/connections"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 )
 
+var (
+	data_dir,
+	websocket_address,
+	node_connection,
+	current_height,
+	topo_height,
+	last_indexed,
+	average_per_hour,
+	estimated_hours,
+	total_hours,
+	all_normal,
+	all_registration,
+	all_scids,
+	all_g45s,
+	all_nfas string
+
+	row_values = []string{}
+
+	row_headers = []string{
+		"DATA DIRECTORY:",
+		"WEBSOCKET:",
+		"NODE ENDPOINT:",
+		"CURRENT HEIGHT:",
+		"TOPOLOGICAL HEIGHT:",
+		"LAST INDEXED HEIGHT:",
+		"AVG BLOCKS/HOUR:",
+		"EST. HRS REMAIN:",
+		"EST. HRS TOTAL:",
+		"NORMAL TXS:",
+		"REGISTRATIONS:",
+		"SCIDS & OWNERS:",
+		"G45s & ONWERS:",
+		"NFAs & OWNERS:",
+	}
+)
+
 func main() {
 	closing := false
 	a := app.NewWithID("simple-gnomon_" + rand.Text())
 	w := a.NewWindow("simple-gnomon")
-	w.Resize(fyne.NewSize(400, 200))
+	w.Resize(fyne.NewSize(400, 600))
 	w.SetCloseIntercept(func() {
 		cmd.RUNNING = false
 		closing = true
 		os.Exit(0)
 	})
+	data_dir = filepath.Base(globals.GetDataDirectory())
+	websocket_address = "127.0.0.1:9190/ws"
 	endpoint := ""
 	connection := widget.NewEntry()
-	readout := widget.NewLabel("")
-	topo_height := widget.NewLabel("")
-	indexed_height := widget.NewLabel("")
-	current_height := widget.NewLabel("")
-	average_blocks_per_hour := widget.NewLabel("")
-	estimated_time_remaining := widget.NewLabel("")
-	estimated_time_to_completion := widget.NewLabel("")
-	progress_bar := widget.NewProgressBar()
-	connection.SetPlaceHolder("127.0.0.1:10102")
-	tapped := func() {
 
+	progress_bar := widget.NewProgressBar()
+	progress_bar.Hide()
+	connection.SetPlaceHolder("127.0.0.1:10102")
+	var table *widget.Table
+
+	tapped := func() {
+		connection.Hide()
+		progress_bar.Show()
 		if cmd.RUNNING {
 			return
 		}
@@ -56,6 +94,8 @@ func main() {
 			// "-starting_height=155000",
 			// "-progress",
 		)
+
+		node_connection = endpoint
 
 		go cmd.Start_gnomon_indexer()
 
@@ -82,6 +122,7 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+
 			last := float64(0)
 
 			height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
@@ -107,27 +148,33 @@ func main() {
 				}
 				estimated := now / int64(average)
 				remaining := (now - int64(last)) / int64(average)
+
+				average_per_hour = strconv.Itoa(int(average * 60 * 60))
+				estimated_hours = strconv.Itoa(int(remaining / 60 / 60))
+				total_hours = strconv.Itoa(int(estimated / 60 / 60))
+
 				fyne.DoAndWait(func() {
-					average_blocks_per_hour.SetText("average blocks per Hour:" + strconv.Itoa(int(average*60*60)))
-					estimated_time_remaining.SetText("estimated remaining hours:" + strconv.Itoa(int(remaining/60/60)))
-					estimated_time_to_completion.SetText("estimated total hours:" + strconv.Itoa(int(estimated/60/60)))
 					progress_bar.SetValue(last / float64(now))
 				})
 			}
+
 			passive := func() {
+
+				average_per_hour = strconv.Itoa(int((4800 / 24)))
+				estimated_hours = "PASSIVE MODE"
+				total_hours = "NEXT BLOCK"
+
 				fyne.DoAndWait(func() {
-					average_blocks_per_hour.Hide()
-					estimated_time_remaining.Hide()
-					estimated_time_to_completion.Hide()
 					progress_bar.SetValue(1)
 				})
+
 			}
 
 			ticker := time.NewTicker(time.Second)
 
 			for range ticker.C {
 				now := connections.GetDaemonInfo().TopoHeight
-				text := "AT LAST INDEXED HEIGHT...\n"
+
 				result, err := getTxCount(getTxCountParams{
 					IDX:     "all",
 					Tx_Type: "normal",
@@ -135,9 +182,8 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				normal := strconv.Itoa(int(result.Result))
 
-				text += "ALL Normal: " + normal + "\n"
+				all_normal = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
 					IDX:     "all",
@@ -146,9 +192,8 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				registrations := strconv.Itoa(int(result.Result))
 
-				text += "ALL Registrations: " + registrations + "\n"
+				all_registration = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
 					IDX:     "all",
@@ -157,9 +202,7 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				all := strconv.Itoa(int(result.Result))
-
-				text += "ALL SCIDS & OWNERS: " + all + "\n"
+				all_scids = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
 					IDX:     "g45",
@@ -168,9 +211,8 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				g45 := strconv.Itoa(int(result.Result))
 
-				text += "ALL G45 & OWNERS: " + g45 + "\n"
+				all_g45s = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{
 					IDX:     "nfa",
@@ -179,20 +221,32 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				nfa := strconv.Itoa(int(result.Result))
-
-				text += "ALL NFAs & OWNERS: " + nfa
+				all_nfas = strconv.Itoa(int(result.Result))
 
 				height1, err := getLastIndexHeight(getAllParams{IDX: "all"})
 				if err != nil {
 					panic(err)
 				}
-				fyne.DoAndWait(func() {
-					current_height.SetText("current height:" + strconv.Itoa(int(now)))
-					topo_height.SetText("Topo height:" + strconv.Itoa(int(cmd.TOPO)))
-					indexed_height.SetText("Last Indexed height:" + strconv.Itoa(int(height1.Result)))
-					readout.SetText(text)
-				})
+				current_height = strconv.Itoa(int(now))
+				topo_height = strconv.Itoa(int(cmd.TOPO))
+				last_indexed = strconv.Itoa(int(height1.Result))
+				row_values = []string{
+					data_dir,
+					websocket_address,
+					node_connection,
+					current_height,
+					topo_height,
+					last_indexed,
+					average_per_hour,
+					estimated_hours,
+					total_hours,
+					all_normal,
+					all_registration,
+					all_scids,
+					all_g45s,
+					all_nfas,
+				}
+				fyne.DoAndWait(func() { table.Refresh() })
 				switch now {
 				case cmd.TOPO + 1:
 					ticker.Reset(time.Second * 9)
@@ -208,16 +262,36 @@ func main() {
 	button := widget.NewButtonWithIcon("Start Gnomon Indexer", theme.MediaPlayIcon(), tapped)
 	connection.OnSubmitted = func(s string) { button.OnTapped() }
 	connection.ActionItem = button
-	content := container.NewVBox(
-		current_height,
-		topo_height,
-		indexed_height,
-		readout,
-		average_blocks_per_hour,
-		estimated_time_remaining,
-		estimated_time_to_completion,
-		progress_bar,
-		connection,
+
+	length := func() (int, int) { return len(row_headers), 2 }
+	create := func() fyne.CanvasObject { return widget.NewLabel("") }
+	update := func(id widget.TableCellID, co fyne.CanvasObject) {
+		switch id.Col {
+		case 0:
+			if id.Row >= len(row_headers) {
+				return
+			}
+			co.(*widget.Label).SetText(row_headers[id.Row])
+		case 1:
+			if id.Row >= len(row_values) {
+				return
+			}
+			co.(*widget.Label).SetText(row_values[id.Row])
+		}
+	}
+	table = widget.NewTable(length, create, update)
+	table.OnSelected = func(id widget.TableCellID) {
+		table.UnselectAll()
+	}
+	table.SetColumnWidth(0, 200)
+	table.SetColumnWidth(1, 150)
+	content := container.NewBorder(
+		container.NewVBox(
+			progress_bar,
+			connection,
+		),
+		nil, nil, nil,
+		table,
 	)
 	w.SetContent(content)
 	w.ShowAndRun()
