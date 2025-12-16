@@ -195,8 +195,10 @@ func main() {
 				})
 				switch now {
 				case cmd.TOPO + 1:
+					ticker.Reset(time.Second * 9)
 					passive()
 				default:
+					ticker.Reset(time.Second)
 					action(now)
 				}
 
