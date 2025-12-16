@@ -88,12 +88,10 @@ func main() {
 
 		// now go start gnomon
 		endpoint = connection.Text
-		os.Args = append(os.Args,
-			"-endpoint="+endpoint,
-			// the first g45 nft starts at 678864
-			// "-starting_height=155000",
-			// "-progress",
-		)
+
+		endpoint_flag := "-endpoint=" + endpoint
+
+		os.Args = append(os.Args, endpoint_flag)
 
 		node_connection = endpoint
 
