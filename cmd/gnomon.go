@@ -196,7 +196,7 @@ func Start_gnomon_indexer() {
 	// simple-daemon
 	for RUNNING {
 		if achieved_current_height != 0 {
-			time.Sleep(time.Second * 9)
+			time.Sleep(time.Second * 1)
 		}
 
 		// a simple backup strategy
