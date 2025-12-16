@@ -173,55 +173,40 @@ func main() {
 			for range ticker.C {
 				now := connections.GetDaemonInfo().TopoHeight
 
-				result, err := getTxCount(getTxCountParams{
-					DB_Name: "all",
-					Tx_Type: "normal",
-				})
+				result, err := getTxCount(getTxCountParams{"all", "normal"})
 				if err != nil {
 					panic(err)
 				}
 
 				all_normal = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{
-					DB_Name: "all",
-					Tx_Type: "registration",
-				})
+				result, err = getTxCount(getTxCountParams{"all", "registration"})
 				if err != nil {
 					panic(err)
 				}
 
 				all_registration = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{
-					DB_Name: "all",
-					Tx_Type: "scids",
-				})
+				result, err = getTxCount(getTxCountParams{"all", "scids"})
 				if err != nil {
 					panic(err)
 				}
 				all_scids = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{
-					DB_Name: "g45",
-					Tx_Type: "scids",
-				})
+				result, err = getTxCount(getTxCountParams{"g45", "scids"})
 				if err != nil {
 					panic(err)
 				}
 
 				all_g45s = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{
-					DB_Name: "nfa",
-					Tx_Type: "scids",
-				})
+				result, err = getTxCount(getTxCountParams{"nfa", "scids"})
 				if err != nil {
 					panic(err)
 				}
 				all_nfas = strconv.Itoa(int(result.Result))
 
-				height1, err := getLastIndexHeight(getAllParams{DB_Name: "all"})
+				height1, err := getLastIndexHeight(getAllParams{"all"})
 				if err != nil {
 					panic(err)
 				}

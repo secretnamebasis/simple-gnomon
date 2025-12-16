@@ -40,9 +40,7 @@ MzE3MzYxNTI1NTQ3M2VlOQ==
 	appData.Name = "simple-gnomon-lite"
 	appData.Description = "indexing the blockchain is fun!"
 	appData.Url = "http://localhost:8080"
-	appData.Permissions = map[string]xswd.Permission{
-		// "SignData": xswd.AlwaysAllow, // because that's what this does
-	}
+	appData.Permissions = map[string]xswd.Permission{}
 	appData.Id = "4e3ed10099d9eec9767524402164b97506cc0d772f2e657e3173615255473ee9"
 	if err := Conn.WriteJSON(appData); err != nil {
 		panic(err)

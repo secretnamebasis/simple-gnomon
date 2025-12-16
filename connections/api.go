@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/deroproject/derohe/rpc"
 	"github.com/gorilla/mux"
 	"github.com/secretnamebasis/simple-gnomon/db"
 	"github.com/secretnamebasis/simple-gnomon/globals"
@@ -78,7 +77,7 @@ func (apiServer *ApiServer) Start() {
 
 // Sets up the non-SSL API listener
 func (apiServer *ApiServer) listen() {
-	fmt.Printf("[API] Starting API on %v", apiServer.Config.Listen)
+	fmt.Printf("[API] Starting API on %v\n", apiServer.Config.Listen)
 	router := mux.NewRouter()
 	router.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
 	router.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
@@ -93,13 +92,13 @@ func (apiServer *ApiServer) listen() {
 	router.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServe(apiServer.Config.Listen, router)
 	if err != nil {
-		log.Fatalf("[API] Failed to start API: %v", err)
+		log.Fatalf("[API] Failed to start API: %v\n", err)
 	}
 }
 
 // Sets up the SSL API listener
 func (apiServer *ApiServer) listenSSL() {
-	fmt.Printf("[API] Starting SSL API on %v", apiServer.Config.SSLListen)
+	fmt.Printf("[API] Starting SSL API on %v\n", apiServer.Config.SSLListen)
 	routerSSL := mux.NewRouter()
 	routerSSL.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
 	routerSSL.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
@@ -114,19 +113,19 @@ func (apiServer *ApiServer) listenSSL() {
 	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServeTLS(apiServer.Config.SSLListen, apiServer.Config.CertFile, apiServer.Config.KeyFile, routerSSL)
 	if err != nil {
-		log.Fatalf("[API] Failed to start SSL API: %v", err)
+		log.Fatalf("[API] Failed to start SSL API: %v\n", err)
 	}
 }
 
 // Sets up a separate getinfo SSL listener. Use cases is for things like benchmark.dero.network and others that may want to consume a https endpoint of derod getinfo or other future command output
 func (apiServer *ApiServer) getInfoListenSSL() {
-	fmt.Printf("[API] Starting GetInfo SSL API on %v", apiServer.Config.GetInfoSSLListen)
+	fmt.Printf("[API] Starting GetInfo SSL API on %v\n", apiServer.Config.GetInfoSSLListen)
 	routerSSL := mux.NewRouter()
 	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServeTLS(apiServer.Config.GetInfoSSLListen, apiServer.Config.GetInfoCertFile, apiServer.Config.GetInfoKeyFile, routerSSL)
 	if err != nil {
-		log.Fatalf("[API] Failed to start GetInfo SSL API: %v", err)
+		log.Fatalf("[API] Failed to start GetInfo SSL API: %v\n", err)
 	}
 }
 
@@ -163,7 +162,7 @@ func (apiServer *ApiServer) collectStats() {
 		invokedetails = apiServer.BBSBackend.GetAllSCIDInvokeDetails(k)
 		i := 0
 		for _, v := range invokedetails {
-			sc_action := fmt.Sprintf("%v", v.Sc_args.Value("SC_ACTION", "U"))
+			sc_action := fmt.Sprintf("%v\n", v.Sc_args.Value("SC_ACTION", "U"))
 			if sc_action == "1" {
 				i++
 				scinstalls = append(scinstalls, v)
@@ -216,7 +215,7 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
-		fmt.Errorf("[API] Error serializing API response: %v", err)
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
 	}
 }
 
@@ -276,13 +275,13 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 		// Case to ignore large variable returns
 		if len(addrscidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...", globals.MAX_API_VAR_RETURN, scid)
+			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
 			reply["addrscidinvokescount"] = 0
 			reply["addrscidinvokes"] = nil
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 			return
 		}
@@ -293,9 +292,8 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 		var addrinvokes [][]*structures.SCTXParse
 
 		for k := range sclist {
-			var currinvokedetails []*structures.SCTXParse
 
-			currinvokedetails = apiServer.BBSBackend.GetAllSCIDInvokeDetailsBySigner(k, address)
+			currinvokedetails := apiServer.BBSBackend.GetAllSCIDInvokeDetailsBySigner(k, address)
 
 			if currinvokedetails != nil {
 				addrinvokes = append(addrinvokes, currinvokedetails)
@@ -304,13 +302,13 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 		// Case to ignore large variable returns
 		if len(addrinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...", globals.MAX_API_VAR_RETURN, scid)
+			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
 			reply["addrinvokescount"] = 0
 			reply["addrinvokes"] = nil
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 			return
 		}
@@ -319,19 +317,18 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 		reply["addrinvokes"] = addrinvokes
 	} else if address == "" && scid != "" {
 		// If no address and scid only, return invokes of scid
-		var scidinvokes []*structures.SCTXParse
 
-		scidinvokes = apiServer.BBSBackend.GetAllSCIDInvokeDetails(scid)
+		scidinvokes := apiServer.BBSBackend.GetAllSCIDInvokeDetails(scid)
 
 		// Case to ignore large variable returns
 		if len(scidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...", globals.MAX_API_VAR_RETURN, scid)
+			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
 			reply["scidinvokescount"] = 0
 			reply["scidinvokes"] = nil
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 			return
 		}
@@ -342,7 +339,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
-		fmt.Errorf("[API] Error serializing API response: %v", err)
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
 	}
 }
 
@@ -372,7 +369,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 		reply["variables"] = nil
 		err := json.NewEncoder(writer).Encode(reply)
 		if err != nil {
-			fmt.Errorf("[API] Error serializing API response: %v", err)
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
 		}
 		return
 	} else {
@@ -398,11 +395,11 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 		var topoheight int64
 		topoheight, err = strconv.ParseInt(height, 10, 64)
 		if err != nil {
-			fmt.Errorf("[API] Err converting '%v' to int64 - %v", height, err)
+			fmt.Printf("[API] Err converting '%v' to int64 - %v\n", height, err)
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 		}
 
@@ -415,12 +412,12 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 		// Case to ignore large variable returns
 		if len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return more than %d sc vars for %s... DENIED! Too much data...", globals.MAX_API_VAR_RETURN, scid)
+			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return more than %d sc vars for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
 			reply["variables"] = nil
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 			return
 		}
@@ -435,12 +432,12 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 		// Case to ignore all variable instance returns for builtin registration tx - large amount of data.
 		if (scid == "0000000000000000000000000000000000000000000000000000000000000001" || scid == globals.MAINNET_GNOMON_SCID || scid == globals.TESTNET_GNOMON_SCID) && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return all the sc vars of everything at registration builtin... DENIED! Too much data...")
+			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return all the sc vars of everything at registration builtin... DENIED! Too much data...\n")
 			reply["variables"] = nil
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 			return
 		}
@@ -450,12 +447,12 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 		// Case to ignore large variable returns
 		if len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return more than %d sc vars for %s... DENIED! Too much data...", globals.MAX_API_VAR_RETURN, scid)
+			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return more than %d sc vars for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
 			reply["variables"] = nil
 
 			err := json.NewEncoder(writer).Encode(reply)
 			if err != nil {
-				fmt.Errorf("[API] Error serializing API response: %v", err)
+				fmt.Printf("[API] Error serializing API response: %v\n", err)
 			}
 			return
 		}
@@ -466,7 +463,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
-		fmt.Errorf("[API] Error serializing API response: %v", err)
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
 	}
 }
 
@@ -510,7 +507,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 // 		reply["variables"] = nil
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	}
@@ -537,7 +534,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	}
@@ -549,7 +546,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 	err := json.NewEncoder(writer).Encode(reply)
 // 	if err != nil {
-// 		fmt.Errorf("[API] Error serializing API response: %v", err)
+// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 	}
 // }
 
@@ -576,7 +573,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	}
@@ -585,7 +582,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 	err := json.NewEncoder(writer).Encode(reply)
 // 	if err != nil {
-// 		fmt.Errorf("[API] Error serializing API response: %v", err)
+// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 	}
 // }
 
@@ -617,7 +614,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 // 		reply["mbl"] = nil
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	} else {
@@ -640,7 +637,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	}
@@ -649,7 +646,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 	err := json.NewEncoder(writer).Encode(reply)
 // 	if err != nil {
-// 		fmt.Errorf("[API] Error serializing API response: %v", err)
+// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 	}
 // }
 
@@ -681,7 +678,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 // 		reply["mbl"] = nil
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	} else {
@@ -700,7 +697,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 	err := json.NewEncoder(writer).Encode(reply)
 // 	if err != nil {
-// 		fmt.Errorf("[API] Error serializing API response: %v", err)
+// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 	}
 // }
 
@@ -738,7 +735,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 		err := json.NewEncoder(writer).Encode(reply)
 // 		if err != nil {
-// 			fmt.Errorf("[API] Error serializing API response: %v", err)
+// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 		}
 // 		return
 // 	}
@@ -747,7 +744,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 // 	err := json.NewEncoder(writer).Encode(reply)
 // 	if err != nil {
-// 		fmt.Errorf("[API] Error serializing API response: %v", err)
+// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
 // 	}
 // }
 
@@ -759,15 +756,13 @@ func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request)
 
 	reply := make(map[string]interface{})
 
-	var info *rpc.GetInfo_Result
-
-	info = apiServer.BBSBackend.GetGetInfoDetails()
+	info := apiServer.BBSBackend.GetGetInfoDetails()
 
 	reply["getinfo"] = info
 
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
-		fmt.Errorf("[API] Error serializing API response: %v", err)
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
 	}
 }
 
