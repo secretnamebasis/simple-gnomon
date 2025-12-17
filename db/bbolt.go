@@ -390,6 +390,117 @@ func (bbs *BboltStore) GetAllOwnersAndSCIDs() map[string]string {
 	return results
 }
 
+// Returns all normal txs with SCIDs based on a given address
+func (bbs *BboltStore) GetAllNormalTxWithSCIDByAddr(addr string) (normTxsWithSCID []*structures.NormalTXWithSCIDParse) {
+	bName := "normaltxwithscid"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			key := addr
+			v := b.Get([]byte(key))
+
+			if v != nil {
+				_ = json.Unmarshal(v, &normTxsWithSCID)
+			}
+		}
+		return
+	})
+
+	return
+}
+
+// Returns all normal txs with SCIDs based on a given SCID
+func (bbs *BboltStore) GetAllNormalTxWithSCIDBySCID(scid string) (normTxsWithSCID []*structures.NormalTXWithSCIDParse) {
+	var resultset []string
+
+	bName := "normaltxwithscid"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+
+			c := b.Cursor()
+
+			for _, v := c.First(); err == nil; _, v = c.Next() {
+				if v != nil {
+					var currdetails []*structures.NormalTXWithSCIDParse
+					_ = json.Unmarshal(v, &currdetails)
+					for _, cv := range currdetails {
+						if cv.Scid == scid && !slices.Contains(resultset, cv.Txid) {
+							normTxsWithSCID = append(normTxsWithSCID, cv)
+							resultset = append(resultset, cv.Txid)
+						}
+					}
+				} else {
+					break
+				}
+			}
+		}
+
+		return
+	})
+
+	return
+}
+
+// Stores all normal txs with SCIDs and their respective ring members for future balance/interaction reference
+func (bbs *BboltStore) StoreNormalTxWithSCIDByAddr(addr string, normTxWithSCID *structures.NormalTXWithSCIDParse) (changes bool, err error) {
+	var newNormTxsWithSCID []byte
+	var currNormTxsWithSCID []byte
+	var normTxsWithSCID []*structures.NormalTXWithSCIDParse
+	bName := "normaltxwithscid"
+	key := addr
+
+	err = bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			currNormTxsWithSCID = b.Get([]byte(key))
+			value := b.Get([]byte(key))
+			if value != nil {
+				currNormTxsWithSCID = make([]byte, len(value))
+				copy(currNormTxsWithSCID, value)
+			}
+		}
+		return
+	})
+
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
+		b, err := tx.CreateBucketIfNotExists([]byte(bName))
+		if err != nil {
+			return fmt.Errorf("bucket: %s", err)
+		}
+
+		if currNormTxsWithSCID == nil {
+			normTxsWithSCID = append(normTxsWithSCID, normTxWithSCID)
+		} else {
+			// Retrieve value and conovert to SCIDInteractionHeight, so that you can manipulate and update db
+			_ = json.Unmarshal(currNormTxsWithSCID, &normTxsWithSCID)
+
+			for _, v := range normTxsWithSCID {
+				if v.Txid == normTxWithSCID.Txid {
+					// Return nil if already exists in array.
+					// Clause for this is in event we pop backwards in time and already have this data stored.
+					// TODO: What if interaction happened on false-chain and pop to retain correct chain. Bad data may be stored here still, as it isn't removed. Need fix for this in future.
+					return
+				}
+			}
+
+			normTxsWithSCID = append(normTxsWithSCID, normTxWithSCID)
+		}
+		newNormTxsWithSCID, err = json.Marshal(normTxsWithSCID)
+		if err != nil {
+			return fmt.Errorf("[BBolt] could not marshal normTxsWithSCID info: %v", err)
+		}
+
+		err = b.Put([]byte(key), newNormTxsWithSCID)
+		changes = true
+		return
+	})
+
+	return
+}
+
 // Stores all scinvoke details of a given scid
 func (bbs *BboltStore) StoreInvokeDetails(scid string, signer string, entrypoint string, topoheight int64, invokedetails *structures.SCTXParse) (changes bool, err error) {
 	confBytes, err := json.Marshal(invokedetails)
@@ -1208,12 +1319,83 @@ func (bbs *BboltStore) GetInvalidSCIDDeploys() map[string]uint64 {
 	return invalidSCIDs
 }
 
-// Stores counts of miniblock finders by address
-func (bbs *BboltStore) StoreMiniblockCountByAddress(addr string) (changes bool, err error) {
-	currCount := bbs.GetMiniblockCountByAddress(addr)
+// Stores the miniblocks within a given blid
+func (bbs *BboltStore) StoreMiniblockDetailsByHash(blid string, mbldetails []*structures.MBLInfo) (changes bool, err error) {
 
-	// Add 1 to currCount
-	currCount++
+	confBytes, err := json.Marshal(mbldetails)
+	if err != nil {
+		return changes, fmt.Errorf("[StoreMiniblockDetailsByHash] could not marshal getinfo info: %v", err)
+	}
+
+	bName := "miniblocks"
+
+	key := blid
+
+	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
+		b, err := tx.CreateBucketIfNotExists([]byte(bName))
+		if err != nil {
+			return fmt.Errorf("bucket: %s", err)
+		}
+
+		err = b.Put([]byte(key), confBytes)
+		changes = true
+		return
+	})
+
+	return
+}
+
+// Returns all miniblock details for synced chain
+func (bbs *BboltStore) GetAllMiniblockDetails() map[string][]*structures.MBLInfo {
+	mbldetails := make(map[string][]*structures.MBLInfo)
+
+	bName := "miniblocks"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+
+			c := b.Cursor()
+
+			for k, v := c.First(); err == nil; k, v = c.Next() {
+				if k != nil && v != nil {
+					var currdetails []*structures.MBLInfo
+					_ = json.Unmarshal(v, &currdetails)
+					mbldetails[string(k)] = currdetails
+				} else {
+					break
+				}
+			}
+		}
+
+		return
+	})
+
+	return mbldetails
+}
+
+// Returns the miniblocks within a given blid if previously stored
+func (bbs *BboltStore) GetMiniblockDetailsByHash(blid string) (miniblocks []*structures.MBLInfo) {
+	bName := "miniblocks"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			key := blid
+			v := b.Get([]byte(key))
+
+			if v != nil {
+				_ = json.Unmarshal(v, &miniblocks)
+			}
+		}
+		return
+	})
+
+	return
+}
+
+// Stores counts of miniblock finders by address
+func (bbs *BboltStore) StoreMiniblockCountByAddress(currCount int64, addr string) (changes bool, err error) {
 
 	confBytes, err := json.Marshal(currCount)
 	if err != nil {
