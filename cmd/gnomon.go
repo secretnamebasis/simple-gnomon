@@ -312,9 +312,8 @@ func tx_handling() {
 				end = tx_count
 			}
 			result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
-
+			// end credit
 			for i, each := range result.Txs_as_hex {
-
 				b, err := hex.DecodeString(each)
 				if err != nil {
 					fmt.Println(err)
@@ -327,7 +326,6 @@ func tx_handling() {
 				}
 				txs = append(txs, result.Txs[i])
 				transactions = append(transactions, tx)
-
 			}
 		}
 
@@ -337,7 +335,6 @@ func tx_handling() {
 
 		transaction_stage <- staged
 		// fmt.Println("ENTERED FILTERING:", time.Since(staged.Start).Milliseconds())
-
 	}
 }
 
@@ -373,7 +370,26 @@ func filtering(indices map[string][]string) {
 			return
 		case transaction.NORMAL:
 			holding_queue.normal++
+
+			if len(each.Payloads) > 0 {
+				for j, payload := range each.Payloads {
+					if payload.SCID != crypto.ZEROHASH {
+						for _, ring := range staged.Txs[i].Ring[j] {
+							normTxWithSCID := &structures.NormalTXWithSCIDParse{
+								Txid:   each.GetHash().String(),
+								Scid:   payload.SCID.String(),
+								Fees:   each.Fees(),
+								Height: int64(staged.Block.Height),
+							}
+							fmt.Println("normal with scid", ring, normTxWithSCID)
+							databases["all"].StoreNormalTxWithSCIDByAddr(ring, normTxWithSCID)
+						}
+					}
+				}
+			}
+
 			return
+
 		case transaction.SC_TX:
 			if len(each.SCDATA) == 0 {
 				return
