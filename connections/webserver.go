@@ -134,7 +134,7 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(websocket.StatusInternalError, "[wshandler] Disconnected")
 
 	for {
-		log.Printf("[wshandler] Handling client...")
+		// log.Printf("[wshandler] Handling client...")
 		err = wss.wsHandleClient(r.Context(), conn, r)
 		if websocket.CloseStatus(err) == websocket.StatusNormalClosure || websocket.CloseStatus(err) == websocket.StatusGoingAway {
 			fmt.Printf("[wshandler] Websocket close status: %v\n", websocket.CloseStatus(err))
@@ -151,7 +151,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 	var err error
 
 	var req *structures.JSONRpcReq
-	log.Printf("Reader")
+	// log.Printf("Reader")
 	// TODO: If we can't guarantee that it's a json buffer, reader hangs until client-side WS disconnects
 	err = wsjson.Read(ctx, c, &req)
 	if err != nil {
@@ -172,7 +172,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return err
 		}
 
-		result := wss.database[params.DB_Name].GetAllOwnersAndSCIDs()
+		result := wss.database[params.Tag].GetAllOwnersAndSCIDs()
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		err = wsjson.Write(ctx, c, message)
@@ -183,8 +183,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return fmt.Errorf("server disconnect request")
 		}
 
-		// "Gnomon.GetLastIndexHeight": handler.New(GetLastIndexHeight),
-	case "GetLastIndexHeight":
+	case "GetLastIndexHeight": // "Gnomon.GetLastIndexHeight": handler.New(GetLastIndexHeight),
 		var params *structures.GnomonAllOwnersAndSCIDsQuery
 		err = json.Unmarshal(*req.Params, &params)
 		if err != nil {
@@ -192,7 +191,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return err
 		}
 
-		result, err := wss.database[params.DB_Name].GetLastIndexHeight()
+		result, err := wss.database[params.Tag].GetLastIndexHeight()
 		if err != nil {
 			fmt.Printf("err writing message: err: %v\n", err)
 
@@ -208,7 +207,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return fmt.Errorf("server disconnect request")
 		}
 
-	case "GetTxCount": // "Gnomon.GetTxCount":                          handler.New(GetTxCount),
+	case "GetTxCount": // "Gnomon.GetTxCount": handler.New(GetTxCount)
 		var params *structures.GnomonTxCountQuery
 		err = json.Unmarshal(*req.Params, &params)
 		if err != nil {
@@ -218,11 +217,324 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		var result int64
 		switch params.Tx_Type {
 		case "registration", "burn", "normal":
-			result = wss.database[params.DB_Name].GetTxCount(params.Tx_Type)
+			result = wss.database[params.Tag].GetTxCount(params.Tx_Type)
 		case "scids":
-			result = int64(len(wss.database[params.DB_Name].GetAllOwnersAndSCIDs()))
+			result = int64(len(wss.database[params.Tag].GetAllOwnersAndSCIDs()))
 		}
 
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetOwner": // "Gnomon.GetOwner": handler.New(GetOwner)
+		var params *structures.GnomonOwnerQuery
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		owner := wss.database[params.Tag].GetOwner(params.SCID)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: owner}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+
+		// this isn't being stored at the moment...
+	case "GetAllNormalTxWithSCIDByAddr":
+		var params *structures.GnomonAllNormalTxWithSCIDByAddrQuery
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		txs := wss.database[params.Tag].GetAllNormalTxWithSCIDByAddr(params.Address)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetAllNormalTxWithSCIDBySCID":
+		var params *structures.GnomonAllNormalTxWithSCIDBySCIDQuery
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		txs := wss.database[params.Tag].GetAllNormalTxWithSCIDBySCID(params.SCID)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetAllSCIDInvokeDetails":
+		var params *structures.GnomonAllSCIDInvokeDetails
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		txs := wss.database[params.Tag].GetAllSCIDInvokeDetails(params.SCID)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetAllSCIDInvokeDetailsByEntrypoint":
+		var params *structures.GnomonAllSCIDInvokeDetailsByEntrypoint
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		txs := wss.database[params.Tag].GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetAllSCIDInvokeDetailsBySigner":
+		var params *structures.GnomonAllSCIDInvokeDetailsBySigner
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		txs := wss.database[params.Tag].GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetGetInfoDetails":
+		var params *structures.GnomonGetInfoParams
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		info := wss.database[params.Tag].GetGetInfoDetails()
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: info}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetSCIDVariableDetailsAtTopoheight":
+		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		vars := wss.database[params.Tag].GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetAllSCIDVariableDetails":
+		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		vars := wss.database[params.Tag].GetAllSCIDVariableDetails(params.SCID)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetSCIDKeysByValue":
+		var params *structures.GnomonSCIDKeysByValue
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		ks, ku := wss.database[params.Tag].GetSCIDKeysByValue(params.SCID, params.Value, params.Height, params.Max)
+		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetSCIDValuesByKey":
+		var params *structures.GnomonSCIDKeysByKey
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		vs, vu := wss.database[params.Tag].GetSCIDValuesByKey(params.SCID, params.Value, params.Height, params.Max)
+		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetLiveSCIDKeysByValue":
+		var params *structures.GnomonSCIDKeysByValue
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		ks, ku := wss.database[params.Tag].GetSCIDKeysByValue(params.SCID, params.Value, 0, params.Max)
+		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetLiveSCIDValuesByKey":
+		var params *structures.GnomonSCIDKeysByKey
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		vs, vu := wss.database[params.Tag].GetSCIDValuesByKey(params.SCID, params.Value, 0, params.Max)
+		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetSCIDInteractionByAddr":
+
+	case "GetSCIDInteractionHeight":
+		var params *structures.GnomonAllSCIDInteractionHeight
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		interactions := wss.database[params.Tag].GetSCIDInteractionHeight(params.SCID)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetInteractionIndex":
+		var params *structures.GnomonInteractionIndex
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		height := wss.database[params.Tag].GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: height}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetInvalidSCIDDeploys":
+		var params *structures.GnomonInteractionIndex
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		result := wss.database[params.Tag].GetInvalidSCIDDeploys()
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+
+	case "GetAllMiniblockDetails":
+		var params *structures.GnomonInteractionIndex
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		result := wss.database[params.Tag].GetAllMiniblockDetails()
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetMiniblockDetailsByHash":
+		var params *structures.GnomonMiniblockDetailsByHash
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		result := wss.database[params.Tag].GetMiniblockDetailsByHash(params.BLID)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
+
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
+	case "GetMiniblockCountByAddress":
+		var params *structures.GnomonMiniblockDetailsByAddress
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		result := wss.database[params.Tag].GetMiniblockCountByAddress(params.Address)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		err = wsjson.Write(ctx, c, message)
 		if err != nil {
@@ -260,25 +572,3 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 
 	return err
 }
-
-// "Gnomon.GetOwner":                            handler.New(GetOwner),
-// "Gnomon.GetAllOwnersAndSCIDs":                handler.New(GetAllOwnersAndSCIDs),
-// "Gnomon.GetAllNormalTxWithSCIDByAddr":        handler.New(GetAllNormalTxWithSCIDByAddr),
-// "Gnomon.GetAllNormalTxWithSCIDBySCID":        handler.New(GetAllNormalTxWithSCIDBySCID),
-// "Gnomon.GetAllSCIDInvokeDetails":             handler.New(GetAllSCIDInvokeDetails),
-// "Gnomon.GetAllSCIDInvokeDetailsByEntrypoint": handler.New(GetAllSCIDInvokeDetailsByEntrypoint),
-// "Gnomon.GetAllSCIDInvokeDetailsBySigner":     handler.New(GetAllSCIDInvokeDetailsBySigner),
-// "Gnomon.GetGetInfoDetails":                   handler.New(GetGetInfoDetails),
-// "Gnomon.GetSCIDVariableDetailsAtTopoheight":  handler.New(GetSCIDVariableDetailsAtTopoheight),
-// "Gnomon.GetAllSCIDVariableDetails":           handler.New(GetAllSCIDVariableDetails),
-// "Gnomon.GetSCIDKeysByValue":                  handler.New(GetSCIDKeysByValue),
-// "Gnomon.GetSCIDValuesByKey":                  handler.New(GetSCIDValuesByKey),
-// "Gnomon.GetLiveSCIDKeysByValue":              handler.New(GetLiveSCIDKeysByValue),
-// "Gnomon.GetLiveSCIDValuesByKey":              handler.New(GetLiveSCIDValuesByKey),
-// "Gnomon.GetSCIDInteractionHeight":            handler.New(GetSCIDInteractionHeight),
-// "Gnomon.GetInteractionIndex":                 handler.New(GetInteractionIndex),
-// "Gnomon.GetInvalidSCIDDeploys":               handler.New(GetInvalidSCIDDeploys),
-// "Gnomon.GetAllMiniblockDetails":              handler.New(GetAllMiniblockDetails),
-// "Gnomon.GetMiniblockDetailsByHash":           handler.New(GetMiniblockDetailsByHash),
-// "Gnomon.GetMiniblockCountByAddress":          handler.New(GetMiniblockCountByAddress),
-// "Gnomon.GetSCIDInteractionByAddr":            handler.New(GetSCIDInteractionByAddr),
