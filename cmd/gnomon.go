@@ -16,21 +16,22 @@ import (
 	"time"
 
 	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/cryptography/crypto"
 	network "github.com/deroproject/derohe/globals"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/transaction"
 	"github.com/secretnamebasis/simple-gnomon/connections"
 	"github.com/secretnamebasis/simple-gnomon/db"
+	"github.com/secretnamebasis/simple-gnomon/globals"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"github.com/ybbus/jsonrpc"
 )
 
-// establish some workers
-var databases = make(map[string]*db.BboltStore)
-var backups = make(map[string]*db.BboltStore)
-
 var (
+	databases = make(map[string]*db.BboltStore)
+	backups   = make(map[string]*db.BboltStore)
+
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
 	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
 	ending_height   = flag.Int64("ending_height", -1, "-ending_height=123")
@@ -42,21 +43,26 @@ Options:
   -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
   -starting_height <N>         Height to start indexing from.
   -ending_height <N>           Height to stop indexing at.
-  -progress                    Show current block height under audit.
   -help                        Show this help message.`
-	progress = flag.Bool("progress", false, "-progress")
+
+	established_backup      bool
+	achieved_current_height int64
+	lowest_height           int64
+	day_of_blocks           int64
+
+	// we are going to use these for later
+	download atomic.Int64
+
+	TOPO    int64
+	RUNNING bool
+
+	// skip these by default
+	EXCLUSIONS = []string{globals.NAMESERVICE, globals.MAINNET_GNOMON_SCID}
+
+	/* currently not storing  */
+	// but for those adventurous folks...
+	STORE_MINIBLOCKS bool
 )
-var established_backup bool
-var achieved_current_height int64
-var lowest_height int64
-var day_of_blocks int64
-
-// we are going to use these for later
-var download atomic.Int64
-
-// var governor atomic.Int64
-var TOPO int64
-var RUNNING bool
 
 // this is the processing thread
 func Start_gnomon_indexer() {
@@ -128,6 +134,30 @@ func Start_gnomon_indexer() {
 	go connections.ListenWS(databases)
 
 	fmt.Println("starting to index ", connections.Get_TopoHeight())
+
+	fmt.Println("Pulling Latest Copy of NameService Contract")
+	// there are two contracts that need to be processed with special consideration:
+	// - nameservice: pull this one first, as it has no height
+	// - gnomonSC: skip this one
+	// let's go get the name service contract
+	params := rpc.GetSC_Params{
+		SCID:       globals.NAMESERVICE,
+		Code:       true,
+		Variables:  true,
+		TopoHeight: -1,
+	}
+
+	staged := stageSCIDFordatabases(
+		connections.GetSC(params),
+		globals.NAMESERVICE,
+		config.Mainnet.Dev_Address,
+		uint64(connections.Get_TopoHeight()),
+	)
+
+	if err := databases["all"].AddSCIDToIndex(staged); err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
 
@@ -374,19 +404,15 @@ func filtering(indices map[string][]string) {
 
 			var sc rpc.GetSC_Result
 
-			exclusions := params.SCID == globals.NAMESERVICE || // vars at every nameservice interaction is not feasible
-				// vars at every network sc deploy and gnomonSC Interacion is not feasible
-				params.SCID == globals.MAINNET_GNOMON_SCID
-
-			if !exclusions {
+			if !slices.Contains(EXCLUSIONS, params.SCID) {
 				sc = connections.GetSC(params)
-			}
 
-			if _, ok := sc.VariableStringKeys["C"]; !ok {
-				// this is an invalid contract
-				if _, err := databases["all"].StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
-					fmt.Println(err)
-					return
+				if _, ok := sc.VariableStringKeys["C"]; !ok {
+					// this is an invalid contract
+					if _, err := databases["all"].StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
+						fmt.Println(err)
+						return
+					}
 				}
 			}
 
@@ -589,11 +615,15 @@ func set_up_backend(name string) error {
 		return err
 	}
 
+	b.Exclusions = EXCLUSIONS
+
 	bb, err := db.NewBBoltDB(db_path, db_backup_name)
 	if err != nil {
 		return err
 	}
 	time.Sleep(time.Second * 1) // we need a second okay...
+
+	bb.Exclusions = EXCLUSIONS
 
 	height, err := b.GetLastIndexHeight()
 	if err != nil {
