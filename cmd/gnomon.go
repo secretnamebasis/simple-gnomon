@@ -303,6 +303,7 @@ func tx_handling() {
 			continue
 		}
 
+		// credit: https://github.com/siteraiser/simple-gnomon/commit/d756b2b3c1c98cf30a63d759ad483fe13c3beba9
 		batch_size := 4
 		//Find total number of batches
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
