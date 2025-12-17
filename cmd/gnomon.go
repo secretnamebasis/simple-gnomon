@@ -161,10 +161,6 @@ func Start_gnomon_indexer() {
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
 
-	// we'll implement a simple concurrency pattern
-	// wg := sync.WaitGroup{}
-	// limit := make(chan struct{}, 10)
-
 	RUNNING = true
 
 	// simple-daemon
@@ -173,7 +169,6 @@ func Start_gnomon_indexer() {
 			time.Sleep(time.Second * 1)
 		}
 
-		// a simple backup strategy
 		now := connections.Get_TopoHeight()
 
 		if ending_height != nil && *ending_height > -1 {
@@ -186,11 +181,15 @@ func Start_gnomon_indexer() {
 
 		// main processing loop
 		for height := lowest_height; height < now; height++ {
+
 			TOPO = height
+
 			if !RUNNING {
 				return
 			}
+
 			if achieved_current_height > 0 && !established_backup && find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
+				// a simple backup strategy
 				backup(height)
 			}
 
@@ -199,11 +198,12 @@ func Start_gnomon_indexer() {
 		}
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
+
 		}
 		// height achieved
 		achieved_current_height = connections.Get_TopoHeight()
 
-		lowest_height = min(now, achieved_current_height)
+		lowest_height = min(now-1, achieved_current_height)
 	}
 }
 
@@ -229,19 +229,40 @@ func indexing() {
 		for staged := range start_chan {
 
 			count := staged.Result.Block_Header.TXCount
-			if count == 0 {
-				continue
-			}
+
 			if count > 400 {
 				fmt.Printf("large transacion count detected: %d height:%d\n", count, staged.Result.Block_Header.TopoHeight)
 			}
+
+			if !STORE_MINIBLOCKS {
+				if count == 0 {
+					continue
+				}
+			}
+
 			bl := GetBlockDeserialized(staged.Result.Blob)
 
-			tx_count := float64(len(bl.Tx_hashes))
+			if STORE_MINIBLOCKS { // should this be supported?
+				var minis []*structures.MBLInfo
 
-			// like... just in case
-			if tx_count < 1 {
-				continue
+				for i, miner := range staged.Result.Block_Header.Miners {
+
+					mini := &structures.MBLInfo{
+						Hash:  bl.MiniBlocks[i].GetHash().String(),
+						Miner: miner,
+					}
+
+					minis = append(minis, mini)
+				}
+
+				databases["all"].StoreMiniblockDetailsByHash(bl.GetHash().String(), minis)
+
+				for _, mini := range minis {
+					currCount := databases["all"].GetMiniblockCountByAddress(mini.Miner)
+					currCount++
+					newCount := currCount
+					databases["all"].StoreMiniblockCountByAddress(newCount, mini.Miner)
+				}
 			}
 
 			staged.Block = bl
@@ -308,10 +329,8 @@ func tx_handling() {
 		//Find total number of batches
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
 		//Make an array to hold the result sets
-
 		//Go through the array of batches and collect the results
 		for i := range batch_count {
-			//var transaction_result rpc.GetTransaction_Result
 			end := batch_size * i
 			if i == batch_count-1 {
 				end = tx_count

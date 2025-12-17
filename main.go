@@ -33,6 +33,8 @@ var (
 	average_per_hour,
 	estimated_hours,
 	total_hours,
+	// all_minis,
+	// all_miners,
 	all_normal,
 	all_registration,
 	all_scids,
@@ -51,6 +53,8 @@ var (
 		"AVG BLOCKS/HOUR:",
 		"EST. HRS REMAIN:",
 		"EST. HRS TOTAL:",
+		// "TOTAL MINIS",
+		// "TOTAL MINERS",
 		"NORMAL TXS:",
 		"REGISTRATIONS:",
 		"SCIDS & OWNERS:",
@@ -123,7 +127,7 @@ func main() {
 
 			var last int64
 
-			height1, err := getLastIndexHeight(getAllParams{DB_Name: "all"})
+			height1, err := getLastIndexHeight(getAllParams{Tag: "all"})
 			if err != nil {
 				panic(err)
 			}
@@ -168,11 +172,41 @@ func main() {
 
 			}
 
-			ticker := time.NewTicker(time.Second)
-
+			ticker := time.NewTicker(time.Second * 2)
+			// var min, ers int
+			// miner_index := []string{}
 			for range ticker.C {
 				now := connections.GetDaemonInfo().TopoHeight
+				// if cmd.STORE_MINIBLOCKS {
+				// 	minis, err := getMiniDetails(getMiniDetailsParams{"all"})
+				// 	if err != nil {
+				// 		panic(err)
+				// 	}
+				// 	for _, ministructures := range minis.Result {
+				// 		// fmt.Println(hash)
+				// 		var mini []structures.MBLInfo
+				// 		this, err := json.Marshal(ministructures)
+				// 		if err != nil {
+				// 			panic(err)
+				// 		}
+				// 		err = json.Unmarshal(this, &mini)
+				// 		if err != nil {
+				// 			panic(err)
+				// 		}
 
+				// 		for _, each := range mini {
+				// 			if !slices.Contains(miner_index, each.Miner) {
+				// 				miner_index = append(miner_index, each.Miner)
+				// 			}
+				// 		}
+				// 		min += len(mini)
+				// 		fmt.Println(cmd.TOPO, min, len(mini))
+				// 		ers = len(miner_index)
+				// 	}
+
+				// 	all_miners = strconv.Itoa(ers)
+				// 	all_minis = strconv.Itoa(min)
+				// }
 				result, err := getTxCount(getTxCountParams{"all", "normal"})
 				if err != nil {
 					panic(err)
@@ -223,6 +257,8 @@ func main() {
 					average_per_hour,
 					estimated_hours,
 					total_hours,
+					// all_minis,
+					// all_miners,
 					all_normal,
 					all_registration,
 					all_scids,
@@ -283,7 +319,7 @@ type getAllSCIDSAndOwnersResult struct {
 }
 
 type getAllParams struct {
-	DB_Name string
+	Tag string
 }
 
 var indexer_connection *websocket.Conn
@@ -347,7 +383,7 @@ func getLastIndexHeight(params getAllParams) (getLastHeightResult, error) {
 }
 
 type getTxCountParams struct {
-	DB_Name string
+	Tag     string
 	Tx_Type string
 }
 type getTxCountResult struct {
@@ -380,3 +416,37 @@ func getTxCount(params getTxCountParams) (getTxCountResult, error) {
 
 	return getTxCountResult{r.Result.(float64)}, nil
 }
+
+// type getMiniDetailsParams struct {
+// 	Tag string
+// }
+// type getMiniDetailsResult struct {
+// 	Result map[string]any `json:"result"`
+// }
+
+// func getMiniDetails(params getMiniDetailsParams) (getMiniDetailsResult, error) {
+
+// 	msg := map[string]any{
+// 		"method": "GetAllMiniblockDetails",
+// 		"id":     "1",
+// 		"params": params,
+// 	}
+
+// 	var err error
+
+// 	if err := indexer_connection.WriteJSON(msg); err != nil {
+// 		return getMiniDetailsResult{}, errors.New("failed to write")
+// 	}
+
+// 	_, b, err := indexer_connection.ReadMessage()
+// 	if err != nil {
+// 		return getMiniDetailsResult{}, errors.New("failed to read")
+// 	}
+
+// 	var r structures.JSONRpcResp
+// 	if err := json.Unmarshal(b, &r); err != nil {
+// 		return getMiniDetailsResult{}, errors.New("failed to unmarshal")
+// 	}
+
+// 	return getMiniDetailsResult{r.Result.(map[string]any)}, nil
+// }
