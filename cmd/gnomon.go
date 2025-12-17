@@ -277,6 +277,10 @@ var block_stage = make(chan processingStruct, 1)
 func tx_handling() {
 	for staged := range block_stage {
 
+		if len(staged.Block.Tx_hashes) == 0 {
+			continue
+		}
+
 		hashes := []string{}
 		txs := []rpc.Tx_Related_Info{}
 		transactions := []transaction.Transaction{}
