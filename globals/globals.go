@@ -19,4 +19,4 @@ var Version = semver.MustParse("3.0.0-alpha.2")
 
 // Hardcoded Smart Contracts of DERO Network
 // TODO: Possibly in future we can pull this from derohe codebase
-var Hardcoded_SCIDS = []string{"0000000000000000000000000000000000000000000000000000000000000001"}
+const NAMESERVICE = `0000000000000000000000000000000000000000000000000000000000000001`

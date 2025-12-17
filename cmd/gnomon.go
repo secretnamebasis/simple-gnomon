@@ -365,13 +365,30 @@ func filtering(indices map[string][]string) {
 					return
 				}
 				scid := value.String()
-				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: false, TopoHeight: int64(staged.Block.Height)}
+				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(staged.Block.Height)}
 			}
 
 			if params.SCID == "" {
 				return
 			}
-			sc := connections.GetSC(params)
+
+			var sc rpc.GetSC_Result
+
+			exclusions := params.SCID == globals.NAMESERVICE || // vars at every nameservice interaction is not feasible
+				// vars at every network sc deploy and gnomonSC Interacion is not feasible
+				params.SCID == globals.MAINNET_GNOMON_SCID
+
+			if !exclusions {
+				sc = connections.GetSC(params)
+			}
+
+			if _, ok := sc.VariableStringKeys["C"]; !ok {
+				// this is an invalid contract
+				if _, err := databases["all"].StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
+					fmt.Println(err)
+					return
+				}
+			}
 
 			related_info := staged.Txs[i]
 			signer := related_info.Signer
