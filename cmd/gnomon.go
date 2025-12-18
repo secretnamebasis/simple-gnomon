@@ -318,21 +318,31 @@ func tx_handling() {
 			continue
 		}
 
+		mu := sync.Mutex{}
+		wg := sync.WaitGroup{}
+
 		hashes := []string{}
 		txs := []rpc.Tx_Related_Info{}
 		transactions := []transaction.Transaction{}
 
+		// because this is just cpu, schedule it
 		for _, each := range staged.Block.Tx_hashes {
+			wg.Add(1)
 
-			// we'll count them, but we'll skip them
-			if each[0] == 0 && each[1] == 0 && each[2] == 0 {
-				holding_queue.registration++
-				continue
-			}
+			go func(each crypto.Hash, wg *sync.WaitGroup) {
+				defer wg.Done()
+				// we'll count them, but we'll skip them
+				if each[0] == 0 && each[1] == 0 && each[2] == 0 {
+					holding_queue.registration++
+					return
+				}
 
-			hashes = append(hashes, each.String())
-
+				mu.Lock()
+				hashes = append(hashes, each.String())
+				mu.Unlock()
+			}(each, &wg)
 		}
+		wg.Wait()
 
 		tx_count := len(hashes)
 
