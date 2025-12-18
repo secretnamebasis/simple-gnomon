@@ -427,17 +427,28 @@ func filtering(indices map[string][]string) {
 			return
 
 		case transaction.SC_TX:
+			parsed_transaction := structures.SCIDToIndexStage{}
+
+			parsed_transaction.Txid = each.GetHash().String()
+
 			if len(each.SCDATA) == 0 {
 				return
 			}
+
+			// we go pull the contract anyway to determine that it installed
 			params := rpc.GetSC_Params{}
 
-			if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) {
+			// contract installs
+			// https://github.com/deroproject/derohe/blob/e9df1205b6603c62f0651d0e18e5e77a2584b15e/walletapi/rpcserver/rpc_transfer.go#L64
+			if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) && !each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
 				scid := each.GetHash().String()
+				parsed_transaction.Method = "installsc"
+				parsed_transaction.Scid = scid
 				params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: int64(staged.Block.Height)}
 			}
 
 			// contract interactions
+			// https://github.com/deroproject/derohe/blob/e9df1205b6603c62f0651d0e18e5e77a2584b15e/walletapi/rpcserver/rpc_transfer.go#L69
 			if each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
 				value, ok := each.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
 				if !ok { // paranoia
@@ -447,10 +458,28 @@ func filtering(indices map[string][]string) {
 					return
 				}
 				scid := value.String()
+				parsed_transaction.Scid = scid
+				parsed_transaction.Method = "scinvoke"
+				parsed_transaction.Entrypoint = each.SCDATA.Value("entrypoint", rpc.DataString).(string)
 				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(staged.Block.Height)}
 			}
 
-			if params.SCID == "" {
+			parsed_transaction.Sc_args = each.SCDATA
+
+			related_info := staged.Txs[i]
+			signer := related_info.Signer
+			if signer == "" { // when ringsize is greater than 2...
+				signer = "null" // maybe empty is better?
+			}
+			parsed_transaction.Sender = signer
+
+			parsed_transaction.Payloads = each.Payloads
+
+			parsed_transaction.Fees = each.Fees()
+
+			parsed_transaction.Height = int64(staged.Block.Height)
+
+			if parsed_transaction.Scid == "" {
 				return
 			}
 
@@ -466,16 +495,30 @@ func filtering(indices map[string][]string) {
 						return
 					}
 				}
+
+				// currently not storing ScCode...
+				parsed_transaction.ScCode = sc.Code
+				// the compromise, I think, is the entrypoint...
 			}
 
-			related_info := staged.Txs[i]
-			signer := related_info.Signer
+			kv := sc.VariableStringKeys
 
-			if signer == "" { // when ringsize is greater than 2...
-				signer = "null"
+			nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
+
+			if strings.Contains(sc.Code, nfa_signature) {
+				parsed_transaction.Headers = GetSCNameFromVars(kv) + ";" + GetSCDescriptionFromVars(kv) + ";" + GetSCIDImageURLFromVars(kv)
 			}
 
-			to_be_indexed := stageSCIDFordatabases(sc, params.SCID, signer, staged.Block.Height)
+			if parsed_transaction.Headers == "" && len(kv) != 0 { // there could be a possability that it is a g45
+				parsed_transaction.Headers = GetSCHeaderFromMetaData(kv)
+			}
+
+			if parsed_transaction.Headers == "" {
+				name, description, image := "null", "null", "null"
+				parsed_transaction.Headers = name + ";" + description + ";" + image
+			}
+
+			parsed_transaction.ScVars = GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 
 			// unfortunately, there isn't a way to do this without checking twice
 			class := ""
@@ -488,7 +531,7 @@ func filtering(indices map[string][]string) {
 				for _, filter := range filters { // range through the filters
 
 					// if the code does not contain the filter, skip
-					if !strings.Contains(sc.Code, filter) {
+					if !strings.Contains(parsed_transaction.ScCode, filter) {
 						continue
 					}
 
@@ -506,13 +549,13 @@ func filtering(indices map[string][]string) {
 			// make sure to implement more classes as necessary
 			switch class {
 			case "": // catchall
-				to_be_indexed.Class = "null"
+				parsed_transaction.Class = "null"
 			case indices["tela"][0]:
-				to_be_indexed.Class = "TELA-DOC-1"
+				parsed_transaction.Class = "TELA-DOC-1"
 			case indices["tela"][1]:
-				to_be_indexed.Class = "TELA-INDEX-1"
+				parsed_transaction.Class = "TELA-INDEX-1"
 			default:
-				to_be_indexed.Class = class
+				parsed_transaction.Class = class
 			}
 
 			tags := []string{}
@@ -540,12 +583,12 @@ func filtering(indices map[string][]string) {
 			slices.Sort(tags)
 
 			// store as a single string
-			to_be_indexed.Tags = strings.Join(tags, ",")
+			parsed_transaction.Tags = strings.Join(tags, ",")
 
 			// because these are being processed asynchronously...
 			// don't block on writing them to the db,
 			// just queue em and write em when the writer has a moment
-			db_queue <- to_be_indexed
+			db_queue <- parsed_transaction
 
 			// fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
 		default:
@@ -573,10 +616,10 @@ func db_writer() {
 		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
 		a := []any{
 			staged.Scid,
-			staged.Fsi.Owner,
-			staged.Fsi.Height,
+			staged.Sender,
+			staged.Height,
 			connections.Get_TopoHeight(),
-			staged.Fsi.Headers,
+			staged.Headers,
 			len(staged.ScVars),
 			staged.Class,
 			staged.Tags,
@@ -608,7 +651,7 @@ func db_writer() {
 		databases["all"].StoreTxCount(holding_queue.registration, "registration")
 		databases["all"].StoreTxCount(holding_queue.burn, "burn")
 		databases["all"].StoreTxCount(holding_queue.normal, "normal")
-		storeHeight(int64(staged.Fsi.Height))
+		storeHeight(int64(staged.Height))
 
 	}
 }
@@ -620,36 +663,6 @@ func storeHeight(height int64) error {
 		}
 	}
 	return nil
-}
-
-func stageSCIDFordatabases(sc rpc.GetSC_Result, scid, owner string, height uint64) structures.SCIDToIndexStage {
-
-	fast_sync_import := &structures.FastSyncImport{Height: height, Owner: owner}
-
-	if sc.Code == "" && len(sc.VariableStringKeys) == 0 && len(sc.VariableUint64Keys) == 0 {
-		return structures.SCIDToIndexStage{Scid: scid, Fsi: fast_sync_import}
-	}
-
-	kv := sc.VariableStringKeys
-
-	nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
-
-	if strings.Contains(sc.Code, nfa_signature) {
-		fast_sync_import.Headers = GetSCNameFromVars(kv) + ";" + GetSCDescriptionFromVars(kv) + ";" + GetSCIDImageURLFromVars(kv)
-	}
-
-	if fast_sync_import.Headers == "" && len(kv) != 0 { // there could be a possability that it is a g45
-		fast_sync_import.Headers = GetSCHeaderFromMetaData(kv)
-	}
-
-	if fast_sync_import.Headers == "" {
-		name, description, image := "null", "null", "null"
-		fast_sync_import.Headers = name + ";" + description + ";" + image
-	}
-
-	vars := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
-
-	return structures.SCIDToIndexStage{Scid: scid, Fsi: fast_sync_import, ScVars: vars, ScCode: sc.Code}
 }
 
 // BACKEND & BACKUPS

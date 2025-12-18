@@ -9,12 +9,12 @@ import (
 
 type (
 	SCIDToIndexStage struct {
-		Scid   string
-		Fsi    *FastSyncImport
-		ScVars []*SCIDVariable
-		ScCode string
-		Class  string
-		Tags   string
+		SCTXParse
+		Headers string
+		ScVars  []*SCIDVariable
+		ScCode  string
+		Class   string
+		Tags    string
 	}
 
 	MBLInfo struct {
@@ -31,7 +31,6 @@ type (
 	SCTXParse struct {
 		Txid       string
 		Scid       string
-		Scid_hex   []byte
 		Entrypoint string
 		Method     string
 		Sc_args    rpc.Arguments
@@ -44,12 +43,6 @@ type (
 	SCIDVariable struct {
 		Key   any
 		Value any
-	}
-
-	FastSyncImport struct {
-		Owner   string
-		Height  uint64
-		Headers string
 	}
 
 	GnomonSCIDKeysByKey struct {
