@@ -57,10 +57,6 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 		return errors.New("no scid")
 	}
 
-	if scidstoadd.Fsi == nil {
-		return errors.New("nothing to import")
-	}
-
 	writeWait, _ := time.ParseDuration("10ms")
 
 	for bbs.Writing {
