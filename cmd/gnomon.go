@@ -57,7 +57,11 @@ Options:
 	RUNNING bool
 
 	// skip these by default
-	EXCLUSIONS = []string{globals.NAMESERVICE, globals.MAINNET_GNOMON_SCID}
+	EXCLUSIONS = []string{
+		globals.NAMESERVICE,
+		globals.MAINNET_GNOMON_SCID,
+		// "bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2", // 43Mb of vars is pretty big
+	}
 
 	/* currently not storing  */
 	// but for those adventurous folks...
