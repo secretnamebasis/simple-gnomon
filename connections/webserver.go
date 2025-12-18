@@ -122,7 +122,7 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	// TODO - ensure you add the originpatters allowed for api urls, miner urls etc. as needed. Perhaps defined within config.json instead
 
 	var err error
-	fmt.Printf("%v\n", w.Header())
+	// fmt.Printf("%v\n", w.Header())
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		//OriginPatterns: []string{"127.0.0.1:9090", "127.0.0.1:8080"},
 	})
