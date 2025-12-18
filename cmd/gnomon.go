@@ -627,8 +627,7 @@ func db_writer() {
 
 		fmt.Printf(format, a...)
 
-		for _, name := range strings.Split(staged.Tags, ",") {
-
+		for name := range strings.SplitSeq(staged.Tags, ",") {
 			if err := databases[name].AddSCIDToIndex(staged); err != nil {
 				// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
 				fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
