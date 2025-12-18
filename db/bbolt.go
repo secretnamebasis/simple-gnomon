@@ -95,7 +95,17 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 
 	} else {
 
-		changed, err := bbs.StoreSCIDInteractionHeight(scidstoadd.Scid, int64(scidstoadd.Fsi.Height))
+		changed, err := bbs.StoreInvokeDetails(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Entrypoint, scidstoadd.Height, &scidstoadd.SCTXParse)
+		if err != nil {
+			return err
+		}
+
+		// multiple interactions are possible
+		if !changed {
+			return nil
+		}
+
+		changed, err = bbs.StoreSCIDInteractionHeight(scidstoadd.Scid, scidstoadd.Height)
 		if err != nil {
 			return err
 		}
