@@ -289,14 +289,17 @@ func indexing() {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		// }
-		if download.Load() > soft_limit {
-			time.Sleep(time.Millisecond * time.Duration(download.Load()))
+		if connections.DOWNLOADS.Load() > soft_limit {
+			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
 		}
+
+		for connections.DOWNLOADS.Load() > hard_limit {
+			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+		}
+
 		wg.Add(1)
 		go func(height int64, wg *sync.WaitGroup) {
-			defer download.Add(-1)
 			defer wg.Done()
-			download.Add(1)
 			start_chan <- processingStruct{
 				Start:  time.Now(),
 				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
