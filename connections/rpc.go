@@ -5,15 +5,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"github.com/deroproject/derohe/rpc"
 	"github.com/deroproject/derohe/walletapi"
-	"github.com/sirupsen/logrus"
 	"github.com/ybbus/jsonrpc"
 )
-
-var Logger logrus.Logger
 
 type WalletConn struct {
 	Api  string
@@ -27,6 +25,8 @@ type WebAPIConn struct {
 	Wallet string
 	Api_id string
 }
+
+var DOWNLOADS atomic.Int64
 
 func getClient() jsonrpc.RPCClient {
 	opts := &jsonrpc.RPCClientOpts{
@@ -75,9 +75,8 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 		var zero t
 		return zero
 	}
-
 	if !validator(result) {
-		Logger.Error(errors.New("failed validation"), method)
+		log.Println(errors.New("failed validation"), method)
 		var zero t
 		return zero
 	}
@@ -88,6 +87,8 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 var RpcClient jsonrpc.RPCClient
 
 func handleResult[T any](method string, params any) (T, error) {
+	DOWNLOADS.Add(1)
+	defer DOWNLOADS.Add(-1)
 	var result T
 	//var ctx context.Context
 
