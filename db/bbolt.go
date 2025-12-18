@@ -69,7 +69,7 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
 	if len(scidstoadd.ScVars) != 0 {
 
-		height := int64(scidstoadd.Fsi.Height)
+		height := scidstoadd.Height
 
 		// we'll just always keep the same topo height to prevent massive data bloat
 		if !slices.Contains(bbs.Exclusions, scidstoadd.Scid) {
@@ -85,7 +85,7 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 			return errors.New("did not store scid/vars")
 		}
 
-		changed, err = bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Fsi.Owner, scidstoadd.Fsi.Headers, scidstoadd.Class, scidstoadd.Tags)
+		changed, err = bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags)
 		if err != nil {
 			return err
 		}
