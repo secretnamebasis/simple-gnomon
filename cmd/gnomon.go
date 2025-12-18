@@ -151,12 +151,20 @@ func Start_gnomon_indexer() {
 		TopoHeight: -1,
 	}
 
-	staged := stageSCIDFordatabases(
-		connections.GetSC(params),
-		globals.NAMESERVICE,
-		config.Mainnet.Dev_Address,
-		uint64(connections.Get_TopoHeight()),
-	)
+	sc := connections.GetSC(params)
+
+	staged := structures.SCIDToIndexStage{
+		SCTXParse: structures.SCTXParse{
+			Scid:   globals.NAMESERVICE,
+			Sender: config.Mainnet.Dev_Address,
+			Height: -1,
+		},
+		Headers: "",
+		ScVars:  GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys),
+		ScCode:  sc.Code,
+		Class:   "NAMESERVICE",
+		Tags:    "all",
+	}
 
 	if err := databases["all"].AddSCIDToIndex(staged); err != nil {
 		fmt.Println(err)
