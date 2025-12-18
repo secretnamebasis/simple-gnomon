@@ -356,35 +356,68 @@ func tx_handling() {
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
 		//Make an array to hold the result sets
 		//Go through the array of batches and collect the results
+		result_chan := make(chan rpc.GetTransaction_Result, 1)
+
+		// build a listener for results
+		go func() {
+			wg := sync.WaitGroup{}
+			// because order doesn't really matter here... just gram the first one
+			for result := range result_chan {
+				// end credit
+				for i, each := range result.Txs_as_hex {
+					wg.Add(1)
+					go func(wg *sync.WaitGroup) {
+						defer wg.Done()
+						b, err := hex.DecodeString(each)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+
+						tx := transaction.Transaction{}
+
+						if err := tx.Deserialize(b); err != nil {
+							fmt.Println(err)
+							return
+						}
+
+						mu.Lock()
+						txs = append(txs, result.Txs[i])
+						transactions = append(transactions, tx)
+						mu.Unlock()
+
+					}(&wg)
+				}
+				wg.Wait()
+			}
+			// done_chan <- struct{}{}
+		}()
+
+		// because the order of transactions processed doesn't matter..
 		for i := range batch_count {
-			end := batch_size * i
-			if i == batch_count-1 {
-				end = tx_count
-			}
-			result := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
-			// end credit
-			for i, each := range result.Txs_as_hex {
-				b, err := hex.DecodeString(each)
-				if err != nil {
-					fmt.Println(err)
-					continue
+
+			wg.Add(1)
+			// schedule each batch of transfers
+			go func(i int, wg *sync.WaitGroup) {
+				defer wg.Done()
+				end := batch_size * i
+				if i == batch_count-1 {
+					end = tx_count
 				}
-				var tx transaction.Transaction
-				if err := tx.Deserialize(b); err != nil {
-					fmt.Println(err)
-					continue
-				}
-				txs = append(txs, result.Txs[i])
-				transactions = append(transactions, tx)
-			}
+				// and dump them into the listener channel
+				result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
+			}(i, &wg)
 		}
+		// wait for all the results to come in
+		wg.Wait()
 
 		staged.Tx_Hashes = hashes
 		staged.Txs = txs
 		staged.Transactions = transactions
 
 		transaction_stage <- staged
-		// fmt.Println("ENTERED FILTERING:", time.Since(staged.Start).Milliseconds())
+		// fmt.Println("Ended", staged.Block.Height, time.Since(staged.Start).Milliseconds())
+
 	}
 }
 
