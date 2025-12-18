@@ -629,18 +629,14 @@ func db_writer() {
 
 		for name := range strings.SplitSeq(staged.Tags, ",") {
 			if err := databases[name].AddSCIDToIndex(staged); err != nil {
-				// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-				fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-				// }
+				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
 				continue
 			}
 
 			if achieved_current_height > 0 { // once the indexer has reached the top...
 				// do incremental backups
 				if err := backups[name].AddSCIDToIndex(staged); err != nil {
-					// if err.Error() != "no code" { // this is a contract interaction, we are not recording these right now
-					fmt.Println("indexer error:", err, staged.Scid, staged.Fsi.Height)
-					// }
+					log.Fatal("indexer error:", err, staged.Scid, staged.Height)
 					continue
 				}
 			}
