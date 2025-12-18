@@ -454,13 +454,17 @@ func filtering(indices map[string][]string) {
 				if !ok { // paranoia
 					return
 				}
-				if value.String() == "" { // yeah... weird
+				if value.String() == "" || value.IsZero() {
+					return
+				}
+				entrypoint, ok := each.SCDATA.Value("entrypoint", rpc.DataString).(string)
+				if !ok {
 					return
 				}
 				scid := value.String()
 				parsed_transaction.Scid = scid
 				parsed_transaction.Method = "scinvoke"
-				parsed_transaction.Entrypoint = each.SCDATA.Value("entrypoint", rpc.DataString).(string)
+				parsed_transaction.Entrypoint = entrypoint
 				params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: int64(staged.Block.Height)}
 			}
 
