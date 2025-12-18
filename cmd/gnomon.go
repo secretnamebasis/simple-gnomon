@@ -287,7 +287,7 @@ func indexing() {
 	wg := sync.WaitGroup{}
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
-		// fmt.Printf("DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", download.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
+		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		// }
 		if download.Load() > soft_limit {
 			time.Sleep(time.Millisecond * time.Duration(download.Load()))
