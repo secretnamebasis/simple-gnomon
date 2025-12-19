@@ -285,8 +285,8 @@ func indexing() {
 		}
 	}()
 	wg := sync.WaitGroup{}
-	last := int64(0)
-	var err error
+	// last := int64(0)
+	// var err error
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
@@ -297,31 +297,21 @@ func indexing() {
 
 		for connections.DOWNLOADS.Load() > hard_limit {
 			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-			last, err = databases["all"].GetLastIndexHeight()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+			// last, err = databases["all"].GetLastIndexHeight()
+			// if err != nil {
+			// 	fmt.Println(err)
+			// 	return
+			// }
 		}
 
-		for TOPO > (last + 100_000) { // this really should be memory based
-			last, err = databases["all"].GetLastIndexHeight()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			fmt.Println("topo and last index have diverged too far, sleeping until caught up", "TOPO", TOPO, "LAST", last)
-			time.Sleep(time.Second * 10)
+		// wg.Add(1)
+		// go func(height int64, wg *sync.WaitGroup) {
+		// 	defer wg.Done()
+		start_chan <- processingStruct{
+			Start:  time.Now(),
+			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
 		}
-
-		wg.Add(1)
-		go func(height int64, wg *sync.WaitGroup) {
-			defer wg.Done()
-			start_chan <- processingStruct{
-				Start:  time.Now(),
-				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
-			}
-		}(height, &wg)
+		// }(height, &wg)
 	}
 	wg.Wait()
 }
