@@ -205,6 +205,17 @@ func Start_gnomon_indexer() {
 				backup(height)
 			}
 
+			last, err := databases["all"].GetLastIndexHeight()
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			for TOPO > last+100_000 { // this really should be memory based
+				fmt.Println("topo and last index have diverged too far, sleeping until caught up", "TOPO", TOPO, "LAST", last)
+				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+			}
+
 			height_stage <- height
 
 		}
@@ -220,7 +231,7 @@ func Start_gnomon_indexer() {
 }
 
 // anything less and it will drain the queue
-var height_stage = make(chan int64, 1000)
+var height_stage = make(chan int64, 1)
 
 type processingStruct struct {
 	Start        time.Time
@@ -395,6 +406,13 @@ func tx_handling() {
 
 		// because the order of transactions processed doesn't matter..
 		for i := range batch_count {
+			if connections.DOWNLOADS.Load() > soft_limit {
+				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+			}
+
+			for connections.DOWNLOADS.Load() > hard_limit {
+				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+			}
 
 			wg.Add(1)
 			// schedule each batch of transfers
