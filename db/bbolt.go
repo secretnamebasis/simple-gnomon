@@ -21,13 +21,13 @@ import (
 )
 
 type BboltStore struct {
-	DB         *bbolt.DB
-	DBPath     string
-	Writing    bool
-	Exclusions []string
-	//Writer  string
-	Closing bool
-	Buckets []string
+	DB              *bbolt.DB
+	DBPath          string
+	Writing         bool
+	Exclusions      []string
+	LastIndexHeight int64
+	Closing         bool
+	Buckets         []string
 }
 
 func NewBBoltDB(dbPath, dbName string) (*BboltStore, error) {
@@ -230,7 +230,9 @@ func (bbs *BboltStore) StoreLastIndexHeight(last_indexedheight int64) (changes b
 		changes = true
 		return
 	})
-
+	if err == nil {
+		bbs.LastIndexHeight = last_indexedheight
+	}
 	return
 }
 
