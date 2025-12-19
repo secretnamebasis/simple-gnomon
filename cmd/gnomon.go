@@ -345,11 +345,12 @@ func tx_handling() {
 
 			go func(each crypto.Hash, wg *sync.WaitGroup) {
 				defer wg.Done()
-				// we'll count them, but we'll skip them
-				if each[0] == 0 && each[1] == 0 && each[2] == 0 {
-					holding_queue.registration++
-					return
-				}
+
+				// this short cut doesn't actually work
+				// if each[0] == 0 && each[1] == 0 && each[2] == 0 {
+				// 	holding_queue.registration++
+				// 	continue
+				// }
 
 				mu.Lock()
 				hashes = append(hashes, each.String())
@@ -394,7 +395,9 @@ func tx_handling() {
 							fmt.Println(err)
 							return
 						}
-
+						// if tx.Height == 0 {
+						// fun fact, registrations don't have a tx height
+						// }
 						mu.Lock()
 						txs = append(txs, result.Txs[i])
 						transactions = append(transactions, tx)
