@@ -76,7 +76,7 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 		return zero
 	}
 	if !validator(result) {
-		log.Println(errors.New("failed validation"), method)
+		log.Println(errors.New("failed validation"), method, params)
 		var zero t
 		return zero
 	}
