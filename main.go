@@ -29,7 +29,7 @@ var (
 	node_connection,
 	current_height,
 	topo_height,
-	delta,
+	in_progress,
 	last_indexed,
 	average_per_hour,
 	estimated_hours,
@@ -50,7 +50,7 @@ var (
 		"NODE ENDPOINT:",
 		"CURRENT HEIGHT:",
 		"TOPOLOGICAL HEIGHT:",
-		"DELTA",
+		"HEIGHT IN-PROGRESS",
 		"LAST INDEXED HEIGHT:",
 		"AVG BLOCKS/HOUR:",
 		"EST. HRS REMAIN:",
@@ -176,7 +176,7 @@ func main() {
 			// miner_index := []string{}
 			for range ticker.C {
 				now := connections.GetDaemonInfo().TopoHeight
-				delta = strconv.Itoa(int(cmd.DELTA))
+				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
 				// if cmd.STORE_MINIBLOCKS {
 				// 	minis, err := getMiniDetails(getMiniDetailsParams{"all"})
 				// 	if err != nil {
@@ -253,7 +253,7 @@ func main() {
 					node_connection,
 					current_height,
 					topo_height,
-					delta,
+					in_progress,
 					last_indexed,
 					average_per_hour,
 					estimated_hours,

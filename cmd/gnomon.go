@@ -53,9 +53,9 @@ Options:
 	// we are going to use these for later
 	download atomic.Int64
 
-	TOPO    int64
-	DELTA   int64
-	RUNNING bool
+	TOPO        int64
+	IN_PROGRESS int64
+	RUNNING     bool
 
 	// skip these by default
 	EXCLUSIONS = []string{
@@ -301,7 +301,7 @@ func indexing() {
 			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
 		}
 
-		for DELTA > critical_threshold { // this really should be memory based
+		for TOPO-IN_PROGRESS > critical_threshold { // this really should be memory based
 			fmt.Println("topo and last index have diverged too far, sleeping until caught up", "TOPO", TOPO, "LAST", databases["all"].LastIndexHeight)
 			time.Sleep(time.Second * 10)
 		}
@@ -465,7 +465,7 @@ func filtering(indices map[string][]string) {
 
 	sieve := func(staged *processingStruct, i int, each transaction.Transaction, wg *sync.WaitGroup) {
 		defer wg.Done()
-		defer func() { DELTA = TOPO - int64(staged.Block.Height) }()
+		defer func() { IN_PROGRESS = int64(staged.Block.Height) }()
 
 		switch each.TransactionType {
 
