@@ -29,6 +29,7 @@ var (
 	node_connection,
 	current_height,
 	topo_height,
+	delta,
 	last_indexed,
 	average_per_hour,
 	estimated_hours,
@@ -49,6 +50,7 @@ var (
 		"NODE ENDPOINT:",
 		"CURRENT HEIGHT:",
 		"TOPOLOGICAL HEIGHT:",
+		"DELTA",
 		"LAST INDEXED HEIGHT:",
 		"AVG BLOCKS/HOUR:",
 		"EST. HRS REMAIN:",
@@ -125,8 +127,6 @@ func main() {
 				panic(err)
 			}
 
-			var last int64
-
 			height1, err := getLastIndexHeight(getAllParams{Tag: "all"})
 			if err != nil {
 				panic(err)
@@ -134,7 +134,7 @@ func main() {
 			first := int64(height1.Result)
 
 			action := func(now int64) {
-				last = cmd.TOPO
+				last := cmd.TOPO
 				if last == 0 {
 					last = int64(height1.Result)
 				}
@@ -154,9 +154,8 @@ func main() {
 				average_per_hour = strconv.Itoa(int(average * 60 * 60))
 				estimated_hours = strconv.Itoa(int(remaining / 60 / 60))
 				total_hours = strconv.Itoa(int(estimated / 60 / 60))
-
 				fyne.DoAndWait(func() {
-					progress_bar.SetValue(float64(last / now))
+					progress_bar.SetValue(float64(last) / float64(now))
 				})
 			}
 
@@ -177,6 +176,7 @@ func main() {
 			// miner_index := []string{}
 			for range ticker.C {
 				now := connections.GetDaemonInfo().TopoHeight
+				delta = strconv.Itoa(int(cmd.DELTA))
 				// if cmd.STORE_MINIBLOCKS {
 				// 	minis, err := getMiniDetails(getMiniDetailsParams{"all"})
 				// 	if err != nil {
@@ -253,6 +253,7 @@ func main() {
 					node_connection,
 					current_height,
 					topo_height,
+					delta,
 					last_indexed,
 					average_per_hour,
 					estimated_hours,

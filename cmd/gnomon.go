@@ -54,6 +54,7 @@ Options:
 	download atomic.Int64
 
 	TOPO    int64
+	DELTA   int64
 	RUNNING bool
 
 	// skip these by default
@@ -232,9 +233,12 @@ type processingStruct struct {
 	Staged       []structures.SCIDToIndexStage
 }
 
-var start_chan = make(chan processingStruct, 1)
-var soft_limit int64 = 1
-var hard_limit int64 = soft_limit * 10
+var start_chan = make(chan *processingStruct, 1)
+var (
+	soft_limit         int64 = 1
+	hard_limit         int64 = soft_limit * 10
+	critical_threshold int64 = hard_limit * 10000
+)
 
 // this is the indexing action
 func indexing() {
@@ -285,8 +289,6 @@ func indexing() {
 		}
 	}()
 	wg := sync.WaitGroup{}
-	last := int64(0)
-	var err error
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
@@ -297,21 +299,16 @@ func indexing() {
 
 		for connections.DOWNLOADS.Load() > hard_limit {
 			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-			last, err = databases["all"].GetLastIndexHeight()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
 		}
 
-		for TOPO > (last + 100_000) { // this really should be memory based
-			last, err = databases["all"].GetLastIndexHeight()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			fmt.Println("topo and last index have diverged too far, sleeping until caught up", "TOPO", TOPO, "LAST", last)
+		for DELTA > critical_threshold { // this really should be memory based
+			fmt.Println("topo and last index have diverged too far, sleeping until caught up", "TOPO", TOPO, "LAST", databases["all"].LastIndexHeight)
 			time.Sleep(time.Second * 10)
+		}
+
+		// there is more activity now, cut critical in half
+		if TOPO > 1_000_000 {
+			critical_threshold /= 2
 		}
 
 		wg.Add(1)
@@ -464,6 +461,7 @@ func filtering(indices map[string][]string) {
 
 	sieve := func(staged processingStruct, i int, each transaction.Transaction, wg *sync.WaitGroup) {
 		defer wg.Done()
+		defer func() { DELTA = TOPO - int64(staged.Block.Height) }()
 
 		switch each.TransactionType {
 
