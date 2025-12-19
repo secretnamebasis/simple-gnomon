@@ -154,7 +154,7 @@ func Start_gnomon_indexer() {
 
 	sc := connections.GetSC(params)
 
-	staged := structures.SCIDToIndexStage{
+	staged := &structures.SCIDToIndexStage{
 		SCTXParse: structures.SCTXParse{
 			Scid:   globals.NAMESERVICE,
 			Sender: config.Mainnet.Dev_Address,
@@ -167,7 +167,7 @@ func Start_gnomon_indexer() {
 		Tags:    "all",
 	}
 
-	if err := databases["all"].AddSCIDToIndex(staged); err != nil {
+	if err := databases["all"].AddSCIDToIndex(*staged); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -314,7 +314,7 @@ func indexing() {
 		wg.Add(1)
 		go func(height int64, wg *sync.WaitGroup) {
 			defer wg.Done()
-			start_chan <- processingStruct{
+			start_chan <- &processingStruct{
 				Start:  time.Now(),
 				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
 			}
@@ -323,7 +323,7 @@ func indexing() {
 	wg.Wait()
 }
 
-var block_stage = make(chan processingStruct, 1)
+var block_stage = make(chan *processingStruct, 1)
 
 func tx_handling() {
 	for staged := range block_stage {
@@ -447,7 +447,7 @@ func tx_handling() {
 	}
 }
 
-var transaction_stage = make(chan processingStruct, 1)
+var transaction_stage = make(chan *processingStruct, 1)
 var holding_queue struct {
 	registration int64
 	burn         int64
@@ -463,7 +463,7 @@ func filtering(indices map[string][]string) {
 	count = databases["all"].GetTxCount("normal")
 	holding_queue.normal = count
 
-	sieve := func(staged processingStruct, i int, each transaction.Transaction, wg *sync.WaitGroup) {
+	sieve := func(staged *processingStruct, i int, each transaction.Transaction, wg *sync.WaitGroup) {
 		defer wg.Done()
 		defer func() { DELTA = TOPO - int64(staged.Block.Height) }()
 
@@ -501,7 +501,7 @@ func filtering(indices map[string][]string) {
 			return
 
 		case transaction.SC_TX:
-			parsed_transaction := structures.SCIDToIndexStage{}
+			parsed_transaction := &structures.SCIDToIndexStage{}
 
 			parsed_transaction.Txid = each.GetHash().String()
 
@@ -685,7 +685,7 @@ func filtering(indices map[string][]string) {
 	}
 }
 
-var db_queue = make(chan structures.SCIDToIndexStage, 1)
+var db_queue = make(chan *structures.SCIDToIndexStage, 1)
 
 func db_writer() {
 
@@ -706,14 +706,14 @@ func db_writer() {
 		fmt.Printf(format, a...)
 
 		for name := range strings.SplitSeq(staged.Tags, ",") {
-			if err := databases[name].AddSCIDToIndex(staged); err != nil {
+			if err := databases[name].AddSCIDToIndex(*staged); err != nil {
 				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
 				continue
 			}
 
 			if achieved_current_height > 0 { // once the indexer has reached the top...
 				// do incremental backups
-				if err := backups[name].AddSCIDToIndex(staged); err != nil {
+				if err := backups[name].AddSCIDToIndex(*staged); err != nil {
 					log.Fatal("indexer error:", err, staged.Scid, staged.Height)
 					continue
 				}
