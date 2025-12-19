@@ -375,6 +375,7 @@ func tx_handling() {
 
 		// build a listener for results
 		go func() {
+			mu := sync.Mutex{}
 			wg := sync.WaitGroup{}
 			// because order doesn't really matter here... just gram the first one
 			for result := range result_chan {
