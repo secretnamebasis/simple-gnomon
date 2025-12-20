@@ -96,7 +96,7 @@ func Start_gnomon_indexer() {
 	}
 
 	day_of_blocks = ((60 * 60 * 24) / int64(connections.GetDaemonInfo().Target))
-
+	critical_threshold = day_of_blocks * 10
 	// we are going to use this as an upper bound
 	lowest_height = connections.Get_TopoHeight()
 
@@ -237,7 +237,7 @@ var start_chan = make(chan *processingStruct, 1)
 var (
 	soft_limit         int64 = 1
 	hard_limit         int64 = soft_limit * 10
-	critical_threshold int64 = hard_limit * 10000
+	critical_threshold int64
 )
 
 // this is the indexing action
@@ -288,7 +288,7 @@ func indexing() {
 			// fmt.Println("ENTERED TX HANDLING:", time.Since(staged.Start).Milliseconds())
 		}
 	}()
-	wg := sync.WaitGroup{}
+	// wg := sync.WaitGroup{}
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
@@ -306,21 +306,16 @@ func indexing() {
 			time.Sleep(time.Second * 10)
 		}
 
-		// there is more activity now, cut critical in half
-		if TOPO > 1_000_000 {
-			critical_threshold /= 2
+		// wg.Add(1)
+		// go func(height int64, wg *sync.WaitGroup) {
+		// 	defer wg.Done()
+		start_chan <- &processingStruct{
+			Start:  time.Now(),
+			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
 		}
-
-		wg.Add(1)
-		go func(height int64, wg *sync.WaitGroup) {
-			defer wg.Done()
-			start_chan <- &processingStruct{
-				Start:  time.Now(),
-				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
-			}
-		}(height, &wg)
+		// }(height, &wg)
 	}
-	wg.Wait()
+	// wg.Wait()
 }
 
 var block_stage = make(chan *processingStruct, 1)
