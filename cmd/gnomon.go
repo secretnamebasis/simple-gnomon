@@ -356,18 +356,20 @@ func tx_handling() {
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
 		//Make an array to hold the result sets
 		//Go through the array of batches and collect the results
-		result_chan := make(chan rpc.GetTransaction_Result, 1)
+		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
 
 		// build a listener for results
 		go func() {
 			mu := sync.Mutex{}
 			wg := sync.WaitGroup{}
-			// because order doesn't really matter here... just gram the first one
+			txs := []rpc.Tx_Related_Info{}
+			transactions := []transaction.Transaction{}
+			// because order doesn't really matter here... just grab the first one
 			for result := range result_chan {
 				// end credit
 				for i, each := range result.Txs_as_hex {
 					wg.Add(1)
-					go func(wg *sync.WaitGroup) {
+					go func(i int, each string, wg *sync.WaitGroup) {
 						defer wg.Done()
 						b, err := hex.DecodeString(each)
 						if err != nil {
@@ -381,25 +383,19 @@ func tx_handling() {
 							fmt.Println(err)
 							return
 						}
-						// if tx.Height == 0 {
-						// fun fact, registrations don't have a tx height
-						// }
+
 						mu.Lock()
 						txs = append(txs, result.Txs[i])
 						transactions = append(transactions, tx)
 						mu.Unlock()
-
-					}(&wg)
+					}(i, each, &wg)
 				}
-				wg.Wait()
-				staged.Tx_Hashes = hashes
-				staged.Txs = txs
-				staged.Transactions = transactions
-
-				transaction_stage <- staged
 			}
-
-			// done_chan <- struct{}{}
+			wg.Wait()
+			staged.Tx_Hashes = hashes
+			staged.Txs = txs
+			staged.Transactions = transactions
+			transaction_stage <- staged
 		}()
 		batchgroup := sync.WaitGroup{}
 		// because the order of transactions processed doesn't matter..
