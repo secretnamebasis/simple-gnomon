@@ -292,7 +292,7 @@ func indexing() {
 			// fmt.Println("ENTERED TX HANDLING:", time.Since(staged.Start).Milliseconds())
 		}
 	}()
-	// wg := sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	for height := range height_stage {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
@@ -305,21 +305,16 @@ func indexing() {
 			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
 		}
 
-		for TOPO-IN_PROGRESS > critical_threshold { // this really should be memory based
-			fmt.Println("topo and last index have diverged too far, sleeping until caught up", "TOPO", TOPO, "LAST", databases["all"].LastIndexHeight)
-			time.Sleep(time.Second * 10)
-		}
-
-		// wg.Add(1)
-		// go func(height int64, wg *sync.WaitGroup) {
-		// 	defer wg.Done()
-		start_chan <- &processingStruct{
-			Start:  time.Now(),
-			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
-		}
-		// }(height, &wg)
+		wg.Add(1)
+		go func(height int64, wg *sync.WaitGroup) {
+			defer wg.Done()
+			start_chan <- &processingStruct{
+				Start:  time.Now(),
+				Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+			}
+		}(height, &wg)
 	}
-	// wg.Wait()
+	wg.Wait()
 }
 
 var block_stage = make(chan *processingStruct, 1)
