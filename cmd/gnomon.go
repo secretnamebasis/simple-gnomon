@@ -276,7 +276,7 @@ func indexing() {
 					minis = append(minis, mini)
 				}
 
-				databases["all"].StoreMiniblockDetailsByHash(bl.GetHash().String(), minis)
+				databases["all"].StoreMiniblockDetailsByHash(staged.Result.Block_Header.Hash, minis)
 
 				for _, mini := range minis {
 					currCount := databases["all"].GetMiniblockCountByAddress(mini.Miner)
