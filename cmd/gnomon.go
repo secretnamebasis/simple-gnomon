@@ -327,31 +327,22 @@ func tx_handling() {
 		}
 
 		mu := sync.Mutex{}
-		wg := sync.WaitGroup{}
+		hashgroup := sync.WaitGroup{}
 
 		hashes := []string{}
-		txs := []rpc.Tx_Related_Info{}
-		transactions := []transaction.Transaction{}
 
 		// because this is just cpu, schedule it
 		for _, each := range staged.Block.Tx_hashes {
-			wg.Add(1)
+			hashgroup.Add(1)
 
 			go func(each crypto.Hash, wg *sync.WaitGroup) {
 				defer wg.Done()
-
-				// this short cut doesn't actually work
-				// if each[0] == 0 && each[1] == 0 && each[2] == 0 {
-				// 	holding_queue.registration++
-				// 	continue
-				// }
-
 				mu.Lock()
 				hashes = append(hashes, each.String())
 				mu.Unlock()
-			}(each, &wg)
+			}(each, &hashgroup)
 		}
-		wg.Wait()
+		hashgroup.Wait()
 
 		tx_count := len(hashes)
 
@@ -410,18 +401,11 @@ func tx_handling() {
 
 			// done_chan <- struct{}{}
 		}()
-
+		batchgroup := sync.WaitGroup{}
 		// because the order of transactions processed doesn't matter..
 		for i := range batch_count {
-			if connections.DOWNLOADS.Load() > soft_limit {
-				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-			}
 
-			for connections.DOWNLOADS.Load() > hard_limit {
-				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-			}
-
-			wg.Add(1)
+			batchgroup.Add(1)
 			// schedule each batch of transfers
 			go func(i int, wg *sync.WaitGroup) {
 				defer wg.Done()
@@ -431,12 +415,11 @@ func tx_handling() {
 				}
 				// and dump them into the listener channel
 				result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*i : end]})
-			}(i, &wg)
+			}(i, &batchgroup)
 		}
 		// wait for all the results to come in
-		wg.Wait()
-
-		// fmt.Println("Ended", staged.Block.Height, time.Since(staged.Start).Milliseconds())
+		batchgroup.Wait()
+		close(result_chan)
 
 	}
 }
