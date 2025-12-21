@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -71,6 +72,7 @@ Options:
 
 // this is the processing thread
 func Start_gnomon_indexer() {
+	runtime.GC() // let's clean things up before beginning
 	flag.Parse()
 	if help != nil && *help {
 		fmt.Println(help_msg)
@@ -192,14 +194,16 @@ func Start_gnomon_indexer() {
 			lowest_height = *starting_height
 		}
 
-		// main processing loop
 		for height := lowest_height; height < now; height++ {
-
-			TOPO = height
-
 			if !RUNNING {
 				return
 			}
+
+			for runtime.NumGoroutine() > int(day_of_blocks) {
+				time.Sleep(time.Millisecond * time.Duration(runtime.NumGoroutine()))
+			}
+
+			TOPO = height
 
 			if achieved_current_height > 0 && !established_backup && find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
 				// a simple backup strategy
@@ -207,8 +211,8 @@ func Start_gnomon_indexer() {
 			}
 
 			height_stage <- height
-
 		}
+
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
 
