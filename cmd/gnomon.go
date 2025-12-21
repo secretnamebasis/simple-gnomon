@@ -400,7 +400,13 @@ func tx_handling() {
 		batchgroup := sync.WaitGroup{}
 		// because the order of transactions processed doesn't matter..
 		for i := range batch_count {
+			if connections.DOWNLOADS.Load() > soft_limit {
+				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+			}
 
+			for connections.DOWNLOADS.Load() > hard_limit {
+				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+			}
 			batchgroup.Add(1)
 			// schedule each batch of transfers
 			go func(i int, wg *sync.WaitGroup) {
