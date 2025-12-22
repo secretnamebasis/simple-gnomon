@@ -93,8 +93,8 @@ func Start_gnomon_indexer() {
 		MaxIdleConnsPerHost: 100,
 		MaxConnsPerHost:     20,
 		DisableKeepAlives:   false,
-		IdleConnTimeout:    time.Second * 90,
-		DisableCompression: false,
+		IdleConnTimeout:     time.Second * 90,
+		DisableCompression:  false,
 	}
 	opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 30, Transport: transport}} // this is insane... but, let's find out.
 	url := "http://" + *endpoint + "/json_rpc"
@@ -305,13 +305,6 @@ func indexing() {
 		// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
 		// fmt.Printf("HEIGHT%07d DOWNLOADS%05d HEIGHTS%4d RESULTS%d BLOCKS%d TXS%d\n", height, connections.DOWNLOADS.Load(), len(height_stage), len(start_chan), len(block_stage), len(transaction_stage))
 		// }
-		if connections.DOWNLOADS.Load() > soft_limit {
-			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-		}
-
-		for connections.DOWNLOADS.Load() > hard_limit {
-			time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-		}
 
 		wg.Add(1)
 		go func(height int64, wg *sync.WaitGroup) {
@@ -408,13 +401,7 @@ func tx_handling() {
 		batchgroup := sync.WaitGroup{}
 		// because the order of transactions processed doesn't matter..
 		for i := range batch_count {
-			if connections.DOWNLOADS.Load() > soft_limit {
-				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-			}
 
-			for connections.DOWNLOADS.Load() > hard_limit {
-				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
-			}
 			batchgroup.Add(1)
 			// schedule each batch of transfers
 			go func(i int, wg *sync.WaitGroup) {
