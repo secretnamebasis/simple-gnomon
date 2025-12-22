@@ -88,7 +88,15 @@ func Start_gnomon_indexer() {
 		daemon := connections.GetDaemonEndpoint()
 		*endpoint = daemon.Endpoint
 	}
-	opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Minute * 5}} // this is insane... but, let's find out.
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		MaxConnsPerHost:     20,
+		DisableKeepAlives:   false,
+		IdleConnTimeout:    time.Second * 90,
+		DisableCompression: false,
+	}
+	opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 30, Transport: transport}} // this is insane... but, let's find out.
 	url := "http://" + *endpoint + "/json_rpc"
 	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
 
