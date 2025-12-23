@@ -445,7 +445,21 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return fmt.Errorf("server disconnect request")
 		}
 	case "GetSCIDInteractionByAddr":
+		var params *structures.GnomonAllSCIDInteractionAddr
+		err = json.Unmarshal(*req.Params, &params)
+		if err != nil {
+			fmt.Printf("Unable to parse params\n")
+			return err
+		}
+		interactions := wss.database[params.Tag].GetSCIDInteractionByAddr(params.Addr)
+		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
+		err = wsjson.Write(ctx, c, message)
+		if err != nil {
+			fmt.Printf("err writing message: err: %v\n", err)
 
+			fmt.Printf("server disconnect request\n")
+			return fmt.Errorf("server disconnect request")
+		}
 	case "GetSCIDInteractionHeight":
 		var params *structures.GnomonAllSCIDInteractionHeight
 		err = json.Unmarshal(*req.Params, &params)

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/deroproject/derohe/rpc"
+	"github.com/secretnamebasis/simple-gnomon/globals"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 	"go.etcd.io/bbolt"
 )
@@ -1223,6 +1224,35 @@ func (bbs *BboltStore) StoreSCIDInteractionHeight(scid string, height int64) (ch
 	})
 
 	return
+}
+
+// Gets all SCID interacts from a given address - non-builtin/name scids.
+func (bbs *BboltStore) GetSCIDInteractionByAddr(addr string) (scids []string) {
+	normTxsWithSCID := bbs.GetAllNormalTxWithSCIDByAddr(addr)
+
+	// Append scids list of normtxs scid interaction
+	for _, v := range normTxsWithSCID {
+		if !slices.Contains(scids, v.Scid) {
+			scids = append(scids, v.Scid)
+		}
+	}
+
+	allSCIDs := bbs.GetAllOwnersAndSCIDs()
+	for k := range allSCIDs {
+		// Skip builtin name registration, no need to waste cursor time on this one since it's not pertinent to goal of function
+		// TODO: Future state, we'll have much more SCID interaction and this will get slower and slower, will need to speedup. Probably will happen with data re-org in future
+		if k == globals.NAMESERVICE {
+			continue
+		}
+		invokedetails := bbs.GetAllSCIDInvokeDetailsBySigner(k, addr)
+		if len(invokedetails) > 0 {
+			if !slices.Contains(scids, k) {
+				scids = append(scids, k)
+			}
+		}
+	}
+
+	return scids
 }
 
 // Gets SC interaction height and detail by a given SCID

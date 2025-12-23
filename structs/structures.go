@@ -99,6 +99,11 @@ type (
 		SCID string
 	}
 
+	GnomonAllSCIDInteractionAddr struct {
+		Tag  string
+		Addr string
+	}
+
 	GnomonAllSCIDInvokeDetails struct {
 		Tag  string
 		SCID string
