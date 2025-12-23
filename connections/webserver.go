@@ -1,19 +1,12 @@
 package connections
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"math/big"
 	"net"
 	"net/http"
 	"sync"
@@ -43,52 +36,12 @@ var WSS *WSServer = &WSServer{}
 
 var options = &jrpc2.ServerOptions{AllowPush: true}
 
-// let's make our own certs
-//
-//	"credit: https://gist.github.com/shaneutt/5e1995295cff6721c89a71d13a71c251"
-func certification() {
-	certificate_authority := x509.Certificate{
-		SerialNumber: big.NewInt(9001),
-		Subject: pkix.Name{
-			Organization:  []string{"simple-gnomon"},
-			Country:       []string{"DERO"},
-			Province:      []string{"NETWORK1"},
-			Locality:      []string{"MAINNET"},
-			StreetAddress: []string{"1337 Street"},
-			PostalCode:    []string{"00000"},
-		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add((time.Hour * 24) * 365),
-		IsCA:      true,
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageClientAuth,
-			x509.ExtKeyUsageServerAuth,
-		},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-	certificate_authority_priv_key, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return
-	}
-	certificate_authority_bytes, err := x509.CreateCertificate(
-		rand.Reader,
-		&certificate_authority,
-		&certificate_authority,
-		certificate_authority_priv_key.PublicKey,
-		certificate_authority_priv_key,
-	)
-
-	certificate_authority_priv_key_PEM := new(bytes.Buffer)
-	pem.Encode(certificate_authority_priv_key_PEM, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certificate_authority_bytes,
-	})
-
-}
-
 // Starts websocket listening for web miners
 func ListenWS(databases map[string]*db.BboltStore) {
+	// srvTLS, clientTLS, err := certification()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	bindAddr := "127.0.0.1:9190"
 
@@ -103,6 +56,7 @@ func ListenWS(databases map[string]*db.BboltStore) {
 
 	WSS.Lock()
 	WSS.srv = &http.Server{Addr: bindAddr, Handler: WSS.mux}
+	// WSS.srv = &http.Server{Addr: bindAddr, Handler: WSS.mux, TLSConfig: srvTLS}
 	WSS.Unlock()
 
 	// Setup handler for /ws directory which web miners will connect through
@@ -110,6 +64,7 @@ func ListenWS(databases map[string]*db.BboltStore) {
 
 	fmt.Printf("Starting WSServer on %v\n", bindAddr)
 
+	// err = WSS.srv.ListenAndServeTLS("", "")
 	err = WSS.srv.ListenAndServe()
 	if err != nil {
 		log.Fatalf("[ListenWS] Failed to start WSServer: %v", err)

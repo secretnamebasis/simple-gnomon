@@ -76,7 +76,6 @@ func main() {
 		os.Exit(0)
 	})
 	data_dir = filepath.Base(globals.GetDataDirectory())
-	websocket_address = "127.0.0.1:9190/ws"
 	endpoint := ""
 	connection := widget.NewEntry()
 
@@ -116,12 +115,11 @@ func main() {
 		go func() {
 			var err error
 			url := "ws://127.0.0.1:9190/ws"
-			dialer := websocket.Dialer{
+			websocket_address = url
+			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // allow self-signed certs
+			}}
 
-				TLSClientConfig: &tls.Config{
-
-					InsecureSkipVerify: true}, // allow self-signed certs
-			}
 			indexer_connection, _, err = dialer.Dial(url, nil)
 			if err != nil {
 				panic(err)
