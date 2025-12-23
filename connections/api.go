@@ -82,12 +82,7 @@ func (apiServer *ApiServer) listen() {
 	router.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
 	router.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
 	router.HandleFunc("/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight)
-	// router.HandleFunc("/api/invalidscids", apiServer.InvalidSCIDStats)
-	// router.HandleFunc("/api/scidprivtx", apiServer.NormalTxWithSCID)
-	// if apiServer.Config.MBLLookup {
-	// 	router.HandleFunc("/api/getmbladdrsbyhash", apiServer.MBLLookupByHash)
-	// 	router.HandleFunc("/api/getmblcountbyaddr", apiServer.MBLLookupByAddr)
-	// }
+
 	router.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	router.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServe(apiServer.Config.Listen, router)
@@ -103,12 +98,7 @@ func (apiServer *ApiServer) listenSSL() {
 	routerSSL.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
 	routerSSL.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
 	routerSSL.HandleFunc("/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight)
-	// routerSSL.HandleFunc("/api/invalidscids", apiServer.InvalidSCIDStats)
-	// routerSSL.HandleFunc("/api/scidprivtx", apiServer.NormalTxWithSCID)
-	// if apiServer.Config.MBLLookup {
-	// 	routerSSL.HandleFunc("/api/getmbladdrsbyhash", apiServer.MBLLookupByHash)
-	// 	routerSSL.HandleFunc("/api/getmblcountbyaddr", apiServer.MBLLookupByAddr)
-	// }
+
 	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServeTLS(apiServer.Config.SSLListen, apiServer.Config.CertFile, apiServer.Config.KeyFile, routerSSL)
@@ -123,6 +113,7 @@ func (apiServer *ApiServer) getInfoListenSSL() {
 	routerSSL := mux.NewRouter()
 	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
+
 	err := http.ListenAndServeTLS(apiServer.Config.GetInfoSSLListen, apiServer.Config.GetInfoCertFile, apiServer.Config.GetInfoKeyFile, routerSSL)
 	if err != nil {
 		log.Fatalf("[API] Failed to start GetInfo SSL API: %v\n", err)
@@ -145,21 +136,18 @@ func (apiServer *ApiServer) collectStats() {
 	}
 
 	stats := make(map[string]interface{})
-	sclist := make(map[string]string)
 
 	// TODO: Removeme
 	var scinstalls []*structures.SCTXParse
 
-	sclist = apiServer.BBSBackend.GetAllOwnersAndSCIDs()
+	sclist := apiServer.BBSBackend.GetAllOwnersAndSCIDs()
 	for k, _ := range sclist {
 
 		if apiServer.BBSBackend.Closing {
 			return
 		}
 
-		var invokedetails []*structures.SCTXParse
-
-		invokedetails = apiServer.BBSBackend.GetAllSCIDInvokeDetails(k)
+		invokedetails := apiServer.BBSBackend.GetAllSCIDInvokeDetails(k)
 		i := 0
 		for _, v := range invokedetails {
 			sc_action := fmt.Sprintf("%v\n", v.Sc_args.Value("SC_ACTION", "U"))
@@ -256,9 +244,8 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 	}
 
 	// Get all scid:owner
-	sclist := make(map[string]string)
 
-	sclist = apiServer.BBSBackend.GetAllOwnersAndSCIDs()
+	sclist := apiServer.BBSBackend.GetAllOwnersAndSCIDs()
 
 	if address != "" && scid != "" {
 		// Return results that match both address and scid
