@@ -62,7 +62,9 @@ Options:
 	EXCLUSIONS = []string{
 		globals.NAMESERVICE,
 		globals.MAINNET_GNOMON_SCID,
-		// "bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2", // 43Mb of vars is pretty big
+		"bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2", // 43Mb of vars is pretty big
+		"e2ec01dcb1fc87abc6af5e958c936c0ad05e19b318be1c87e9ba2d188e8d689f", // a copy cat market
+		"cf03383b9bf03b28e1c8e7962c3fb9b52452442d040651305148b26b90a904e3", // some lotto
 	}
 
 	/* currently not storing  */
@@ -228,7 +230,7 @@ func Start_gnomon_indexer() {
 		// height achieved
 		achieved_current_height = connections.Get_TopoHeight()
 
-		lowest_height = min(now-1, achieved_current_height)
+		lowest_height = min(now, achieved_current_height)
 	}
 }
 
