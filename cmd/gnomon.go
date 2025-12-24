@@ -436,16 +436,16 @@ func tx_handling() {
 
 		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
 
-		task := func(result_chan chan rpc.GetTransaction_Result) {
+		task := func(height int64, result_chan chan rpc.GetTransaction_Result) {
 			// because order doesn't really matter here... just grab the first one
 			for result := range result_chan {
-				handle(result)
+				handle(height, result)
 			}
 		}
 
 		// let's assume that we can do multithreading here
 		for range runtime.GOMAXPROCS(0) - 2 {
-			go task(result_chan)
+			go task(staged.Height, result_chan)
 		}
 
 		batchgroup := sync.WaitGroup{}
