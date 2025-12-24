@@ -258,8 +258,8 @@ type processingStruct struct {
 	// stage 2
 	Tx_Hashes []string
 	// stage 3
-	Txs          []rpc.Tx_Related_Info
-	Transactions []transaction.Transaction
+	Tx          rpc.Tx_Related_Info
+	Transaction transaction.Transaction
 }
 
 var block_processing = make(chan *processingStruct, 1_000_000)
