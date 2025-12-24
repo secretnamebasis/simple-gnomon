@@ -369,85 +369,87 @@ func tx_handling() {
 				ringmember_callback(i, j, height, result, tx, payload)
 			}
 		}
-
 	}
 
 	for staged := range transaction_processing {
 		tx_count := len(staged.Tx_Hashes)
-		// credit: https://github.com/siteraiser/simple-gnomon/commit/d756b2b3c1c98cf30a63d759ad483fe13c3beba9
-		batch_size := 4
+		batch_size := 100
+
 		//Find total number of batches
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
-		//Make an array to hold the result sets
-		//Go through the array of batches and collect the results
 
-		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
-
-		// build a listener for results
-		go func() {
+		// build a handl for results
+		handle := func(result rpc.GetTransaction_Result) {
 			mu := sync.Mutex{}
 			wg := sync.WaitGroup{}
 			txs := []rpc.Tx_Related_Info{}
 			transactions := []transaction.Transaction{}
-			// because order doesn't really matter here... just grab the first one
+			for i, each := range result.Txs_as_hex {
+				wg.Add(1)
+				go func(i int, each string, wg *sync.WaitGroup) {
+					defer wg.Done()
+					b, err := hex.DecodeString(each)
+					if err != nil {
+						fmt.Println(err)
+						return
+					}
 
-			for result := range result_chan {
-				// end credit
-				for i, each := range result.Txs_as_hex {
-					wg.Add(1)
-					go func(i int, each string, wg *sync.WaitGroup) {
-						defer wg.Done()
-						b, err := hex.DecodeString(each)
-						if err != nil {
-							fmt.Println(err)
-							return
+					tx := transaction.Transaction{}
+
+					if err := tx.Deserialize(b); err != nil {
+						fmt.Println(err)
+						return
+					}
+					switch tx.TransactionType {
+
+					case transaction.PREMINE, transaction.COINBASE: // not being processed
+						return
+					case transaction.REGISTRATION:
+						holding_queue.registration++
+						return
+					case transaction.BURN_TX:
+						holding_queue.burn++
+						return
+					case transaction.NORMAL:
+						holding_queue.normal++
+
+						if len(tx.Payloads) > 0 {
+							payload_callback(i, int64(staged.Height), result, tx)
 						}
 
-						tx := transaction.Transaction{}
-
-						if err := tx.Deserialize(b); err != nil {
-							fmt.Println(err)
-							return
-						}
-						switch tx.TransactionType {
-
-						case transaction.PREMINE, transaction.COINBASE: // not being processed
-							return
-						case transaction.REGISTRATION: // already processed
-							// but just in case there are some that get by...
-							holding_queue.registration++
-							return
-						case transaction.BURN_TX:
-							holding_queue.burn++
-							return
-						case transaction.NORMAL:
-							holding_queue.normal++
-
-							if len(tx.Payloads) > 0 {
-								payload_callback(i, int64(staged.Height), result, tx)
-							}
-
-							return
-						}
-						mu.Lock()
-						txs = append(txs, result.Txs[i])
-						transactions = append(transactions, tx)
-						mu.Unlock()
-					}(i, each, &wg)
-				}
+						return
+					}
+					mu.Lock()
+					txs = append(txs, result.Txs[i])
+					transactions = append(transactions, tx)
+					mu.Unlock()
+				}(i, each, &wg)
 			}
 			wg.Wait()
-
 			// at this point the only thing that should remain is scids
 			scid_processing <- &processingStruct{
 				Height:       staged.Height,
 				Txs:          txs,
 				Transactions: transactions,
 			}
+		}
 
-		}()
+		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
+
+		task := func(result_chan chan rpc.GetTransaction_Result) {
+			// because order doesn't really matter here... just grab the first one
+			for result := range result_chan {
+				handle(result)
+			}
+		}
+
+		// let's assume that we can do multithreading here
+		for range runtime.GOMAXPROCS(0) - 2 {
+			go task(result_chan)
+		}
 
 		batchgroup := sync.WaitGroup{}
+
 		// because the order of transactions processed doesn't matter..
 		for i := range batch_count {
 
@@ -466,6 +468,7 @@ func tx_handling() {
 		// wait for all the results to come in
 		batchgroup.Wait()
 		close(result_chan)
+
 	}
 }
 
