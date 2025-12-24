@@ -333,7 +333,17 @@ func indexing() {
 
 var transaction_processing = make(chan *processingStruct, 1_000_000)
 
+var holding_queue struct {
+	registration atomic.Int64
+	burn         atomic.Int64
+	normal       atomic.Int64
+}
+
 func tx_handling() {
+	// initial number collection
+	holding_queue.registration.Swap(databases["all"].GetTxCount("registration"))
+	holding_queue.burn.Swap(databases["all"].GetTxCount("burn"))
+	holding_queue.normal.Swap(databases["all"].GetTxCount("normal"))
 
 	// let's register some callbacks so that we don't re-define over and over again
 	ringmember_callback := func(
@@ -466,20 +476,7 @@ func tx_handling() {
 
 var scid_processing = make(chan *processingStruct, 1_000_000)
 
-var holding_queue struct {
-	registration atomic.Int64
-	burn         atomic.Int64
-	normal       atomic.Int64
-}
-
 func filtering(indices map[string][]string) {
-	// initial number collection
-	count := databases["all"].GetTxCount("registration")
-	holding_queue.registration.Swap(count)
-	count = databases["all"].GetTxCount("burn")
-	holding_queue.burn.Swap(count)
-	count = databases["all"].GetTxCount("normal")
-	holding_queue.normal.Swap(count)
 
 	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
 		defer func() { IN_PROGRESS = height }()
