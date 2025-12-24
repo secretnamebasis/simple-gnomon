@@ -370,6 +370,47 @@ func tx_handling() {
 			}
 		}
 	}
+	// build a handle for results
+	handle := func(height int64, result rpc.GetTransaction_Result) {
+
+		for i, each := range result.Txs_as_hex {
+
+			b, err := hex.DecodeString(each)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			tx := transaction.Transaction{}
+
+			if err := tx.Deserialize(b); err != nil {
+				fmt.Println(err)
+				continue
+			}
+			switch tx.TransactionType {
+			case transaction.PREMINE, transaction.COINBASE: // not being processed
+				continue
+			case transaction.REGISTRATION:
+				holding_queue.registration++
+			case transaction.BURN_TX:
+				holding_queue.burn++
+			case transaction.NORMAL:
+				holding_queue.normal++
+				if len(tx.Payloads) > 0 {
+					payload_callback(i, height, result, tx)
+				}
+			case transaction.SC_TX:
+				// at this point the only thing that should remain is scids
+				scid_processing <- &processingStruct{
+					Height:      height,
+					Tx:          result.Txs[i],
+					Transaction: tx,
+				}
+			default:
+				continue
+			}
+		}
+	}
 
 	for staged := range transaction_processing {
 		tx_count := len(staged.Tx_Hashes)
@@ -377,62 +418,6 @@ func tx_handling() {
 
 		//Find total number of batches
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
-
-		// build a handl for results
-		handle := func(result rpc.GetTransaction_Result) {
-			mu := sync.Mutex{}
-			wg := sync.WaitGroup{}
-			txs := []rpc.Tx_Related_Info{}
-			transactions := []transaction.Transaction{}
-			for i, each := range result.Txs_as_hex {
-				wg.Add(1)
-				go func(i int, each string, wg *sync.WaitGroup) {
-					defer wg.Done()
-					b, err := hex.DecodeString(each)
-					if err != nil {
-						fmt.Println(err)
-						return
-					}
-
-					tx := transaction.Transaction{}
-
-					if err := tx.Deserialize(b); err != nil {
-						fmt.Println(err)
-						return
-					}
-					switch tx.TransactionType {
-
-					case transaction.PREMINE, transaction.COINBASE: // not being processed
-						return
-					case transaction.REGISTRATION:
-						holding_queue.registration++
-						return
-					case transaction.BURN_TX:
-						holding_queue.burn++
-						return
-					case transaction.NORMAL:
-						holding_queue.normal++
-
-						if len(tx.Payloads) > 0 {
-							payload_callback(i, int64(staged.Height), result, tx)
-						}
-
-						return
-					}
-					mu.Lock()
-					txs = append(txs, result.Txs[i])
-					transactions = append(transactions, tx)
-					mu.Unlock()
-				}(i, each, &wg)
-			}
-			wg.Wait()
-			// at this point the only thing that should remain is scids
-			scid_processing <- &processingStruct{
-				Height:       staged.Height,
-				Txs:          txs,
-				Transactions: transactions,
-			}
-		}
 
 		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
 
