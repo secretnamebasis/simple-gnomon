@@ -419,41 +419,46 @@ func tx_handling() {
 		}
 	}
 
-	for staged := range transaction_processing {
-		tx_count := len(staged.Tx_Hashes)
-		batch_size := 100
+	work := func(transaction_processing chan *processingStruct) {
+		for staged := range transaction_processing {
+			tx_count := len(staged.Tx_Hashes)
+			batch_size := 100
 
-		//Find total number of batches
-		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
+			//Find total number of batches
+			batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
 
-		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
+			result_chan := make(chan rpc.GetTransaction_Result, batch_count)
 
-		// let's assume that we can do multithreading here
-		for range runtime.GOMAXPROCS(0) - 2 {
+			// let's assume that we can do multithreading here
+			// for range runtime.GOMAXPROCS(0) - 2 {
 			go task(staged.Height, result_chan)
+			// }
+
+			batchgroup := sync.WaitGroup{}
+
+			// because the order of transactions processed doesn't matter..
+			for i := range batch_count {
+
+				batchgroup.Add(1)
+				// schedule each batch of transfers
+				go func(i int, wg *sync.WaitGroup) {
+					defer wg.Done()
+					end := batch_size * i
+					if i == batch_count-1 {
+						end = tx_count
+					}
+					// and dump them into the listener channel
+					result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: staged.Tx_Hashes[batch_size*i : end]})
+				}(i, &batchgroup)
+			}
+			// wait for all the results to come in
+			batchgroup.Wait()
+			close(result_chan)
 		}
+	}
 
-		batchgroup := sync.WaitGroup{}
-
-		// because the order of transactions processed doesn't matter..
-		for i := range batch_count {
-
-			batchgroup.Add(1)
-			// schedule each batch of transfers
-			go func(i int, wg *sync.WaitGroup) {
-				defer wg.Done()
-				end := batch_size * i
-				if i == batch_count-1 {
-					end = tx_count
-				}
-				// and dump them into the listener channel
-				result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: staged.Tx_Hashes[batch_size*i : end]})
-			}(i, &batchgroup)
-		}
-		// wait for all the results to come in
-		batchgroup.Wait()
-		close(result_chan)
-
+	for range runtime.GOMAXPROCS(0) - 2 {
+		go work(transaction_processing)
 	}
 }
 
