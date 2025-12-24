@@ -412,6 +412,13 @@ func tx_handling() {
 		}
 	}
 
+	task := func(height int64, result_chan chan rpc.GetTransaction_Result) {
+		// because order doesn't really matter here... just grab the first one
+		for result := range result_chan {
+			handle(height, result)
+		}
+	}
+
 	for staged := range transaction_processing {
 		tx_count := len(staged.Tx_Hashes)
 		batch_size := 100
@@ -420,13 +427,6 @@ func tx_handling() {
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
 
 		result_chan := make(chan rpc.GetTransaction_Result, batch_count)
-
-		task := func(height int64, result_chan chan rpc.GetTransaction_Result) {
-			// because order doesn't really matter here... just grab the first one
-			for result := range result_chan {
-				handle(height, result)
-			}
-		}
 
 		// let's assume that we can do multithreading here
 		for range runtime.GOMAXPROCS(0) - 2 {
