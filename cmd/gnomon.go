@@ -256,7 +256,9 @@ type processingStruct struct {
 	// Stage 1
 	Height int64
 	Result rpc.GetBlock_Result
-	// stage 2
+	// stage 2a
+	Block block.Block
+	// stage 2b
 	Tx_Hashes []string
 	// stage 3
 	Tx          rpc.Tx_Related_Info
@@ -267,28 +269,13 @@ var block_processing = make(chan *processingStruct, 1_000_000)
 
 // this is the indexing action
 func indexing() {
-	for staged := range block_processing {
-		count := staged.Result.Block_Header.TXCount
 
-		if count > 400 {
-			fmt.Printf("large transacion count detected: %d height:%d\n", count, staged.Result.Block_Header.TopoHeight)
-		}
-
-		if !STORE_MINIBLOCKS {
-			if count == 0 {
-				continue
-			}
-		}
-
-		bl := GetBlockDeserialized(staged.Result.Blob)
-
-		if STORE_MINIBLOCKS { // should this be supported?
+	process_minis := func(mini_queue chan *processingStruct) {
+		for staged := range mini_queue {
 			var minis []*structures.MBLInfo
-
 			for i, miner := range staged.Result.Block_Header.Miners {
-
 				mini := &structures.MBLInfo{
-					Hash:  bl.MiniBlocks[i].GetHash().String(),
+					Hash:  staged.Block.MiniBlocks[i].GetHash().String(),
 					Miner: miner,
 				}
 
@@ -304,8 +291,28 @@ func indexing() {
 				databases["all"].StoreMiniblockCountByAddress(newCount, mini.Miner)
 			}
 		}
+	}
 
-		if len(bl.Tx_hashes) == 0 {
+	mini_queue := make(chan *processingStruct, 1_000_000)
+
+	go process_minis(mini_queue)
+
+	for staged := range block_processing {
+
+		bl := GetBlockDeserialized(staged.Result.Blob)
+
+		mini_queue <- &processingStruct{
+			Block:  bl,
+			Result: staged.Result,
+		}
+
+		count := staged.Result.Block_Header.TXCount
+
+		if count > 400 {
+			fmt.Printf("large transacion count detected: %d height:%d\n", count, staged.Result.Block_Header.TopoHeight)
+		}
+
+		if len(bl.Tx_hashes) == 0 || count == 0 { // paranoia...
 			continue
 		}
 
