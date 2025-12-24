@@ -66,9 +66,7 @@ Options:
 		"cf03383b9bf03b28e1c8e7962c3fb9b52452442d040651305148b26b90a904e3", // some lotto
 	}
 
-	/* currently not storing  */
-	// but for those adventurous folks...
-	STORE_MINIBLOCKS bool
+	STORE_MINIBLOCKS bool = true
 )
 
 // this is the processing thread
@@ -216,9 +214,29 @@ func Start_gnomon_indexer() {
 				backup(height)
 			}
 
-			if connections.DOWNLOADS.Load() > 0 {
-				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
+			fmt.Printf("HEIGHT%07d DOWNLOADS%05d BLOCKS%d MINIS%d TRANSACTIONS%d SCIDS%d DB%d\n",
+				height,
+				connections.DOWNLOADS.Load(),
+				len(block_processing),
+				len(mini_queue),
+				len(transaction_processing),
+				len(scid_processing),
+				len(db_queue),
+			)
+
+			max := max(
+				int(connections.DOWNLOADS.Load()),
+				len(block_processing),
+				len(mini_queue),
+				len(transaction_processing),
+				len(scid_processing),
+				len(db_queue),
+			)
+
+			if max > 0 {
+				time.Sleep(time.Millisecond * time.Duration(max))
 			}
+
 			wg.Add(1)
 			go func(height int64, wg *sync.WaitGroup) {
 				defer wg.Done()
@@ -257,9 +275,13 @@ type processingStruct struct {
 
 var block_processing = make(chan *processingStruct, 1_000_000)
 
+var mini_queue = make(chan *processingStruct, 1_000_000_000)
+
+var mini_map = make(map[string][]*structures.MBLInfo)
+
 // this is the indexing action
 func indexing() {
-
+	mu := sync.Mutex{}
 	process_minis := func(mini_queue chan *processingStruct) {
 		for staged := range mini_queue {
 			var minis []*structures.MBLInfo
@@ -268,32 +290,29 @@ func indexing() {
 					Hash:  staged.Block.MiniBlocks[i].GetHash().String(),
 					Miner: miner,
 				}
-
 				minis = append(minis, mini)
 			}
 
-			databases["all"].StoreMiniblockDetailsByHash(staged.Result.Block_Header.Hash, minis)
-
-			for _, mini := range minis {
-				currCount := databases["all"].GetMiniblockCountByAddress(mini.Miner)
-				currCount++
-				newCount := currCount
-				databases["all"].StoreMiniblockCountByAddress(newCount, mini.Miner)
-			}
+			mu.Lock()
+			mini_map[staged.Result.Block_Header.Hash] = minis
+			mu.Unlock()
 		}
 	}
-
-	mini_queue := make(chan *processingStruct, 1_000_000)
-
-	go process_minis(mini_queue)
+	// for range runtime.GOMAXPROCS(0) - 2 {
+	if STORE_MINIBLOCKS {
+		go process_minis(mini_queue)
+	}
+	// }
 
 	for staged := range block_processing {
 
 		bl := GetBlockDeserialized(staged.Result.Blob)
 
-		mini_queue <- &processingStruct{
-			Block:  bl,
-			Result: staged.Result,
+		if STORE_MINIBLOCKS {
+			mini_queue <- &processingStruct{
+				Block:  bl,
+				Result: staged.Result,
+			}
 		}
 
 		count := staged.Result.Block_Header.TXCount
@@ -306,23 +325,14 @@ func indexing() {
 			continue
 		}
 
-		mu := sync.Mutex{}
-		hashgroup := sync.WaitGroup{}
-
 		hashes := []string{}
 
 		// because this is just cpu, schedule it
 		for _, each := range bl.Tx_hashes {
-			hashgroup.Add(1)
 
-			go func(each crypto.Hash, wg *sync.WaitGroup) {
-				defer wg.Done()
-				mu.Lock()
-				hashes = append(hashes, each.String())
-				mu.Unlock()
-			}(each, &hashgroup)
+			hashes = append(hashes, each.String())
+
 		}
-		hashgroup.Wait()
 
 		transaction_processing <- &processingStruct{
 			Height:    staged.Height,
@@ -659,7 +669,7 @@ func filtering(indices map[string][]string) {
 var db_queue = make(chan *structures.SCIDToIndexStage, 1_000_000)
 
 func db_writer() {
-
+	mu := sync.Mutex{}
 	for staged := range db_queue {
 
 		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
@@ -676,6 +686,7 @@ func db_writer() {
 
 		fmt.Printf(format, a...)
 
+		// store scid by tag
 		for name := range strings.SplitSeq(staged.Tags, ",") {
 			if err := databases[name].AddSCIDToIndex(*staged); err != nil {
 				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
@@ -695,6 +706,26 @@ func db_writer() {
 		databases["all"].StoreTxCount(holding_queue.registration.Load(), "registration")
 		databases["all"].StoreTxCount(holding_queue.burn.Load(), "burn")
 		databases["all"].StoreTxCount(holding_queue.normal.Load(), "normal")
+
+		// store minis
+		if STORE_MINIBLOCKS {
+			mu.Lock()
+			for hash, minis := range mini_map {
+				databases["all"].StoreMiniblockDetailsByHash(hash, minis)
+
+				for _, mini := range minis {
+					currCount := databases["all"].GetMiniblockCountByAddress(mini.Miner)
+					currCount++
+					// newCount := currCount
+					databases["all"].StoreMiniblockCountByAddress(currCount, mini.Miner)
+				}
+			}
+			// reset the minimap
+			mini_map = make(map[string][]*structures.MBLInfo)
+			mu.Unlock()
+		}
+
+		// store height
 		storeHeight(int64(staged.Height))
 
 	}
