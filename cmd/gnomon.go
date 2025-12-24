@@ -417,10 +417,24 @@ func tx_handling() {
 		}
 	}
 
+	// this might be a good size...
+	batch_size := 100
+
+	batching := func(batch, batch_count int, hashes []string, result_chan chan rpc.GetTransaction_Result, wg *sync.WaitGroup) {
+		defer wg.Done()
+
+		end := batch_size * batch
+		if batch == batch_count-1 {
+			end = len(hashes)
+		}
+
+		// and dump them into the listener channel
+		result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
+	}
+
 	work := func(transaction_processing chan *processingStruct) {
 		for staged := range transaction_processing {
 			tx_count := len(staged.Tx_Hashes)
-			batch_size := 100
 
 			//Find total number of batches
 			batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
@@ -433,19 +447,11 @@ func tx_handling() {
 			batchgroup := sync.WaitGroup{}
 
 			// because the order of transactions processed doesn't matter..
-			for i := range batch_count {
+			for batch := range batch_count {
 
 				batchgroup.Add(1)
 				// schedule each batch of transfers
-				go func(i int, wg *sync.WaitGroup) {
-					defer wg.Done()
-					end := batch_size * i
-					if i == batch_count-1 {
-						end = tx_count
-					}
-					// and dump them into the listener channel
-					result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: staged.Tx_Hashes[batch_size*i : end]})
-				}(i, &batchgroup)
+				go batching(batch, batch_count, staged.Tx_Hashes, result_chan, &batchgroup)
 			}
 			// wait for all the results to come in
 			batchgroup.Wait()
