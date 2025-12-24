@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/deroproject/derohe/config"
@@ -370,6 +371,7 @@ func tx_handling() {
 			}
 		}
 	}
+
 	// build a handle for results
 	handle := func(height int64, result rpc.GetTransaction_Result) {
 
@@ -391,11 +393,11 @@ func tx_handling() {
 			case transaction.PREMINE, transaction.COINBASE: // not being processed
 				continue
 			case transaction.REGISTRATION:
-				holding_queue.registration++
+				holding_queue.registration.Add(1)
 			case transaction.BURN_TX:
-				holding_queue.burn++
+				holding_queue.burn.Add(1)
 			case transaction.NORMAL:
-				holding_queue.normal++
+				holding_queue.normal.Add(1)
 				if len(tx.Payloads) > 0 {
 					payload_callback(i, height, result, tx)
 				}
@@ -429,10 +431,8 @@ func tx_handling() {
 
 			result_chan := make(chan rpc.GetTransaction_Result, batch_count)
 
-			// let's assume that we can do multithreading here
-			// for range runtime.GOMAXPROCS(0) - 2 {
+			// turn on the listener
 			go task(staged.Height, result_chan)
-			// }
 
 			batchgroup := sync.WaitGroup{}
 
@@ -463,20 +463,21 @@ func tx_handling() {
 }
 
 var scid_processing = make(chan *processingStruct, 1_000_000)
+
 var holding_queue struct {
-	registration int64
-	burn         int64
-	normal       int64
+	registration atomic.Int64
+	burn         atomic.Int64
+	normal       atomic.Int64
 }
 
 func filtering(indices map[string][]string) {
 	// initial number collection
 	count := databases["all"].GetTxCount("registration")
-	holding_queue.registration = count
+	holding_queue.registration.Swap(count)
 	count = databases["all"].GetTxCount("burn")
-	holding_queue.burn = count
+	holding_queue.burn.Swap(count)
 	count = databases["all"].GetTxCount("normal")
-	holding_queue.normal = count
+	holding_queue.normal.Swap(count)
 
 	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
 		defer func() { IN_PROGRESS = height }()
@@ -647,8 +648,6 @@ func filtering(indices map[string][]string) {
 		// just queue em and write em when the writer has a moment
 		db_queue <- parsed_transaction
 
-		// fmt.Println("ENTERED DB WRITE:", time.Since(staged.Start).Milliseconds())
-
 	}
 
 	// sift transactions over the sieve
@@ -693,9 +692,9 @@ func db_writer() {
 		}
 
 		// store counts
-		databases["all"].StoreTxCount(holding_queue.registration, "registration")
-		databases["all"].StoreTxCount(holding_queue.burn, "burn")
-		databases["all"].StoreTxCount(holding_queue.normal, "normal")
+		databases["all"].StoreTxCount(holding_queue.registration.Load(), "registration")
+		databases["all"].StoreTxCount(holding_queue.burn.Load(), "burn")
+		databases["all"].StoreTxCount(holding_queue.normal.Load(), "normal")
 		storeHeight(int64(staged.Height))
 
 	}
