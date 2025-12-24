@@ -473,8 +473,7 @@ func filtering(indices map[string][]string) {
 	count = databases["all"].GetTxCount("normal")
 	holding_queue.normal = count
 
-	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction, wg *sync.WaitGroup) {
-		defer wg.Done()
+	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
 		defer func() { IN_PROGRESS = height }()
 
 		parsed_transaction := &structures.SCIDToIndexStage{}
@@ -649,12 +648,7 @@ func filtering(indices map[string][]string) {
 
 	// sift transactions over the sieve
 	for staged := range scid_processing {
-		wg := sync.WaitGroup{}
-		for i, transaction := range staged.Transactions {
-			wg.Add(1)
-			go sieve(int64(staged.Height), staged.Txs[i], transaction, &wg)
-		}
-		wg.Wait()
+		sieve(int64(staged.Height), staged.Tx, staged.Transaction)
 	}
 }
 
