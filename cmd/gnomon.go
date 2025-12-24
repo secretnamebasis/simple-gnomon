@@ -207,20 +207,13 @@ func Start_gnomon_indexer() {
 				return
 			}
 
-			// for runtime.NumGoroutine() > int(day_of_blocks) {
-			// 	time.Sleep(time.Millisecond * time.Duration(runtime.NumGoroutine()))
-			// }
-
 			TOPO = height
 
-			if achieved_current_height > 0 && !established_backup && find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
-				// a simple backup strategy
+			// a simple backup strategy
+			if achieved_current_height > 0 && !established_backup &&
+				find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
 				backup(height)
 			}
-
-			// if len(height_stage) == 0 || len(start_chan) != 0 || len(block_stage) != 0 || len(transaction_stage) != 0 {
-			fmt.Printf("HEIGHT%07d DOWNLOADS%05d BLOCKS%d TRANSACTIONS%d SCIDS%d\n", height, connections.DOWNLOADS.Load(), len(block_processing), len(transaction_processing), len(scid_processing))
-			// }
 
 			if connections.DOWNLOADS.Load() > 0 {
 				time.Sleep(time.Millisecond * time.Duration(connections.DOWNLOADS.Load()))
@@ -233,11 +226,7 @@ func Start_gnomon_indexer() {
 				}
 
 			}(height, &wg)
-			// } else {
-			// 	block_processing <- &processingStruct{Height: height,
-			// 		Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
-			// 	}
-			// }
+
 		}
 		wg.Wait()
 
