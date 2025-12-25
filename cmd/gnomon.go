@@ -36,6 +36,7 @@ var (
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
 	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
 	ending_height   = flag.Int64("ending_height", -1, "-ending_height=123")
+	progress        = flag.Bool("progress", false, "-progress")
 	help            = flag.Bool("help", false, "-help")
 	help_msg        = `Usage: simple-gnomon [options]
 A simple indexer for the DERO blockchain.
@@ -44,6 +45,7 @@ Options:
   -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
   -starting_height <N>         Height to start indexing from.
   -ending_height <N>           Height to stop indexing at.
+  -progress                    Show download progress stats.
   -help                        Show this help message.`
 
 	established_backup      bool
@@ -225,17 +227,22 @@ func Start_gnomon_indexer() {
 				find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
 				backup(height)
 			}
+			if progress != nil && *progress {
+				format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
 
-			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
+				a := []any{
+					height,
+					connections.DOWNLOADS.Load(),
+					runtime.NumGoroutine(),
+					len(block_processing),
+					len(transaction_processing),
+					len(scid_processing),
+					len(scid_db_queue),
+				}
 
-			a := []any{
-				height,
-				connections.DOWNLOADS.Load(),
-				runtime.NumGoroutine(),
-				len(block_processing),
-				len(transaction_processing),
-				len(scid_processing),
-				len(scid_db_queue),
+				format += "\n"
+
+				fmt.Printf(format, a...)
 			}
 
 			measurements := []int{
@@ -248,14 +255,8 @@ func Start_gnomon_indexer() {
 			}
 
 			if STORE_MINIBLOCKS {
-				format += "MINIS %d MINIDB %d "
-				a = append(a, len(mini_queue), len(mini_db_queue))
 				measurements = append(measurements, len(mini_queue), len(mini_db_queue))
 			}
-
-			format += "\n"
-
-			fmt.Printf(format, a...)
 
 			var m int
 			for _, each := range measurements {
@@ -280,7 +281,6 @@ func Start_gnomon_indexer() {
 
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
-
 		}
 		// height achieved
 		achieved_current_height = connections.Get_TopoHeight()
