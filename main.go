@@ -78,6 +78,14 @@ func main() {
 	data_dir = filepath.Base(globals.GetDataDirectory())
 	endpoint := ""
 	connection := widget.NewEntry()
+	minis := widget.NewCheck("STORE MINIs?", func(b bool) { cmd.STORE_MINIBLOCKS = b })
+
+	msg := "NOTICE:\n" +
+		"Storing miniblocks adds overhead to indexing,\n" +
+		"and takes considerably more time.\n Please be advised.\n"
+
+	notice := widget.NewLabel(msg)
+	notice.Alignment = fyne.TextAlignCenter
 
 	progress_bar := widget.NewProgressBar()
 	progress_bar.Hide()
@@ -85,6 +93,8 @@ func main() {
 	var table *widget.Table
 
 	tapped := func() {
+		minis.Hide()
+		notice.Hide()
 		connection.Hide()
 		progress_bar.Show()
 		if cmd.RUNNING {
@@ -305,6 +315,8 @@ func main() {
 		container.NewVBox(
 			progress_bar,
 			connection,
+			container.NewCenter(minis),
+			notice,
 		),
 		nil, nil, nil,
 		table,

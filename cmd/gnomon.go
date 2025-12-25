@@ -66,7 +66,7 @@ Options:
 		"cf03383b9bf03b28e1c8e7962c3fb9b52452442d040651305148b26b90a904e3", // some lotto
 	}
 
-	STORE_MINIBLOCKS bool = true
+	STORE_MINIBLOCKS bool
 )
 
 // this is the processing thread
@@ -126,7 +126,6 @@ func Start_gnomon_indexer() {
 		// "normal":{""}
 		// "registrations":{""}
 		// "invalid":{""}
-		// "miniblocks":{""}
 	}
 
 	for index := range indices {
@@ -141,7 +140,15 @@ func Start_gnomon_indexer() {
 
 	fmt.Println("starting to index ", now)
 
-	go mini_db_writer()
+	if STORE_MINIBLOCKS {
+		fmt.Println("STORING MINIBLOCKS")
+		if err := set_up_backend("minis"); err != nil {
+			fmt.Println(err)
+			return
+		}
+		go mini_db_writer()
+	}
+
 	go scid_db_writer()
 	go filtering(indices)
 	go tx_handling()
@@ -215,29 +222,41 @@ func Start_gnomon_indexer() {
 				backup(height)
 			}
 
-			fmt.Printf("HEIGHT %07d DOWNLOADS %05d BLOCKS %d MINIS %d MINIDB %d TRANSACTIONS %d SCIDS %d SCIDDB %d\n",
+			format := "HEIGHT %07d DOWNLOADS %05d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
+
+			a := []any{
 				height,
 				connections.DOWNLOADS.Load(),
 				len(block_processing),
-				len(mini_queue),
-				len(mini_db_queue),
 				len(transaction_processing),
 				len(scid_processing),
 				len(scid_db_queue),
-			)
+			}
 
-			max := max(
-				int(connections.DOWNLOADS.Load()),
+			measurements := []int{
 				len(block_processing),
-				len(mini_queue),
-				len(mini_db_queue),
 				len(transaction_processing),
 				len(scid_processing),
 				len(scid_db_queue),
-			)
+			}
 
-			if max > 0 {
-				time.Sleep(time.Millisecond * time.Duration(max))
+			if STORE_MINIBLOCKS {
+				format += "MINIS %d MINIDB %d "
+				a = append(a, len(mini_queue), len(mini_db_queue))
+				measurements = append(measurements, len(mini_queue), len(mini_db_queue))
+			}
+
+			format += "\n"
+
+			fmt.Printf(format, a...)
+
+			var m int
+			for _, each := range measurements {
+				m = max(int(connections.DOWNLOADS.Load()), each)
+			}
+
+			if m > 0 {
+				time.Sleep(time.Millisecond * time.Duration(m))
 			}
 
 			wg.Add(1)
@@ -678,7 +697,7 @@ type miniStructure struct {
 var mini_db_queue = make(chan miniStructure, 1_000_000)
 
 func mini_db_writer() {
-	all_details := databases["all"].GetAllMiniblockDetails()
+	all_details := databases["minis"].GetAllMiniblockDetails()
 	miner_map := map[string]int64{}
 	for _, each := range all_details {
 		for _, mini := range each {
@@ -689,10 +708,10 @@ func mini_db_writer() {
 		if _, ok := all_details[staged.Hash]; ok {
 			continue
 		}
-		databases["all"].StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
+		databases["minis"].StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
 		for _, mini := range staged.Minis {
 			miner_map[mini.Miner]++
-			databases["all"].StoreMiniblockCountByAddress(miner_map[mini.Miner], mini.Miner)
+			databases["minis"].StoreMiniblockCountByAddress(miner_map[mini.Miner], mini.Miner)
 		}
 	}
 }
