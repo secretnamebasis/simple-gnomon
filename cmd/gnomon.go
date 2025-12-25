@@ -141,7 +141,8 @@ func Start_gnomon_indexer() {
 
 	fmt.Println("starting to index ", now)
 
-	go db_writer()
+	go mini_db_writer()
+	go scid_db_writer()
 	go filtering(indices)
 	go tx_handling()
 	go indexing()
@@ -214,23 +215,25 @@ func Start_gnomon_indexer() {
 				backup(height)
 			}
 
-			fmt.Printf("HEIGHT%07d DOWNLOADS%05d BLOCKS%d MINIS%d TRANSACTIONS%d SCIDS%d DB%d\n",
+			fmt.Printf("HEIGHT %07d DOWNLOADS %05d BLOCKS %d MINIS %d MINIDB %d TRANSACTIONS %d SCIDS %d SCIDDB %d\n",
 				height,
 				connections.DOWNLOADS.Load(),
 				len(block_processing),
 				len(mini_queue),
+				len(mini_db_queue),
 				len(transaction_processing),
 				len(scid_processing),
-				len(db_queue),
+				len(scid_db_queue),
 			)
 
 			max := max(
 				int(connections.DOWNLOADS.Load()),
 				len(block_processing),
 				len(mini_queue),
+				len(mini_db_queue),
 				len(transaction_processing),
 				len(scid_processing),
-				len(db_queue),
+				len(scid_db_queue),
 			)
 
 			if max > 0 {
@@ -277,10 +280,9 @@ var block_processing = make(chan *processingStruct, 1_000_000)
 
 var mini_queue = make(chan *processingStruct, 1_000_000_000)
 
-var mini_map = sync.Map{}
-
 // this is the indexing action
 func indexing() {
+
 	process_minis := func(mini_queue chan *processingStruct) {
 		for staged := range mini_queue {
 			var minis []*structures.MBLInfo
@@ -291,14 +293,20 @@ func indexing() {
 				}
 				minis = append(minis, mini)
 			}
-			mini_map.Store(staged.Result.Block_Header.Hash, minis)
+
+			mini_db_queue <- miniStructure{
+				Hash:  staged.Result.Block_Header.Hash,
+				Minis: minis,
+			}
+
 		}
 	}
-	// for range runtime.GOMAXPROCS(0) - 2 {
+
 	if STORE_MINIBLOCKS {
-		go process_minis(mini_queue)
+		for range runtime.GOMAXPROCS(0) - 2 {
+			go process_minis(mini_queue)
+		}
 	}
-	// }
 
 	for staged := range block_processing {
 
@@ -652,7 +660,7 @@ func filtering(indices map[string][]string) {
 		// because these are being processed asynchronously...
 		// don't block on writing them to the db,
 		// just queue em and write em when the writer has a moment
-		db_queue <- parsed_transaction
+		scid_db_queue <- parsed_transaction
 
 	}
 
@@ -662,10 +670,34 @@ func filtering(indices map[string][]string) {
 	}
 }
 
-var db_queue = make(chan *structures.SCIDToIndexStage, 1_000_000)
+type miniStructure struct {
+	Minis []*structures.MBLInfo
+	Hash  string
+}
 
-func db_writer() {
-	for staged := range db_queue {
+var mini_db_queue = make(chan miniStructure, 1_000_000)
+
+func mini_db_writer() {
+	all_details := databases["all"].GetAllMiniblockDetails()
+	miner_map := map[string]int64{}
+	for _, each := range all_details {
+		for _, mini := range each {
+			miner_map[mini.Miner]++
+		}
+	}
+	for staged := range mini_db_queue {
+		databases["all"].StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
+		for _, mini := range staged.Minis {
+			miner_map[mini.Miner]++
+			databases["all"].StoreMiniblockCountByAddress(miner_map[mini.Miner], mini.Miner)
+		}
+	}
+}
+
+var scid_db_queue = make(chan *structures.SCIDToIndexStage, 1_000_000)
+
+func scid_db_writer() {
+	for staged := range scid_db_queue {
 
 		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
 		a := []any{
@@ -701,30 +733,6 @@ func db_writer() {
 		databases["all"].StoreTxCount(holding_queue.registration.Load(), "registration")
 		databases["all"].StoreTxCount(holding_queue.burn.Load(), "burn")
 		databases["all"].StoreTxCount(holding_queue.normal.Load(), "normal")
-
-		// store minis
-		if STORE_MINIBLOCKS {
-			for k, v := range mini_map.Range {
-				hash, ok := k.(string)
-				if !ok {
-					continue
-				}
-				minis, ok := v.([]*structures.MBLInfo)
-				if !ok {
-					continue
-				}
-				databases["all"].StoreMiniblockDetailsByHash(hash, minis)
-
-				for _, mini := range minis {
-					currCount := databases["all"].GetMiniblockCountByAddress(mini.Miner)
-					currCount++
-					// newCount := currCount
-					databases["all"].StoreMiniblockCountByAddress(currCount, mini.Miner)
-				}
-			}
-			// reset the minimap
-			mini_map.Clear()
-		}
 
 		// store height
 		storeHeight(int64(staged.Height))
