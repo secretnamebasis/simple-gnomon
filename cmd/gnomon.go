@@ -222,11 +222,12 @@ func Start_gnomon_indexer() {
 				backup(height)
 			}
 
-			format := "HEIGHT %07d DOWNLOADS %05d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
+			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
 
 			a := []any{
 				height,
 				connections.DOWNLOADS.Load(),
+				runtime.NumGoroutine(),
 				len(block_processing),
 				len(transaction_processing),
 				len(scid_processing),
@@ -235,6 +236,7 @@ func Start_gnomon_indexer() {
 
 			measurements := []int{
 				int(connections.DOWNLOADS.Load()),
+				runtime.NumGoroutine() / 10, // managing
 				len(block_processing),
 				len(transaction_processing),
 				len(scid_processing),
