@@ -277,11 +277,10 @@ var block_processing = make(chan *processingStruct, 1_000_000)
 
 var mini_queue = make(chan *processingStruct, 1_000_000_000)
 
-var mini_map = make(map[string][]*structures.MBLInfo)
+var mini_map = sync.Map{}
 
 // this is the indexing action
 func indexing() {
-	mu := sync.Mutex{}
 	process_minis := func(mini_queue chan *processingStruct) {
 		for staged := range mini_queue {
 			var minis []*structures.MBLInfo
@@ -292,10 +291,7 @@ func indexing() {
 				}
 				minis = append(minis, mini)
 			}
-
-			mu.Lock()
-			mini_map[staged.Result.Block_Header.Hash] = minis
-			mu.Unlock()
+			mini_map.Store(staged.Result.Block_Header.Hash, minis)
 		}
 	}
 	// for range runtime.GOMAXPROCS(0) - 2 {
@@ -669,7 +665,6 @@ func filtering(indices map[string][]string) {
 var db_queue = make(chan *structures.SCIDToIndexStage, 1_000_000)
 
 func db_writer() {
-	mu := sync.Mutex{}
 	for staged := range db_queue {
 
 		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
@@ -709,8 +704,15 @@ func db_writer() {
 
 		// store minis
 		if STORE_MINIBLOCKS {
-			mu.Lock()
-			for hash, minis := range mini_map {
+			for k, v := range mini_map.Range {
+				hash, ok := k.(string)
+				if !ok {
+					continue
+				}
+				minis, ok := v.([]*structures.MBLInfo)
+				if !ok {
+					continue
+				}
 				databases["all"].StoreMiniblockDetailsByHash(hash, minis)
 
 				for _, mini := range minis {
@@ -721,8 +723,7 @@ func db_writer() {
 				}
 			}
 			// reset the minimap
-			mini_map = make(map[string][]*structures.MBLInfo)
-			mu.Unlock()
+			mini_map.Clear()
 		}
 
 		// store height
