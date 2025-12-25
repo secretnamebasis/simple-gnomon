@@ -82,7 +82,12 @@ func (apiServer *ApiServer) listen() {
 	router.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
 	router.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
 	router.HandleFunc("/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight)
-
+	router.HandleFunc("/api/invalidscids", apiServer.InvalidSCIDStats)
+	router.HandleFunc("/api/scidprivtx", apiServer.NormalTxWithSCID)
+	if apiServer.Config.MBLLookup {
+		router.HandleFunc("/api/getmbladdrsbyhash", apiServer.MBLLookupByHash)
+		router.HandleFunc("/api/getmblcountbyaddr", apiServer.MBLLookupByAddr)
+	}
 	router.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	router.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServe(apiServer.Config.Listen, router)
@@ -98,7 +103,12 @@ func (apiServer *ApiServer) listenSSL() {
 	routerSSL.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
 	routerSSL.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
 	routerSSL.HandleFunc("/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight)
-
+	routerSSL.HandleFunc("/api/invalidscids", apiServer.InvalidSCIDStats)
+	routerSSL.HandleFunc("/api/scidprivtx", apiServer.NormalTxWithSCID)
+	if apiServer.Config.MBLLookup {
+		routerSSL.HandleFunc("/api/getmbladdrsbyhash", apiServer.MBLLookupByHash)
+		routerSSL.HandleFunc("/api/getmblcountbyaddr", apiServer.MBLLookupByAddr)
+	}
 	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServeTLS(apiServer.Config.SSLListen, apiServer.Config.CertFile, apiServer.Config.KeyFile, routerSSL)
@@ -141,7 +151,7 @@ func (apiServer *ApiServer) collectStats() {
 	var scinstalls []*structures.SCTXParse
 
 	sclist := apiServer.BBSBackend.GetAllOwnersAndSCIDs()
-	for k, _ := range sclist {
+	for k := range sclist {
 
 		if apiServer.BBSBackend.Closing {
 			return
@@ -418,7 +428,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 		var scidInteractionHeights []int64
 
 		// Case to ignore all variable instance returns for builtin registration tx - large amount of data.
-		if (scid == "0000000000000000000000000000000000000000000000000000000000000001" || scid == globals.MAINNET_GNOMON_SCID || scid == globals.TESTNET_GNOMON_SCID) && apiServer.Config.ApiThrottle {
+		if (scid == globals.NAMESERVICE || scid == globals.MAINNET_GNOMON_SCID || scid == globals.TESTNET_GNOMON_SCID) && apiServer.Config.ApiThrottle {
 			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return all the sc vars of everything at registration builtin... DENIED! Too much data...\n")
 			reply["variables"] = nil
 
@@ -454,286 +464,252 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 	}
 }
 
-// func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http.Request) {
-// 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
-// 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-// 	writer.Header().Set("Cache-Control", "no-cache")
-// 	writer.WriteHeader(http.StatusOK)
+func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http.Request) {
+	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.WriteHeader(http.StatusOK)
 
-// 	reply := make(map[string]interface{})
+	reply := make(map[string]interface{})
 
-// 	stats := apiServer.getStats()
-// 	if stats != nil {
-// 		reply["numscs"] = stats["numscs"]
-// 	} else {
-// 		// Default reply - for testing, initials etc.
-// 		reply["hello"] = "world"
-// 	}
+	stats := apiServer.getStats()
+	if stats != nil {
+		reply["numscs"] = stats["numscs"]
+	} else {
+		// Default reply - for testing, initials etc.
+		reply["hello"] = "world"
+	}
 
-// 	// Query for SCID
-// 	scidkeys, ok := r.URL.Query()["scid"]
-// 	var scid string
-// 	var address string
+	// Query for SCID
+	scidkeys, ok := r.URL.Query()["scid"]
+	var scid string
+	var address string
 
-// 	if !ok || len(scidkeys[0]) < 1 {
-// 		fmt.Debugf("[API] URL Param 'scid' is missing. Debugging only.")
-// 	} else {
-// 		scid = scidkeys[0]
-// 	}
+	if !ok || len(scidkeys[0]) < 1 {
+		fmt.Println("[API] URL Param 'scid' is missing. Debugging only.")
+	} else {
+		scid = scidkeys[0]
+	}
 
-// 	// Query for address
-// 	addresskeys, ok := r.URL.Query()["address"]
+	// Query for address
+	addresskeys, ok := r.URL.Query()["address"]
 
-// 	if !ok || len(addresskeys[0]) < 1 {
-// 		fmt.Debugf("[API] URL Param 'address' is missing.")
-// 	} else {
-// 		address = addresskeys[0]
-// 	}
+	if !ok || len(addresskeys[0]) < 1 {
+		fmt.Println("[API] URL Param 'address' is missing.")
+	} else {
+		address = addresskeys[0]
+	}
 
-// 	if address == "" && scid == "" {
-// 		reply["variables"] = nil
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	}
+	if address == "" && scid == "" {
+		reply["variables"] = nil
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	}
 
-// 	var allNormTxWithSCIDByAddr []*structures.NormalTXWithSCIDParse
-// 	var allNormTxWithSCIDBySCID []*structures.NormalTXWithSCIDParse
+	allNormTxWithSCIDByAddr := apiServer.BBSBackend.GetAllNormalTxWithSCIDByAddr(address)
+	allNormTxWithSCIDBySCID := apiServer.BBSBackend.GetAllNormalTxWithSCIDBySCID(scid)
 
-// 	switch apiServer.DBType {
-// 	case "gravdb":
-// 		allNormTxWithSCIDByAddr = apiServer.GravDBBackend.GetAllNormalTxWithSCIDByAddr(address)
-// 		allNormTxWithSCIDBySCID = apiServer.GravDBBackend.GetAllNormalTxWithSCIDBySCID(scid)
-// 	case "boltdb":
-// 		allNormTxWithSCIDByAddr = apiServer.BBSBackend.GetAllNormalTxWithSCIDByAddr(address)
-// 		allNormTxWithSCIDBySCID = apiServer.BBSBackend.GetAllNormalTxWithSCIDBySCID(scid)
-// 	}
+	// Case to ignore large variable returns
+	if (len(allNormTxWithSCIDByAddr) > globals.MAX_API_VAR_RETURN || len(allNormTxWithSCIDBySCID) > globals.MAX_API_VAR_RETURN) && apiServer.Config.ApiThrottle {
+		fmt.Printf("[API-NormalTxWithSCID] Tried to return more than %d... DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["normtxwithscidbyaddr"] = nil
+		reply["normtxwithscidbyaddrcount"] = 0
+		reply["normtxwithscidbyscid"] = nil
+		reply["normtxwithscidbyscidcount"] = 0
 
-// 	// Case to ignore large variable returns
-// 	if (len(allNormTxWithSCIDByAddr) > structures.MAX_API_VAR_RETURN || len(allNormTxWithSCIDBySCID) > structures.MAX_API_VAR_RETURN) && apiServer.Config.ApiThrottle {
-// 		fmt.Printf("[API-NormalTxWithSCID] Tried to return more than %d... DENIED! Too much data...", structures.MAX_API_VAR_RETURN)
-// 		reply["normtxwithscidbyaddr"] = nil
-// 		reply["normtxwithscidbyaddrcount"] = 0
-// 		reply["normtxwithscidbyscid"] = nil
-// 		reply["normtxwithscidbyscidcount"] = 0
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	}
 
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	}
+	reply["normtxwithscidbyaddr"] = allNormTxWithSCIDByAddr
+	reply["normtxwithscidbyaddrcount"] = len(allNormTxWithSCIDByAddr)
+	reply["normtxwithscidbyscid"] = allNormTxWithSCIDBySCID
+	reply["normtxwithscidbyscidcount"] = len(allNormTxWithSCIDBySCID)
 
-// 	reply["normtxwithscidbyaddr"] = allNormTxWithSCIDByAddr
-// 	reply["normtxwithscidbyaddrcount"] = len(allNormTxWithSCIDByAddr)
-// 	reply["normtxwithscidbyscid"] = allNormTxWithSCIDBySCID
-// 	reply["normtxwithscidbyscidcount"] = len(allNormTxWithSCIDBySCID)
+	err := json.NewEncoder(writer).Encode(reply)
+	if err != nil {
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
+	}
+}
 
-// 	err := json.NewEncoder(writer).Encode(reply)
-// 	if err != nil {
-// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 	}
-// }
+func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http.Request) {
+	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.WriteHeader(http.StatusOK)
 
-// func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http.Request) {
-// 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
-// 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-// 	writer.Header().Set("Cache-Control", "no-cache")
-// 	writer.WriteHeader(http.StatusOK)
+	reply := make(map[string]interface{})
 
-// 	reply := make(map[string]interface{})
-// 	invalidscids := make(map[string]uint64)
+	invalidscids := apiServer.BBSBackend.GetInvalidSCIDDeploys()
 
-// 	switch apiServer.DBType {
-// 	case "gravdb":
-// 		invalidscids = apiServer.GravDBBackend.GetInvalidSCIDDeploys()
-// 	case "boltdb":
-// 		invalidscids = apiServer.BBSBackend.GetInvalidSCIDDeploys()
-// 	}
+	// Case to ignore large variable returns
+	if len(invalidscids) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
+		fmt.Printf("[API-InvalidSCIDStats] Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["invalidscids"] = nil
 
-// 	// Case to ignore large variable returns
-// 	if len(invalidscids) > structures.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-// 		fmt.Printf("[API-InvalidSCIDStats] Tried to return more than %d.. DENIED! Too much data...", structures.MAX_API_VAR_RETURN)
-// 		reply["invalidscids"] = nil
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	}
 
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	}
+	reply["invalidscids"] = invalidscids
 
-// 	reply["invalidscids"] = invalidscids
+	err := json.NewEncoder(writer).Encode(reply)
+	if err != nil {
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
+	}
+}
 
-// 	err := json.NewEncoder(writer).Encode(reply)
-// 	if err != nil {
-// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 	}
-// }
+func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.Request) {
+	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.WriteHeader(http.StatusOK)
 
-// func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.Request) {
-// 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
-// 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-// 	writer.Header().Set("Cache-Control", "no-cache")
-// 	writer.WriteHeader(http.StatusOK)
+	reply := make(map[string]interface{})
 
-// 	reply := make(map[string]interface{})
+	stats := apiServer.getStats()
+	if stats != nil {
+		reply["numscs"] = stats["numscs"]
+		reply["regTxCount"] = stats["regTxCount"]
+		reply["burnTxCount"] = stats["burnTxCount"]
+		reply["normTxCount"] = stats["normTxCount"]
+	} else {
+		// Default reply - for testing, initials etc.
+		reply["hello"] = "world"
+	}
 
-// 	stats := apiServer.getStats()
-// 	if stats != nil {
-// 		reply["numscs"] = stats["numscs"]
-// 		reply["regTxCount"] = stats["regTxCount"]
-// 		reply["burnTxCount"] = stats["burnTxCount"]
-// 		reply["normTxCount"] = stats["normTxCount"]
-// 	} else {
-// 		// Default reply - for testing, initials etc.
-// 		reply["hello"] = "world"
-// 	}
+	// Query for SCID
+	blidkeys, ok := r.URL.Query()["blid"]
+	var blid string
 
-// 	// Query for SCID
-// 	blidkeys, ok := r.URL.Query()["blid"]
-// 	var blid string
+	if !ok || len(blidkeys[0]) < 1 {
+		fmt.Println("[API] URL Param 'blid' is missing. Debugging only.")
+		reply["mbl"] = nil
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	} else {
+		blid = blidkeys[0]
+	}
 
-// 	if !ok || len(blidkeys[0]) < 1 {
-// 		fmt.Debugf("[API] URL Param 'blid' is missing. Debugging only.")
-// 		reply["mbl"] = nil
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	} else {
-// 		blid = blidkeys[0]
-// 	}
+	allMiniBlocksByBlid := apiServer.BBSBackend.GetMiniblockDetailsByHash(blid)
 
-// 	var allMiniBlocksByBlid []*structures.MBLInfo
+	// Case to ignore large variable returns
+	if len(allMiniBlocksByBlid) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
+		fmt.Printf("[API-MBLLookupByHash] Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["mbl"] = nil
 
-// 	switch apiServer.DBType {
-// 	case "gravdb":
-// 		allMiniBlocksByBlid = apiServer.GravDBBackend.GetMiniblockDetailsByHash(blid)
-// 	case "boltdb":
-// 		allMiniBlocksByBlid = apiServer.BBSBackend.GetMiniblockDetailsByHash(blid)
-// 	}
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	}
 
-// 	// Case to ignore large variable returns
-// 	if len(allMiniBlocksByBlid) > structures.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-// 		fmt.Printf("[API-MBLLookupByHash] Tried to return more than %d.. DENIED! Too much data...", structures.MAX_API_VAR_RETURN)
-// 		reply["mbl"] = nil
+	reply["mbl"] = allMiniBlocksByBlid
 
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	}
+	err := json.NewEncoder(writer).Encode(reply)
+	if err != nil {
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
+	}
+}
 
-// 	reply["mbl"] = allMiniBlocksByBlid
+func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.Request) {
+	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.WriteHeader(http.StatusOK)
 
-// 	err := json.NewEncoder(writer).Encode(reply)
-// 	if err != nil {
-// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 	}
-// }
+	reply := make(map[string]interface{})
 
-// func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.Request) {
-// 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
-// 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-// 	writer.Header().Set("Cache-Control", "no-cache")
-// 	writer.WriteHeader(http.StatusOK)
+	stats := apiServer.getStats()
+	if stats != nil {
+		reply["numscs"] = stats["numscs"]
+		reply["regTxCount"] = stats["regTxCount"]
+		reply["burnTxCount"] = stats["burnTxCount"]
+		reply["normTxCount"] = stats["normTxCount"]
+	} else {
+		// Default reply - for testing, initials etc.
+		reply["hello"] = "world"
+	}
 
-// 	reply := make(map[string]interface{})
+	// Query for SCID
+	addrkeys, ok := r.URL.Query()["address"]
+	var addr string
 
-// 	stats := apiServer.getStats()
-// 	if stats != nil {
-// 		reply["numscs"] = stats["numscs"]
-// 		reply["regTxCount"] = stats["regTxCount"]
-// 		reply["burnTxCount"] = stats["burnTxCount"]
-// 		reply["normTxCount"] = stats["normTxCount"]
-// 	} else {
-// 		// Default reply - for testing, initials etc.
-// 		reply["hello"] = "world"
-// 	}
+	if !ok || len(addrkeys[0]) < 1 {
+		fmt.Println("[API] URL Param 'address' is missing. Debugging only.")
+		reply["mbl"] = nil
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	} else {
+		addr = addrkeys[0]
+	}
 
-// 	// Query for SCID
-// 	addrkeys, ok := r.URL.Query()["address"]
-// 	var addr string
+	allMiniBlocksByAddr := apiServer.BBSBackend.GetMiniblockCountByAddress(addr)
 
-// 	if !ok || len(addrkeys[0]) < 1 {
-// 		fmt.Debugf("[API] URL Param 'address' is missing. Debugging only.")
-// 		reply["mbl"] = nil
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	} else {
-// 		addr = addrkeys[0]
-// 	}
+	reply["mbl"] = allMiniBlocksByAddr
 
-// 	var allMiniBlocksByAddr int64
-// 	switch apiServer.DBType {
-// 	case "gravdb":
-// 		allMiniBlocksByAddr = apiServer.GravDBBackend.GetMiniblockCountByAddress(addr)
-// 	case "boltdb":
-// 		allMiniBlocksByAddr = apiServer.BBSBackend.GetMiniblockCountByAddress(addr)
-// 	}
+	err := json.NewEncoder(writer).Encode(reply)
+	if err != nil {
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
+	}
+}
 
-// 	reply["mbl"] = allMiniBlocksByAddr
+func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Request) {
+	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.WriteHeader(http.StatusOK)
 
-// 	err := json.NewEncoder(writer).Encode(reply)
-// 	if err != nil {
-// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 	}
-// }
+	reply := make(map[string]interface{})
 
-// func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Request) {
-// 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
-// 	writer.Header().Set("Access-Control-Allow-Origin", "*")
-// 	writer.Header().Set("Cache-Control", "no-cache")
-// 	writer.WriteHeader(http.StatusOK)
+	stats := apiServer.getStats()
+	if stats != nil {
+		reply["numscs"] = stats["numscs"]
+		reply["regTxCount"] = stats["regTxCount"]
+		reply["burnTxCount"] = stats["burnTxCount"]
+		reply["normTxCount"] = stats["normTxCount"]
+	} else {
+		// Default reply - for testing, initials etc.
+		reply["hello"] = "world"
+	}
 
-// 	reply := make(map[string]interface{})
+	allMiniBlocks := apiServer.BBSBackend.GetAllMiniblockDetails()
 
-// 	stats := apiServer.getStats()
-// 	if stats != nil {
-// 		reply["numscs"] = stats["numscs"]
-// 		reply["regTxCount"] = stats["regTxCount"]
-// 		reply["burnTxCount"] = stats["burnTxCount"]
-// 		reply["normTxCount"] = stats["normTxCount"]
-// 	} else {
-// 		// Default reply - for testing, initials etc.
-// 		reply["hello"] = "world"
-// 	}
+	// Case to ignore large variable returns
+	if len(allMiniBlocks) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
+		fmt.Printf("[API-MBLLookupAll] Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["mbl"] = nil
 
-// 	allMiniBlocks := make(map[string][]*structures.MBLInfo)
-// 	switch apiServer.DBType {
-// 	case "gravdb":
-// 		allMiniBlocks = apiServer.GravDBBackend.GetAllMiniblockDetails()
-// 	case "boltdb":
-// 		allMiniBlocks = apiServer.BBSBackend.GetAllMiniblockDetails()
-// 	}
+		err := json.NewEncoder(writer).Encode(reply)
+		if err != nil {
+			fmt.Printf("[API] Error serializing API response: %v\n", err)
+		}
+		return
+	}
 
-// 	// Case to ignore large variable returns
-// 	if len(allMiniBlocks) > structures.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-// 		fmt.Printf("[API-MBLLookupAll] Tried to return more than %d.. DENIED! Too much data...", structures.MAX_API_VAR_RETURN)
-// 		reply["mbl"] = nil
+	reply["mbl"] = allMiniBlocks
 
-// 		err := json.NewEncoder(writer).Encode(reply)
-// 		if err != nil {
-// 			fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 		}
-// 		return
-// 	}
-
-// 	reply["mbl"] = allMiniBlocks
-
-// 	err := json.NewEncoder(writer).Encode(reply)
-// 	if err != nil {
-// 		fmt.Printf("[API] Error serializing API response: %v\n", err)
-// 	}
-// }
+	err := json.NewEncoder(writer).Encode(reply)
+	if err != nil {
+		fmt.Printf("[API] Error serializing API response: %v\n", err)
+	}
+}
 
 func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request) {
 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
