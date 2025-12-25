@@ -686,6 +686,9 @@ func mini_db_writer() {
 		}
 	}
 	for staged := range mini_db_queue {
+		if _, ok := all_details[staged.Hash]; ok {
+			continue
+		}
 		databases["all"].StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
 		for _, mini := range staged.Minis {
 			miner_map[mini.Miner]++
