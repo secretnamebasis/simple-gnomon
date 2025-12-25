@@ -196,6 +196,7 @@ func Start_gnomon_indexer() {
 
 	// simple-daemon
 	for RUNNING {
+
 		if achieved_current_height != 0 {
 			time.Sleep(time.Second * 1)
 		}
@@ -207,7 +208,10 @@ func Start_gnomon_indexer() {
 		if starting_height != nil && *starting_height < now && *starting_height > -1 && achieved_current_height == 0 {
 			lowest_height = *starting_height
 		}
+
 		wg := sync.WaitGroup{}
+
+		now = connections.Get_TopoHeight()
 
 		for height := lowest_height; height < now; height++ {
 			if !RUNNING {
