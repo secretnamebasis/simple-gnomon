@@ -66,6 +66,7 @@ var (
 )
 
 func main() {
+	fmt.Println("Clear is better than clever. \n- Robert Pike")
 	closing := false
 	a := app.NewWithID("simple-gnomon_" + rand.Text())
 	w := a.NewWindow("simple-gnomon")
