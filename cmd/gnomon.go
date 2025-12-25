@@ -236,7 +236,7 @@ func Start_gnomon_indexer() {
 
 			measurements := []int{
 				int(connections.DOWNLOADS.Load()),
-				runtime.NumGoroutine() / 10, // managing
+				// runtime.NumGoroutine() / 10, // managing
 				len(block_processing),
 				len(transaction_processing),
 				len(scid_processing),
@@ -298,9 +298,9 @@ type processingStruct struct {
 	Transaction transaction.Transaction
 }
 
-var block_processing = make(chan *processingStruct, 1_000_000)
+var block_processing = make(chan *processingStruct, 100_000)
 
-var mini_queue = make(chan *processingStruct, 1_000_000_000)
+var mini_queue = make(chan *processingStruct, 100_000)
 
 // this is the indexing action
 func indexing() {
@@ -368,7 +368,7 @@ func indexing() {
 	}
 }
 
-var transaction_processing = make(chan *processingStruct, 1_000_000)
+var transaction_processing = make(chan *processingStruct, 100_000)
 
 var holding_queue struct {
 	registration atomic.Int64
@@ -511,7 +511,7 @@ func tx_handling() {
 	}
 }
 
-var scid_processing = make(chan *processingStruct, 1_000_000)
+var scid_processing = make(chan *processingStruct, 100_000)
 
 func filtering(indices map[string][]string) {
 
@@ -697,7 +697,7 @@ type miniStructure struct {
 	Hash  string
 }
 
-var mini_db_queue = make(chan miniStructure, 1_000_000)
+var mini_db_queue = make(chan miniStructure, 100_000)
 
 func mini_db_writer() {
 	all_details := databases["minis"].GetAllMiniblockDetails()
@@ -719,7 +719,7 @@ func mini_db_writer() {
 	}
 }
 
-var scid_db_queue = make(chan *structures.SCIDToIndexStage, 1_000_000)
+var scid_db_queue = make(chan *structures.SCIDToIndexStage, 100_000)
 
 func scid_db_writer() {
 	for staged := range scid_db_queue {
