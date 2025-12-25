@@ -102,6 +102,11 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var disconnected = fmt.Errorf("server disconnect request")
+
+func handleMashalError(err error) {
+	
+}
 func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, request *http.Request) error {
 	var err error
 
@@ -135,7 +140,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 
 	case "GetLastIndexHeight": // "Gnomon.GetLastIndexHeight": handler.New(GetLastIndexHeight),
@@ -148,10 +153,10 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 
 		result, err := wss.database[params.Tag].GetLastIndexHeight()
 		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
+			fmt.Printf("err geting last indexed height: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		err = wsjson.Write(ctx, c, message)
@@ -159,7 +164,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 
 	case "GetTxCount": // "Gnomon.GetTxCount": handler.New(GetTxCount)
@@ -183,7 +188,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetOwner": // "Gnomon.GetOwner": handler.New(GetOwner)
 		var params *structures.GnomonOwnerQuery
@@ -199,7 +204,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 
 		// this isn't being stored at the moment...
@@ -217,7 +222,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetAllNormalTxWithSCIDBySCID":
 		var params *structures.GnomonAllNormalTxWithSCIDBySCIDQuery
@@ -233,7 +238,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetAllSCIDInvokeDetails":
 		var params *structures.GnomonAllSCIDInvokeDetails
@@ -249,7 +254,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetAllSCIDInvokeDetailsByEntrypoint":
 		var params *structures.GnomonAllSCIDInvokeDetailsByEntrypoint
@@ -265,7 +270,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetAllSCIDInvokeDetailsBySigner":
 		var params *structures.GnomonAllSCIDInvokeDetailsBySigner
@@ -281,7 +286,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetGetInfoDetails":
 		var params *structures.GnomonGetInfoParams
@@ -297,7 +302,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetSCIDVariableDetailsAtTopoheight":
 		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
@@ -313,7 +318,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetAllSCIDVariableDetails":
 		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
@@ -329,7 +334,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetSCIDKeysByValue":
 		var params *structures.GnomonSCIDKeysByValue
@@ -346,7 +351,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetSCIDValuesByKey":
 		var params *structures.GnomonSCIDKeysByKey
@@ -363,7 +368,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetLiveSCIDKeysByValue":
 		var params *structures.GnomonSCIDKeysByValue
@@ -380,7 +385,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetLiveSCIDValuesByKey":
 		var params *structures.GnomonSCIDKeysByKey
@@ -397,7 +402,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetSCIDInteractionByAddr":
 		var params *structures.GnomonAllSCIDInteractionAddr
@@ -413,7 +418,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetSCIDInteractionHeight":
 		var params *structures.GnomonAllSCIDInteractionHeight
@@ -429,7 +434,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetInteractionIndex":
 		var params *structures.GnomonInteractionIndex
@@ -445,7 +450,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetInvalidSCIDDeploys":
 		var params *structures.GnomonInteractionIndex
@@ -461,7 +466,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 
 	case "GetAllMiniblockDetails":
@@ -478,7 +483,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetMiniblockDetailsByHash":
 		var params *structures.GnomonMiniblockDetailsByHash
@@ -494,7 +499,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "GetMiniblockCountByAddress":
 		var params *structures.GnomonMiniblockDetailsByAddress
@@ -510,7 +515,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	case "test":
 		var params *structures.GnomonSCIDQuery
@@ -530,13 +535,13 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err writing message: err: %v", err)
 
 			fmt.Printf("server disconnect request\n")
-			return fmt.Errorf("server disconnect request")
+			return disconnected
 		}
 	default:
 		fmt.Printf("Not login or submit method\n")
 
 		fmt.Printf("server disconnect request\n")
-		return fmt.Errorf("server disconnect request")
+		return disconnected
 	}
 
 	return err
