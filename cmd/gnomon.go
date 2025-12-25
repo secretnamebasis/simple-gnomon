@@ -234,6 +234,7 @@ func Start_gnomon_indexer() {
 			}
 
 			measurements := []int{
+				int(connections.DOWNLOADS.Load()),
 				len(block_processing),
 				len(transaction_processing),
 				len(scid_processing),
@@ -252,7 +253,7 @@ func Start_gnomon_indexer() {
 
 			var m int
 			for _, each := range measurements {
-				m = max(int(connections.DOWNLOADS.Load()), each)
+				m = max(m, each)
 			}
 
 			if m > 0 {
