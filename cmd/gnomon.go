@@ -101,6 +101,11 @@ func Start_gnomon_indexer() {
 	url := "http://" + *endpoint + "/json_rpc"
 	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
 
+	api := "127.0.0.1:8082"
+	if api_endpoint != nil && *api_endpoint != "" {
+		api = *api_endpoint
+	}
+
 	// if you are getting a zero... yeah, you are not connected
 	if connections.Get_TopoHeight() == 0 {
 		panic(errors.New("please connect through rpc"))
@@ -159,6 +164,15 @@ func Start_gnomon_indexer() {
 
 	fmt.Println("setting up websocket")
 	go connections.ListenWS(databases)
+	server := connections.NewApiServer(&connections.APIConfig{
+		Enabled:              true,
+		Listen:               api,
+		StatsCollectInterval: "5s",
+		MBLLookup:            STORE_MINIBLOCKS, // default is false
+	}, databases["all"])
+
+	// serving api
+	go server.Start()
 
 	fmt.Println("Pulling Latest Copy of NameService Contract")
 	// there are two contracts that need to be processed with special consideration:
