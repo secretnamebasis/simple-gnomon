@@ -66,7 +66,7 @@ var (
 	}
 )
 
-func renderGUI() {
+func RenderGUI() {
 	closing := false
 	a := app.NewWithID("simple-gnomon_" + rand.Text())
 	w := a.NewWindow("simple-gnomon")
