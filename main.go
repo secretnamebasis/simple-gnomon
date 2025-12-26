@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/deroproject/derohe/globals"
@@ -22,6 +24,42 @@ import (
 	"github.com/secretnamebasis/simple-gnomon/connections"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 )
+
+var exit chan struct{}
+
+func main() {
+
+	if slices.Contains(os.Args, "-help") {
+		cmd.Start_gnomon_indexer()
+		fmt.Println(`  -no-gui                          Disable GUI`)
+		return
+	}
+
+	fmt.Println("Clear is better than clever. \n- Robert Pike")
+	if !slices.Contains(os.Args, "-no-gui") {
+
+		fmt.Println("GUI ENABLED")
+		renderGUI()
+
+	} else {
+
+		fmt.Println("GUI DISABLED")
+
+		// remove flag from args
+		i := slices.Index(os.Args, "-no-gui")
+		j := i + 1
+		os.Args = slices.Delete(os.Args, i, j)
+
+		// start the indexer
+		if err := cmd.Start_gnomon_indexer(); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// block to prevent gnomon_indexer go routine closure
+		<-exit
+	}
+}
 
 var (
 	data_dir,
@@ -65,8 +103,7 @@ var (
 	}
 )
 
-func main() {
-	fmt.Println("Clear is better than clever. \n- Robert Pike")
+func renderGUI() {
 	closing := false
 	a := app.NewWithID("simple-gnomon_" + rand.Text())
 	w := a.NewWindow("simple-gnomon")
@@ -111,14 +148,22 @@ func main() {
 
 		node_connection = endpoint
 
-		go cmd.Start_gnomon_indexer()
+		if err := cmd.Start_gnomon_indexer(); err != nil {
+			fmt.Println(err)
+			dialog.ShowError(err, w)
+			minis.Show()
+			notice.Show()
+			connection.Show()
+			progress_bar.Hide()
+			return
+		}
 
-		for !cmd.RUNNING {
+		if !cmd.RUNNING {
 			if closing {
 				return
 			}
 			fmt.Println("gnomon is starting, please hold")
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 1)
 		}
 
 		start := time.Now()
