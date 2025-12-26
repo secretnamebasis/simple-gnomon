@@ -354,7 +354,7 @@ func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags strin
 // Returns the owner (who deployed it) of a given scid
 func (bbs *BboltStore) GetOwner(scid string) string {
 	var v []byte
-	bName := "scowner"
+	bName := "owner"
 
 	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
@@ -379,7 +379,7 @@ func (bbs *BboltStore) GetOwner(scid string) string {
 func (bbs *BboltStore) GetAllOwnersAndSCIDs() map[string]string {
 	results := make(map[string]string)
 
-	bName := "scowner"
+	bName := "owner"
 
 	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
