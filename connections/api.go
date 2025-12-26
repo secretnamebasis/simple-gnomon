@@ -206,7 +206,10 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
+		reply["countSCs"] = stats["numscs"]
+		reply["countRegTX"] = stats["regTxCount"]
+		reply["countBurnTX"] = stats["burnTxCount"]
+		reply["countNormTX"] = stats["normTxCount"]
 		reply["indexedscs"] = stats["indexedscs"]
 		reply["indexdetails"] = stats["indexdetails"]
 	} else {
