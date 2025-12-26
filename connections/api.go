@@ -158,11 +158,11 @@ func (apiServer *ApiServer) collectStats() {
 		}
 
 		invokedetails := apiServer.BBSBackend.GetAllSCIDInvokeDetails(k)
-		i := 0
+		// i := 0
 		for _, v := range invokedetails {
 			sc_action := fmt.Sprintf("%v\n", v.Sc_args.Value("SC_ACTION", "U"))
 			if sc_action == "1" {
-				i++
+				// i++
 				scinstalls = append(scinstalls, v)
 			}
 		}
