@@ -85,7 +85,7 @@ func Start_gnomon_indexer() error {
 	if endpoint != nil && *endpoint == "" {
 
 		// first call on the wallet ws for authorizations
-		if err := connections.Set_ws_conn(); err != nil {
+		if err := connections.Set_xswd_conn(); err != nil {
 			return err
 		}
 

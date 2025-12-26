@@ -12,7 +12,7 @@ import (
 
 var Conn *websocket.Conn
 
-func Set_ws_conn() error {
+func Set_xswd_conn() error {
 	websocket_endpoint := "ws://127.0.0.1:44326/xswd"
 	var err error
 
