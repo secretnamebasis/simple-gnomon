@@ -36,7 +36,6 @@ var (
 	database        *db.BboltStore
 	backup_database *db.BboltStore
 	indices         = []structures.SearchFilter{}
-
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
 	api_endpoint    = flag.String("api_endpoint", "", "-api_endpoint=<IP:PORT>")
 	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
@@ -64,15 +63,6 @@ Options:
 	TOPO        int64
 	IN_PROGRESS int64
 	RUNNING     bool
-
-	// skip these by default
-	EXCLUSIONS = []string{
-		globals.NAMESERVICE,
-		globals.MAINNET_GNOMON_SCID,
-		"bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2", // 43Mb of vars is pretty big
-		"e2ec01dcb1fc87abc6af5e958c936c0ad05e19b318be1c87e9ba2d188e8d689f", // a copy cat market
-		"cf03383b9bf03b28e1c8e7962c3fb9b52452442d040651305148b26b90a904e3", // some lotto
-	}
 
 	STORE_MINIBLOCKS bool
 )
@@ -602,7 +592,7 @@ func filtering() {
 
 		var sc rpc.GetSC_Result
 
-		if !slices.Contains(EXCLUSIONS, params.SCID) {
+		if !slices.Contains(database.Exclusions, params.SCID) {
 			sc = connections.GetSC(params)
 
 			if _, ok := sc.VariableStringKeys["C"]; !ok {
@@ -768,7 +758,6 @@ func scid_db_writer() {
 		}
 
 		fmt.Printf(format, a...)
-
 		// store scid by tag
 		if err := database.AddSCIDToIndex(*staged); err != nil {
 			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
@@ -790,7 +779,6 @@ func scid_db_writer() {
 
 		// store height
 		storeHeight(int64(staged.Height))
-
 	}
 }
 
@@ -810,26 +798,18 @@ func set_up_backend() error {
 		// for now, these are the collections we are looking for
 		// title, search terms
 		indices = []structures.SearchFilter{
-			{
-				Name:  "all",
-				Terms: []string{""},
-			},
-			{
-				Name:  "g45",
-				Terms: []string{"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
-			},
-			{
-				Name:  "nfa",
-				Terms: []string{"ART-NFA-MS1"},
-			},
-			{
-				Name:  "tela",
-				Terms: []string{"docVersion", "telaVersion"},
-			},
+			{Name: "all", Terms: []string{""}},
+			{Name: "g45", Terms: []string{"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"}},
+			{Name: "nfa", Terms: []string{"ART-NFA-MS1"}},
+			{Name: "tela", Terms: []string{"docVersion", "telaVersion"}},
 		}
 
 		if err := os.Mkdir(filepath.Dir(cfg), 0700); err != nil {
-			return err
+			if errors.Is(err, os.ErrExist) {
+				fmt.Println(err)
+			} else {
+				return err
+			}
 		}
 
 		b, err := json.MarshalIndent(indices, "", "\t")
@@ -858,26 +838,81 @@ func set_up_backend() error {
 		}
 	}
 
+	excludes := filepath.Join("config", "exclude.json")
+	exclusions := []struct {
+		Name   string
+		SCID   string
+		Reason string
+	}{}
+	if _, err := os.Stat(excludes); err != nil {
+		// for now, these are the collections we are looking for
+		// title, search terms
+		exclusions = []struct {
+			Name   string
+			SCID   string
+			Reason string
+		}{
+			{Name: "NAMESERVICE", SCID: globals.NAMESERVICE, Reason: "Hardcoded Contract"},
+			{Name: "Gnomon Smart Contract", SCID: globals.NAMESERVICE, Reason: "Large Contract"},
+		}
+
+		if err := os.Mkdir(filepath.Dir(excludes), 0700); err != nil {
+
+			if errors.Is(err, os.ErrExist) {
+				fmt.Println(err)
+			} else {
+				return err
+			}
+		}
+
+		b, err := json.MarshalIndent(exclusions, "", "\t")
+		if err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(excludes, b, 0600); err != nil {
+			return err
+		}
+	} else {
+		fi, err := os.OpenFile(excludes, os.O_RDONLY, 0600)
+		if err != nil {
+			return err
+		}
+
+		b, err := io.ReadAll(fi)
+		if err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(b, &exclusions); err != nil {
+			return err
+		}
+	}
+	// DB SETUP
 	db_name := fmt.Sprintf("%s.db", "GNOMON")
 	db_backup_name := db_name + ".bak"
 	wd := network.GetDataDirectory()
 	db_path := filepath.Join(wd, "gnomondb")
+	var b *db.BboltStore
+	var bb *db.BboltStore
 
 	var err error
-	b, err := db.NewBBoltDB(db_path, db_name)
+
+	b, err = db.NewBBoltDB(db_path, db_name)
 	if err != nil {
 		return err
 	}
 
-	b.Exclusions = EXCLUSIONS
-
-	bb, err := db.NewBBoltDB(db_path, db_backup_name)
+	bb, err = db.NewBBoltDB(db_path, db_backup_name)
 	if err != nil {
 		return err
 	}
 	time.Sleep(time.Second * 1) // we need a second okay...
 
-	bb.Exclusions = EXCLUSIONS
+	for _, exclude := range exclusions {
+		b.Exclusions = append(b.Exclusions, exclude.SCID)
+		bb.Exclusions = append(bb.Exclusions, exclude.SCID)
+	}
 
 	height, err := b.GetLastIndexHeight()
 	if err != nil {
