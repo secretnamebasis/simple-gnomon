@@ -233,10 +233,10 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["countSCs"] = stats["numscs"]
-		reply["countRegTX"] = stats["regTxCount"]
-		reply["countBurnTX"] = stats["burnTxCount"]
-		reply["countNormTX"] = stats["normTxCount"]
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
 	} else {
 		// Default reply - for testing etc.
 		reply["hello"] = "world"
@@ -359,10 +359,10 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["countSCs"] = stats["numscs"]
-		reply["countRegTX"] = stats["regTxCount"]
-		reply["countBurnTX"] = stats["burnTxCount"]
-		reply["countNormTX"] = stats["normTxCount"]
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
@@ -486,10 +486,10 @@ func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["countSCs"] = stats["numscs"]
-		reply["countRegTX"] = stats["regTxCount"]
-		reply["countBurnTX"] = stats["burnTxCount"]
-		reply["countNormTX"] = stats["normTxCount"]
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
@@ -593,10 +593,10 @@ func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
-		reply["regTxCount"] = stats["regTxCount"]
-		reply["burnTxCount"] = stats["burnTxCount"]
-		reply["normTxCount"] = stats["normTxCount"]
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
@@ -650,10 +650,10 @@ func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
-		reply["regTxCount"] = stats["regTxCount"]
-		reply["burnTxCount"] = stats["burnTxCount"]
-		reply["normTxCount"] = stats["normTxCount"]
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
@@ -695,10 +695,10 @@ func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Req
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
-		reply["regTxCount"] = stats["regTxCount"]
-		reply["burnTxCount"] = stats["burnTxCount"]
-		reply["normTxCount"] = stats["normTxCount"]
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
