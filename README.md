@@ -88,6 +88,17 @@ func foobar(){
 ### `http`
 This endpoint, if not set by the `-api_endpoint=<ip:port>` flag, defaults to `http://127.0.0.1:8082`
 
+```html
+/api/indexedscs => {"indexdetails":null,"indexedscs": [scid,scid,scid], "numscs":49573}
+/api/indexbyscid ? scid="" & address=""
+/api/scvarsbyheight ? scid="" & height=""
+/api/invalidscids
+/api/scidprivtx ? scid="" & address=""
+/api/getmbladdrsbyhash ? hash=""
+/api/getmblcountbyaddr ? address
+/api/getinfo
+```
+
 ### `ws`
 This endpoint defaults to `ws://127.0.0.1:9190/ws`. 
 
