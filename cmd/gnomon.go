@@ -74,12 +74,12 @@ Options:
 )
 
 // this is the processing thread
-func Start_gnomon_indexer() {
+func Start_gnomon_indexer() error {
 	runtime.GC() // let's clean things up before beginning
 	flag.Parse()
 	if help != nil && *help {
 		fmt.Println(help_msg)
-		return
+		return nil
 	}
 
 	if endpoint != nil && *endpoint == "" {
@@ -93,6 +93,7 @@ func Start_gnomon_indexer() {
 		daemon := connections.GetDaemonEndpoint()
 		*endpoint = daemon.Endpoint
 	}
+
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
@@ -112,7 +113,7 @@ func Start_gnomon_indexer() {
 
 	// if you are getting a zero... yeah, you are not connected
 	if connections.Get_TopoHeight() == 0 {
-		panic(errors.New("please connect through rpc"))
+		return errors.New("please connect through rpc")
 	}
 
 	day_of_blocks = ((60 * 60 * 24) / int64(connections.GetDaemonInfo().Target))
@@ -141,21 +142,16 @@ func Start_gnomon_indexer() {
 
 	for index := range indices {
 		if err := set_up_backend(index); err != nil {
-			fmt.Println(err)
-			return
+			return err
 		}
 	}
 
 	fmt.Println("setting up queue processors")
-	now := connections.Get_TopoHeight()
-
-	fmt.Println("starting to index ", now)
 
 	if STORE_MINIBLOCKS {
 		fmt.Println("STORING MINIBLOCKS")
 		if err := set_up_backend("minis"); err != nil {
-			fmt.Println(err)
-			return
+			return err
 		}
 		go mini_db_writer()
 	}
@@ -206,14 +202,19 @@ func Start_gnomon_indexer() {
 	}
 
 	if err := databases["all"].AddSCIDToIndex(*staged); err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
+	go gnomon_indexer()
+	return nil
+}
 
+func gnomon_indexer() {
 	RUNNING = true
+	now := connections.Get_TopoHeight()
 
+	fmt.Println("starting to index ", now)
 	last := now
 	go func() { // Set up a listener for get info
 		// gather initial results
