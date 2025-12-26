@@ -102,10 +102,14 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var disconnected = fmt.Errorf("server disconnect request")
+func handleMashalError(err error) error {
+	if err != nil {
+		fmt.Printf("err writing message: err: %v\n", err)
 
-func handleMashalError(err error) {
-
+		fmt.Printf("server disconnect request\n")
+		return fmt.Errorf("server disconnect request")
+	}
+	return nil
 }
 func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, request *http.Request) error {
 	var err error
@@ -135,13 +139,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		result := wss.database[params.Tag].GetAllOwnersAndSCIDs()
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetLastIndexHeight": // "Gnomon.GetLastIndexHeight": handler.New(GetLastIndexHeight),
 		var params *structures.GnomonAllOwnersAndSCIDsQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -158,13 +156,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return disconnected
 		}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetTxCount": // "Gnomon.GetTxCount": handler.New(GetTxCount)
 		var params *structures.GnomonTxCountQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -181,13 +173,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetOwner": // "Gnomon.GetOwner": handler.New(GetOwner)
 		var params *structures.GnomonOwnerQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -197,13 +183,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		owner := wss.database[params.Tag].GetOwner(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: owner}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllNormalTxWithSCIDByAddr":
 		var params *structures.GnomonAllNormalTxWithSCIDByAddrQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -213,13 +193,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		txs := wss.database[params.Tag].GetAllNormalTxWithSCIDByAddr(params.Address)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllNormalTxWithSCIDBySCID":
 		var params *structures.GnomonAllNormalTxWithSCIDBySCIDQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -229,13 +203,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		txs := wss.database[params.Tag].GetAllNormalTxWithSCIDBySCID(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDInvokeDetails":
 		var params *structures.GnomonAllSCIDInvokeDetails
 		err = json.Unmarshal(*req.Params, &params)
@@ -245,13 +213,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		txs := wss.database[params.Tag].GetAllSCIDInvokeDetails(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDInvokeDetailsByEntrypoint":
 		var params *structures.GnomonAllSCIDInvokeDetailsByEntrypoint
 		err = json.Unmarshal(*req.Params, &params)
@@ -261,13 +223,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		txs := wss.database[params.Tag].GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDInvokeDetailsBySigner":
 		var params *structures.GnomonAllSCIDInvokeDetailsBySigner
 		err = json.Unmarshal(*req.Params, &params)
@@ -277,13 +233,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		txs := wss.database[params.Tag].GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetGetInfoDetails":
 		var params *structures.GnomonGetInfoParams
 		err = json.Unmarshal(*req.Params, &params)
@@ -293,13 +243,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		info := wss.database[params.Tag].GetGetInfoDetails()
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: info}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDVariableDetailsAtTopoheight":
 		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
 		err = json.Unmarshal(*req.Params, &params)
@@ -309,13 +253,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		vars := wss.database[params.Tag].GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDVariableDetails":
 		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
 		err = json.Unmarshal(*req.Params, &params)
@@ -325,13 +263,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		vars := wss.database[params.Tag].GetAllSCIDVariableDetails(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDKeysByValue":
 		var params *structures.GnomonSCIDKeysByValue
 		err = json.Unmarshal(*req.Params, &params)
@@ -342,13 +274,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		ks, ku := wss.database[params.Tag].GetSCIDKeysByValue(params.SCID, params.Value, params.Height, params.Max)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDValuesByKey":
 		var params *structures.GnomonSCIDKeysByKey
 		err = json.Unmarshal(*req.Params, &params)
@@ -359,13 +285,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		vs, vu := wss.database[params.Tag].GetSCIDValuesByKey(params.SCID, params.Value, params.Height, params.Max)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetLiveSCIDKeysByValue":
 		var params *structures.GnomonSCIDKeysByValue
 		err = json.Unmarshal(*req.Params, &params)
@@ -376,13 +296,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		ks, ku := wss.database[params.Tag].GetSCIDKeysByValue(params.SCID, params.Value, 0, params.Max)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetLiveSCIDValuesByKey":
 		var params *structures.GnomonSCIDKeysByKey
 		err = json.Unmarshal(*req.Params, &params)
@@ -393,13 +307,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		vs, vu := wss.database[params.Tag].GetSCIDValuesByKey(params.SCID, params.Value, 0, params.Max)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDInteractionByAddr":
 		var params *structures.GnomonAllSCIDInteractionAddr
 		err = json.Unmarshal(*req.Params, &params)
@@ -409,13 +317,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		interactions := wss.database[params.Tag].GetSCIDInteractionByAddr(params.Addr)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDInteractionHeight":
 		var params *structures.GnomonAllSCIDInteractionHeight
 		err = json.Unmarshal(*req.Params, &params)
@@ -425,13 +327,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		interactions := wss.database[params.Tag].GetSCIDInteractionHeight(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetInteractionIndex":
 		var params *structures.GnomonInteractionIndex
 		err = json.Unmarshal(*req.Params, &params)
@@ -441,13 +337,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		height := wss.database[params.Tag].GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: height}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetInvalidSCIDDeploys":
 		var params *structures.GnomonInteractionIndex
 		err = json.Unmarshal(*req.Params, &params)
@@ -457,13 +347,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		result := wss.database[params.Tag].GetInvalidSCIDDeploys()
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllMiniblockDetails":
 		var params *structures.GnomonInteractionIndex
 		err = json.Unmarshal(*req.Params, &params)
@@ -473,13 +357,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		result := wss.database[params.Tag].GetAllMiniblockDetails()
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetMiniblockDetailsByHash":
 		var params *structures.GnomonMiniblockDetailsByHash
 		err = json.Unmarshal(*req.Params, &params)
@@ -489,13 +367,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		result := wss.database[params.Tag].GetMiniblockDetailsByHash(params.BLID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetMiniblockCountByAddress":
 		var params *structures.GnomonMiniblockDetailsByAddress
 		err = json.Unmarshal(*req.Params, &params)
@@ -505,13 +377,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		}
 		result := wss.database[params.Tag].GetMiniblockCountByAddress(params.Address)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "test":
 		var params *structures.GnomonSCIDQuery
 
@@ -525,13 +391,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		log.Printf("GnomonSCIDQuery: %v", params)
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: "test"}
-		err = wsjson.Write(ctx, c, message)
-		if err != nil {
-			fmt.Printf("err writing message: err: %v", err)
-
-			fmt.Printf("server disconnect request\n")
-			return disconnected
-		}
+		return handleMashalError(wsjson.Write(ctx, c, message))
 	default:
 		fmt.Printf("Not login or submit method\n")
 
@@ -539,5 +399,5 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		return disconnected
 	}
 
-	return err
+	// return err
 }
