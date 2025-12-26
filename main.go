@@ -261,38 +261,38 @@ func renderGUI() {
 				// 	all_miners = strconv.Itoa(ers)
 				// 	all_minis = strconv.Itoa(min)
 				// }
-				result, err := getTxCount(getTxCountParams{"all", "normal"})
+				result, err := getTxCount(getTxCountParams{"normal"})
 				if err != nil {
 					panic(err)
 				}
 
 				all_normal = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{"all", "registration"})
+				result, err = getTxCount(getTxCountParams{"registration"})
 				if err != nil {
 					panic(err)
 				}
 
 				all_registration = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{"all", "scids"})
+				result, err = getTxCount(getTxCountParams{"scids"})
 				if err != nil {
 					panic(err)
 				}
 				all_scids = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{"g45", "scids"})
-				if err != nil {
-					panic(err)
-				}
+				// result, err = getTxCount(getTxCountParams{"g45", "scids"})
+				// if err != nil {
+				// 	panic(err)
+				// }
 
-				all_g45s = strconv.Itoa(int(result.Result))
+				// all_g45s = strconv.Itoa(int(result.Result))
 
-				result, err = getTxCount(getTxCountParams{"nfa", "scids"})
-				if err != nil {
-					panic(err)
-				}
-				all_nfas = strconv.Itoa(int(result.Result))
+				// result, err = getTxCount(getTxCountParams{"nfa", "scids"})
+				// if err != nil {
+				// 	panic(err)
+				// }
+				// all_nfas = strconv.Itoa(int(result.Result))
 
 				height1, err := getLastIndexHeight(getAllParams{"all"})
 				if err != nil {
@@ -440,7 +440,6 @@ func getLastIndexHeight(params getAllParams) (getLastHeightResult, error) {
 }
 
 type getTxCountParams struct {
-	Tag     string
 	Tx_Type string
 }
 type getTxCountResult struct {
