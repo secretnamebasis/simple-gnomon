@@ -102,4 +102,5 @@ This endpoint, if not set by the `-api_endpoint=<ip:port>` flag, defaults to `ht
 ### `ws`
 This endpoint defaults to `ws://127.0.0.1:9190/ws`. 
 
-
+## FILTERS
+In addition to a catach all search filter, simple-gnomon contains 3 filters found in `config/search.json`: "g45", "nfa", "tela" ; these named searches are applied to indexed scids in a comma separated format, eg `tags`. In future development, `GetAllSCIDsByTag` will be made to access this content, making it simple to gather scids based on search names.  
