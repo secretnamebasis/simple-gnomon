@@ -85,7 +85,9 @@ func Start_gnomon_indexer() {
 	if endpoint != nil && *endpoint == "" {
 
 		// first call on the wallet ws for authorizations
-		connections.Set_ws_conn()
+		if err := connections.Set_ws_conn(); err != nil {
+			return err
+		}
 
 		// next, establish the daemon endpoint for rpc calls, waaaaay faster than through the wallet
 		daemon := connections.GetDaemonEndpoint()

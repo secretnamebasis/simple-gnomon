@@ -12,7 +12,7 @@ import (
 
 var Conn *websocket.Conn
 
-func Set_ws_conn() {
+func Set_ws_conn() error {
 	websocket_endpoint := "ws://127.0.0.1:44326/xswd"
 	var err error
 
@@ -24,7 +24,7 @@ func Set_ws_conn() {
 
 	Conn, _, err = dialer.Dial(websocket_endpoint, nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Println("WebSocket connected")
 	appData := xswd.ApplicationData{}
@@ -43,22 +43,23 @@ MzE3MzYxNTI1NTQ3M2VlOQ==
 	appData.Permissions = map[string]xswd.Permission{}
 	appData.Id = "4e3ed10099d9eec9767524402164b97506cc0d772f2e657e3173615255473ee9"
 	if err := Conn.WriteJSON(appData); err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Println("Auth handshake sent")
 
 	_, msg, err := Conn.ReadMessage()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var res xswd.AuthorizationResponse
 	if err := json.Unmarshal(msg, &res); err != nil {
-		panic(err)
+		return err
 	}
 	if !res.Accepted {
-		panic(errors.New("app not accepted"))
+		return errors.New("app not accepted")
 	}
+	return nil
 }
 
 func postBytes(b []byte) []byte {
