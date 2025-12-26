@@ -685,9 +685,9 @@ func filtering(indices map[string][]string) {
 		switch class {
 		case "": // catchall
 			parsed_transaction.Class = "null"
-		case indices["tela"][0]:
+		case "docVersion":
 			parsed_transaction.Class = "TELA-DOC-1"
-		case indices["tela"][1]:
+		case "telaVersion":
 			parsed_transaction.Class = "TELA-INDEX-1"
 		default:
 			parsed_transaction.Class = class
