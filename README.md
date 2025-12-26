@@ -95,7 +95,7 @@ This endpoint, if not set by the `-api_endpoint=<ip:port>` flag, defaults to `ht
 /api/invalidscids
 /api/scidprivtx ? scid="" & address=""
 /api/getmbladdrsbyhash ? hash=""
-/api/getmblcountbyaddr ? address
+/api/getmblcountbyaddr ? address=""
 /api/getinfo
 ```
 
