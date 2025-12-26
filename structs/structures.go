@@ -69,58 +69,45 @@ type (
 		KeysUint64 []uint64
 	}
 
-	GnomonAllOwnersAndSCIDsQuery struct {
-		Tag string
-	}
+	GnomonAllOwnersAndSCIDsQuery struct{}
 
-	GnomonGetInfoParams struct {
-		Tag string
-	}
+	GnomonGetInfoParams struct{}
 
 	GnomonAllNormalTxWithSCIDByAddrQuery struct {
-		Tag     string
 		Address string
 	}
 
 	GnomonMiniblockDetailsByAddress struct {
-		Tag     string
 		Address string
 	}
 
 	GnomonAllNormalTxWithSCIDBySCIDQuery struct {
-		Tag  string
 		SCID string
 	}
 
 	GnomonAllSCIDInteractionHeight struct {
-		Tag  string
 		SCID string
 	}
 
 	GnomonAllSCIDInteractionAddr struct {
-		Tag  string
 		Addr string
 	}
 
 	GnomonAllSCIDInvokeDetails struct {
-		Tag  string
 		SCID string
 	}
 
 	GnomonAllSCIDInvokeDetailsByEntrypoint struct {
-		Tag        string
 		SCID       string
 		Entrypoint string
 	}
 
 	GnomonSCIDVariableDetailsAtTopoheight struct {
-		Tag        string
 		SCID       string
 		TopoHeight int64
 	}
 
 	GnomonInteractionIndex struct {
-		Tag        string
 		Heights    []int64
 		TopoHeight int64
 		Max        bool
@@ -132,22 +119,18 @@ type (
 	}
 
 	GnomonTxCountQuery struct {
-		Tag     string
 		Tx_Type string
 	}
 
 	GnomonOwnerQuery struct {
-		Tag  string
 		SCID string
 	}
 
 	GnomonMiniblockDetailsByHash struct {
-		Tag  string
 		BLID string
 	}
 
 	GnomonAllMiniblockDetails struct {
-		Tag string
 	}
 	GnomonSCIDQuery struct {
 		Owner  string
