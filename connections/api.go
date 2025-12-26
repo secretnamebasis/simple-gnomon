@@ -186,7 +186,10 @@ func (apiServer *ApiServer) collectStats() {
 	// TODO: Re-add
 	//sclist := apiServer.Backend.GetAllOwnersAndSCIDs()
 
-	stats["numscs"] = len(sclist)
+	stats["countSCs"] = len(sclist)
+	stats["countRegTX"] = apiServer.BBSBackend.GetTxCount("registration")
+	stats["countBurnTX"] = apiServer.BBSBackend.GetTxCount("burn")
+	stats["countNormTX"] = apiServer.BBSBackend.GetTxCount("normal")
 	stats["indexedscs"] = sclist
 	stats["indexdetails"] = lastQueries
 
@@ -227,7 +230,10 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
+		reply["countSCs"] = stats["numscs"]
+		reply["countRegTX"] = stats["regTxCount"]
+		reply["countBurnTX"] = stats["burnTxCount"]
+		reply["countNormTX"] = stats["normTxCount"]
 	} else {
 		// Default reply - for testing etc.
 		reply["hello"] = "world"
@@ -350,7 +356,10 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
+		reply["countSCs"] = stats["numscs"]
+		reply["countRegTX"] = stats["regTxCount"]
+		reply["countBurnTX"] = stats["burnTxCount"]
+		reply["countNormTX"] = stats["normTxCount"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
@@ -474,7 +483,10 @@ func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http
 
 	stats := apiServer.getStats()
 	if stats != nil {
-		reply["numscs"] = stats["numscs"]
+		reply["countSCs"] = stats["numscs"]
+		reply["countRegTX"] = stats["regTxCount"]
+		reply["countBurnTX"] = stats["burnTxCount"]
+		reply["countNormTX"] = stats["normTxCount"]
 	} else {
 		// Default reply - for testing, initials etc.
 		reply["hello"] = "world"
