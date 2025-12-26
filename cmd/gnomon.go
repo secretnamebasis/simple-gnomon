@@ -125,6 +125,7 @@ func Start_gnomon_indexer() error {
 	fmt.Println("opening dbs")
 
 	// for now, these are the collections we are looking for
+	// title, search terms
 	indices := map[string][]string{
 		// this is the base db, it contains all scids and contract interactions
 		"all": {""},
