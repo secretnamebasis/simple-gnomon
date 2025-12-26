@@ -5,7 +5,6 @@ import (
 	"os"
 	"slices"
 
-	"fyne.io/fyne/v2/app"
 	"github.com/secretnamebasis/simple-gnomon/app"
 	"github.com/secretnamebasis/simple-gnomon/cmd"
 )
