@@ -43,11 +43,12 @@ var (
 A simple indexer for the DERO blockchain.
 
 Options:
-  -endpoint <DAEMON_IP:PORT>   Address of the daemon to connect to.
-  -starting_height <N>         Height to start indexing from.
-  -ending_height <N>           Height to stop indexing at.
-  -progress                    Show download progress stats.
-  -help                        Show this help message.`
+  -endpoint <DAEMON_IP:PORT>       Address of the daemon to connect to.
+  -api_endpoint <DAEMON_IP:PORT>   Address of the api to connect to.
+  -starting_height <N>             Height to start indexing from.
+  -ending_height <N>               Height to stop indexing at.
+  -progress                        Show download progress stats.
+  -help                            Show this help message.`
 
 	established_backup      bool
 	achieved_current_height int64
