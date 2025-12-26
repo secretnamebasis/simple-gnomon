@@ -141,10 +141,8 @@ func Start_gnomon_indexer() error {
 		// "invalid":{""}
 	}
 
-	for index := range indices {
-		if err := set_up_backend(index); err != nil {
-			return err
-		}
+	if err := set_up_backend("all"); err != nil {
+		return err
 	}
 
 	fmt.Println("setting up queue processors")
