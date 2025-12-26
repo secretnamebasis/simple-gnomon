@@ -34,6 +34,7 @@ var (
 	backups   = make(map[string]*db.BboltStore)
 
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
+	api_endpoint    = flag.String("api_endpoint", "", "-api_endpoint=<IP:PORT>")
 	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
 	ending_height   = flag.Int64("ending_height", -1, "-ending_height=123")
 	progress        = flag.Bool("progress", false, "-progress")
@@ -210,6 +211,19 @@ func Start_gnomon_indexer() {
 
 	RUNNING = true
 
+	last := now
+	go func() { // Set up a listener for get info
+		for RUNNING {
+			now = connections.Get_TopoHeight()
+			time.Sleep(time.Second * 1)
+			if last < now {
+				last = now
+				info := connections.GetDaemonInfo()
+				databases["all"].StoreGetInfoDetails(&info)
+			}
+		}
+	}()
+
 	// simple-daemon
 	for RUNNING {
 
@@ -226,8 +240,6 @@ func Start_gnomon_indexer() {
 		}
 
 		wg := sync.WaitGroup{}
-
-		now = connections.Get_TopoHeight()
 
 		for height := lowest_height; height < now; height++ {
 			if !RUNNING {
