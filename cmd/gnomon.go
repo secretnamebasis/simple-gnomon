@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -842,13 +843,13 @@ func set_up_backend() error {
 
 	} else {
 
-		fi, err := os.Open(cfg)
+		fi, err := os.OpenFile(cfg, os.O_RDONLY, 0600)
 		if err != nil {
 			return err
 		}
 
-		var b []byte
-		if _, err := fi.Read(b); err != nil {
+		b, err := io.ReadAll(fi)
+		if err != nil {
 			return err
 		}
 
