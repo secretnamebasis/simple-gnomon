@@ -213,6 +213,10 @@ func Start_gnomon_indexer() {
 
 	last := now
 	go func() { // Set up a listener for get info
+		// gather initial results
+		info := connections.GetDaemonInfo()
+		databases["all"].StoreGetInfoDetails(&info)
+
 		for RUNNING {
 			now = connections.Get_TopoHeight()
 			time.Sleep(time.Second * 1)
