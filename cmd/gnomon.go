@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -32,6 +34,7 @@ import (
 var (
 	database        *db.BboltStore
 	backup_database *db.BboltStore
+	indices         = []structures.SearchFilter{}
 
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
 	api_endpoint    = flag.String("api_endpoint", "", "-api_endpoint=<IP:PORT>")
@@ -124,24 +127,7 @@ func Start_gnomon_indexer() error {
 	// build separate databases for each index, for portability
 	fmt.Println("opening dbs")
 
-	// for now, these are the collections we are looking for
-	// title, search terms
-	indices := map[string][]string{
-		// this is the base db, it contains all scids and contract interactions
-		"all": {""},
-
-		// TODO: building separate search dbs... config.json?
-		"g45":  {"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
-		"nfa":  {"ART-NFA-MS1"},
-		"tela": {"docVersion", "telaVersion"},
-
-		// other indices could exist...
-		// "normal":{""}
-		// "registrations":{""}
-		// "invalid":{""}
-	}
-
-	if err := set_up_backend("all"); err != nil {
+	if err := set_up_backend(); err != nil {
 		return err
 	}
 
@@ -149,14 +135,11 @@ func Start_gnomon_indexer() error {
 
 	if STORE_MINIBLOCKS {
 		fmt.Println("STORING MINIBLOCKS")
-		if err := set_up_backend("minis"); err != nil {
-			return err
-		}
 		go mini_db_writer()
 	}
 
 	go scid_db_writer()
-	go filtering(indices)
+	go filtering()
 	go tx_handling()
 	go indexing()
 	// now that the backend is set up, start WS
@@ -552,7 +535,7 @@ func tx_handling() {
 
 var scid_processing = make(chan *processingStruct, 100_000)
 
-func filtering(indices map[string][]string) {
+func filtering() {
 
 	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
 		defer func() { IN_PROGRESS = height }()
@@ -657,10 +640,10 @@ func filtering(indices map[string][]string) {
 		class := ""
 
 		// roll through the indices to obtain the class
-		for name := range indices {
+		for _, search := range indices {
 
 			// obtain the filters
-			filters := indices[name]
+			filters := search.Terms
 
 			for _, filter := range filters { // range through the filters
 
@@ -702,10 +685,10 @@ func filtering(indices map[string][]string) {
 		tags := []string{}
 
 		// roll through the indices again to obtain tags
-		for name := range indices {
+		for _, search := range indices {
 
 			// obtain the filters
-			filters := indices[name]
+			filters := search.Terms
 
 			for _, filter := range filters { // range through the filters
 
@@ -715,7 +698,7 @@ func filtering(indices map[string][]string) {
 				}
 
 				// if there is a match, add the name of the index to it's list of tags
-				tags = append(tags, name)
+				tags = append(tags, search.Name)
 
 			}
 		}
@@ -818,11 +801,64 @@ func storeHeight(height int64) error {
 }
 
 // BACKEND & BACKUPS
-func set_up_backend(name string) error {
+func set_up_backend() error {
 
-	db_name := fmt.Sprintf("%s_%s.db", "GNOMON", name)
+	cfg := filepath.Join("config", "search.json")
+
+	if _, err := os.Stat(cfg); err != nil {
+		// for now, these are the collections we are looking for
+		// title, search terms
+		indices = []structures.SearchFilter{
+			{
+				Name:  "all",
+				Terms: []string{""},
+			},
+			{
+				Name:  "g45",
+				Terms: []string{"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
+			},
+			{
+				Name:  "nfa",
+				Terms: []string{"ART-NFA-MS1"},
+			},
+			{
+				Name:  "tela",
+				Terms: []string{"docVersion", "telaVersion"},
+			},
+		}
+
+		if err := os.Mkdir(filepath.Dir(cfg), 0700); err != nil {
+			return err
+		}
+
+		b, err := json.MarshalIndent(indices, "", "\t")
+		if err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(cfg, b, 0600); err != nil {
+			return err
+		}
+
+	} else {
+
+		fi, err := os.Open(cfg)
+		if err != nil {
+			return err
+		}
+
+		var b []byte
+		if _, err := fi.Read(b); err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(b, &indices); err != nil {
+			return err
+		}
+	}
+
+	db_name := fmt.Sprintf("%s.db", "GNOMON")
 	db_backup_name := db_name + ".bak"
-
 	wd := network.GetDataDirectory()
 	db_path := filepath.Join(wd, "gnomondb")
 

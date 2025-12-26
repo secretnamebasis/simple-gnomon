@@ -8,6 +8,11 @@ import (
 )
 
 type (
+	SearchFilter struct {
+		Name  string
+		Terms []string
+	}
+
 	SCIDToIndexStage struct {
 		SCTXParse
 		Headers string

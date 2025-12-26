@@ -1,0 +1,32 @@
+[
+	{
+		"Name": "all",
+		"Terms": [
+			""
+		]
+	},
+	{
+		"Name": "g45",
+		"Terms": [
+			"G45-NFT",
+			"G45-AT",
+			"G45-C",
+			"G45-FAT",
+			"G45-NAME",
+			"T345"
+		]
+	},
+	{
+		"Name": "nfa",
+		"Terms": [
+			"ART-NFA-MS1"
+		]
+	},
+	{
+		"Name": "tela",
+		"Terms": [
+			"docVersion",
+			"telaVersion"
+		]
+	}
+]
