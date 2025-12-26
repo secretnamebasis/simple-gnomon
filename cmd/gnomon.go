@@ -655,6 +655,7 @@ func filtering(indices map[string][]string) {
 
 		// unfortunately, there isn't a way to do this without checking twice
 		class := ""
+
 		// roll through the indices to obtain the class
 		for name := range indices {
 
@@ -678,6 +679,13 @@ func filtering(indices map[string][]string) {
 			}
 		}
 
+		// catch globals
+		switch parsed_transaction.Scid {
+		case globals.NAMESERVICE:
+			class = "NAMESERVICE"
+		case globals.MAINNET_GNOMON_SCID:
+			class = "GNOMONSC"
+		}
 		// as class is currently the filter...
 		// make sure to implement more classes as necessary
 		switch class {
