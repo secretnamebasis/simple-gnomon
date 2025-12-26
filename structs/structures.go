@@ -46,7 +46,6 @@ type (
 	}
 
 	GnomonSCIDKeysByKey struct {
-		Tag    string
 		SCID   string
 		Value  any
 		Height int64
@@ -59,7 +58,6 @@ type (
 	}
 
 	GnomonSCIDKeysByValue struct {
-		Tag    string
 		SCID   string
 		Value  any
 		Height int64
@@ -129,7 +127,6 @@ type (
 	}
 
 	GnomonAllSCIDInvokeDetailsBySigner struct {
-		Tag    string
 		SCID   string
 		Signer string
 	}

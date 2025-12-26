@@ -35,17 +35,17 @@ type APIConfig struct {
 }
 
 type ApiServer struct {
-	Config     *APIConfig
-	Stats      atomic.Value
-	StatsIntv  time.Duration
-	BBSBackend *db.BboltStore
+	Config    *APIConfig
+	Stats     atomic.Value
+	StatsIntv time.Duration
+	Database  *db.BboltStore
 }
 
 // Configures a new API server to be used
-func NewApiServer(cfg *APIConfig, bbsbackend *db.BboltStore) *ApiServer {
+func NewApiServer(cfg *APIConfig, database *db.BboltStore) *ApiServer {
 	return &ApiServer{
-		Config:     cfg,
-		BBSBackend: bbsbackend,
+		Config:   cfg,
+		Database: database,
 	}
 }
 
@@ -141,7 +141,7 @@ func notFound(writer http.ResponseWriter, _ *http.Request) {
 // Continuous check on number of validated scs etc. for base stats of service.
 func (apiServer *ApiServer) collectStats() {
 
-	if apiServer.BBSBackend.Closing {
+	if apiServer.Database.Closing {
 		return
 	}
 
@@ -150,14 +150,14 @@ func (apiServer *ApiServer) collectStats() {
 	// TODO: Removeme
 	var scinstalls []*structures.SCTXParse
 
-	sclist := apiServer.BBSBackend.GetAllOwnersAndSCIDs()
+	sclist := apiServer.Database.GetAllOwnersAndSCIDs()
 	for k := range sclist {
 
-		if apiServer.BBSBackend.Closing {
+		if apiServer.Database.Closing {
 			return
 		}
 
-		invokedetails := apiServer.BBSBackend.GetAllSCIDInvokeDetails(k)
+		invokedetails := apiServer.Database.GetAllSCIDInvokeDetails(k)
 		// i := 0
 		for _, v := range invokedetails {
 			sc_action := fmt.Sprintf("%v\n", v.Sc_args.Value("SC_ACTION", "U"))
@@ -187,9 +187,9 @@ func (apiServer *ApiServer) collectStats() {
 	//sclist := apiServer.Backend.GetAllOwnersAndSCIDs()
 
 	stats["countSCs"] = len(sclist)
-	stats["countRegTX"] = apiServer.BBSBackend.GetTxCount("registration")
-	stats["countBurnTX"] = apiServer.BBSBackend.GetTxCount("burn")
-	stats["countNormTX"] = apiServer.BBSBackend.GetTxCount("normal")
+	stats["countRegTX"] = apiServer.Database.GetTxCount("registration")
+	stats["countBurnTX"] = apiServer.Database.GetTxCount("burn")
+	stats["countNormTX"] = apiServer.Database.GetTxCount("normal")
 	stats["indexedscs"] = sclist
 	stats["indexdetails"] = lastQueries
 
@@ -264,7 +264,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 	// Get all scid:owner
 
-	sclist := apiServer.BBSBackend.GetAllOwnersAndSCIDs()
+	sclist := apiServer.Database.GetAllOwnersAndSCIDs()
 
 	if address != "" && scid != "" {
 		// Return results that match both address and scid
@@ -276,7 +276,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 				continue
 			}
 
-			addrscidinvokes = apiServer.BBSBackend.GetAllSCIDInvokeDetailsBySigner(scid, address)
+			addrscidinvokes = apiServer.Database.GetAllSCIDInvokeDetailsBySigner(scid, address)
 		}
 
 		// Case to ignore large variable returns
@@ -299,7 +299,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 		for k := range sclist {
 
-			currinvokedetails := apiServer.BBSBackend.GetAllSCIDInvokeDetailsBySigner(k, address)
+			currinvokedetails := apiServer.Database.GetAllSCIDInvokeDetailsBySigner(k, address)
 
 			if currinvokedetails != nil {
 				addrinvokes = append(addrinvokes, currinvokedetails)
@@ -324,7 +324,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 	} else if address == "" && scid != "" {
 		// If no address and scid only, return invokes of scid
 
-		scidinvokes := apiServer.BBSBackend.GetAllSCIDInvokeDetails(scid)
+		scidinvokes := apiServer.Database.GetAllSCIDInvokeDetails(scid)
 
 		// Case to ignore large variable returns
 		if len(scidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
@@ -412,12 +412,12 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 			}
 		}
 
-		scidInteractionHeights = apiServer.BBSBackend.GetSCIDInteractionHeight(scid)
+		scidInteractionHeights = apiServer.Database.GetSCIDInteractionHeight(scid)
 
-		interactionHeight = apiServer.BBSBackend.GetInteractionIndex(topoheight, scidInteractionHeights, false)
+		interactionHeight = apiServer.Database.GetInteractionIndex(topoheight, scidInteractionHeights, false)
 
 		// TODO: If there's no interaction height, do we go get scvars against daemon and store?
-		variables = apiServer.BBSBackend.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
+		variables = apiServer.Database.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
 
 		// Case to ignore large variable returns
 		if len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
@@ -451,8 +451,8 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 			return
 		}
 
-		scidInteractionHeights = apiServer.BBSBackend.GetSCIDInteractionHeight(scid)
-		variables = apiServer.BBSBackend.GetAllSCIDVariableDetails(scid)
+		scidInteractionHeights = apiServer.Database.GetSCIDInteractionHeight(scid)
+		variables = apiServer.Database.GetAllSCIDVariableDetails(scid)
 
 		// Case to ignore large variable returns
 		if len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
@@ -524,8 +524,8 @@ func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http
 		return
 	}
 
-	allNormTxWithSCIDByAddr := apiServer.BBSBackend.GetAllNormalTxWithSCIDByAddr(address)
-	allNormTxWithSCIDBySCID := apiServer.BBSBackend.GetAllNormalTxWithSCIDBySCID(scid)
+	allNormTxWithSCIDByAddr := apiServer.Database.GetAllNormalTxWithSCIDByAddr(address)
+	allNormTxWithSCIDBySCID := apiServer.Database.GetAllNormalTxWithSCIDBySCID(scid)
 
 	// Case to ignore large variable returns
 	if (len(allNormTxWithSCIDByAddr) > globals.MAX_API_VAR_RETURN || len(allNormTxWithSCIDBySCID) > globals.MAX_API_VAR_RETURN) && apiServer.Config.ApiThrottle {
@@ -561,7 +561,7 @@ func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http
 
 	reply := make(map[string]interface{})
 
-	invalidscids := apiServer.BBSBackend.GetInvalidSCIDDeploys()
+	invalidscids := apiServer.Database.GetInvalidSCIDDeploys()
 
 	// Case to ignore large variable returns
 	if len(invalidscids) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
@@ -618,7 +618,7 @@ func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.
 		blid = blidkeys[0]
 	}
 
-	allMiniBlocksByBlid := apiServer.BBSBackend.GetMiniblockDetailsByHash(blid)
+	allMiniBlocksByBlid := apiServer.Database.GetMiniblockDetailsByHash(blid)
 
 	// Case to ignore large variable returns
 	if len(allMiniBlocksByBlid) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
@@ -675,7 +675,7 @@ func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.
 		addr = addrkeys[0]
 	}
 
-	allMiniBlocksByAddr := apiServer.BBSBackend.GetMiniblockCountByAddress(addr)
+	allMiniBlocksByAddr := apiServer.Database.GetMiniblockCountByAddress(addr)
 
 	reply["mbl"] = allMiniBlocksByAddr
 
@@ -704,7 +704,7 @@ func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Req
 		reply["hello"] = "world"
 	}
 
-	allMiniBlocks := apiServer.BBSBackend.GetAllMiniblockDetails()
+	allMiniBlocks := apiServer.Database.GetAllMiniblockDetails()
 
 	// Case to ignore large variable returns
 	if len(allMiniBlocks) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
@@ -734,7 +734,7 @@ func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request)
 
 	reply := make(map[string]interface{})
 
-	info := apiServer.BBSBackend.GetGetInfoDetails()
+	info := apiServer.Database.GetGetInfoDetails()
 
 	reply["getinfo"] = info
 

@@ -24,7 +24,7 @@ import (
 var ioTimeout = flag.Duration("io_timeout", time.Millisecond*100, "i/o operations timeout")
 
 type WSServer struct {
-	database map[string]*db.BboltStore
+	database *db.BboltStore
 	srv      *http.Server
 	mux      *http.ServeMux
 	sync.RWMutex
@@ -37,7 +37,7 @@ var WSS *WSServer = &WSServer{}
 var options = &jrpc2.ServerOptions{AllowPush: true}
 
 // Starts websocket listening for web miners
-func ListenWS(databases map[string]*db.BboltStore) {
+func ListenWS(databases *db.BboltStore) {
 	// srvTLS, clientTLS, err := certification()
 	// if err != nil {
 	// 	log.Fatal(err)
@@ -140,7 +140,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return err
 		}
 
-		result := wss.database[params.Tag].GetAllOwnersAndSCIDs()
+		result := wss.database.GetAllOwnersAndSCIDs()
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
@@ -152,7 +152,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			return err
 		}
 
-		result, err := wss.database[params.Tag].GetLastIndexHeight()
+		result, err := wss.database.GetLastIndexHeight()
 		if err != nil {
 			fmt.Printf("err geting last indexed height: err: %v\n", err)
 
@@ -171,9 +171,9 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		var result int64
 		switch params.Tx_Type {
 		case "registration", "burn", "normal":
-			result = wss.database[params.Tag].GetTxCount(params.Tx_Type)
+			result = wss.database.GetTxCount(params.Tx_Type)
 		case "scids":
-			result = int64(len(wss.database[params.Tag].GetAllOwnersAndSCIDs()))
+			result = int64(len(wss.database.GetAllOwnersAndSCIDs()))
 		}
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
@@ -185,7 +185,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		owner := wss.database[params.Tag].GetOwner(params.SCID)
+		owner := wss.database.GetOwner(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: owner}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllNormalTxWithSCIDByAddr":
@@ -195,7 +195,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		txs := wss.database[params.Tag].GetAllNormalTxWithSCIDByAddr(params.Address)
+		txs := wss.database.GetAllNormalTxWithSCIDByAddr(params.Address)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllNormalTxWithSCIDBySCID":
@@ -205,7 +205,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		txs := wss.database[params.Tag].GetAllNormalTxWithSCIDBySCID(params.SCID)
+		txs := wss.database.GetAllNormalTxWithSCIDBySCID(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDInvokeDetails":
@@ -215,7 +215,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		txs := wss.database[params.Tag].GetAllSCIDInvokeDetails(params.SCID)
+		txs := wss.database.GetAllSCIDInvokeDetails(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDInvokeDetailsByEntrypoint":
@@ -225,7 +225,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		txs := wss.database[params.Tag].GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
+		txs := wss.database.GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDInvokeDetailsBySigner":
@@ -235,7 +235,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		txs := wss.database[params.Tag].GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
+		txs := wss.database.GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetGetInfoDetails":
@@ -245,7 +245,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		info := wss.database[params.Tag].GetGetInfoDetails()
+		info := wss.database.GetGetInfoDetails()
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: info}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDVariableDetailsAtTopoheight":
@@ -255,7 +255,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		vars := wss.database[params.Tag].GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
+		vars := wss.database.GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDVariableDetails":
@@ -265,7 +265,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		vars := wss.database[params.Tag].GetAllSCIDVariableDetails(params.SCID)
+		vars := wss.database.GetAllSCIDVariableDetails(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDKeysByValue":
@@ -275,7 +275,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		ks, ku := wss.database[params.Tag].GetSCIDKeysByValue(params.SCID, params.Value, params.Height, params.Max)
+		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, params.Height, params.Max)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
@@ -286,7 +286,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		vs, vu := wss.database[params.Tag].GetSCIDValuesByKey(params.SCID, params.Value, params.Height, params.Max)
+		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, params.Height, params.Max)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
@@ -297,7 +297,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		ks, ku := wss.database[params.Tag].GetSCIDKeysByValue(params.SCID, params.Value, 0, params.Max)
+		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, 0, params.Max)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
@@ -308,7 +308,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		vs, vu := wss.database[params.Tag].GetSCIDValuesByKey(params.SCID, params.Value, 0, params.Max)
+		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, 0, params.Max)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
@@ -319,7 +319,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		interactions := wss.database[params.Tag].GetSCIDInteractionByAddr(params.Addr)
+		interactions := wss.database.GetSCIDInteractionByAddr(params.Addr)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDInteractionHeight":
@@ -329,7 +329,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		interactions := wss.database[params.Tag].GetSCIDInteractionHeight(params.SCID)
+		interactions := wss.database.GetSCIDInteractionHeight(params.SCID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetInteractionIndex":
@@ -339,7 +339,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		height := wss.database[params.Tag].GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
+		height := wss.database.GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: height}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetInvalidSCIDDeploys":
@@ -349,7 +349,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		result := wss.database[params.Tag].GetInvalidSCIDDeploys()
+		result := wss.database.GetInvalidSCIDDeploys()
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllMiniblockDetails":
@@ -359,7 +359,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		result := wss.database[params.Tag].GetAllMiniblockDetails()
+		result := wss.database.GetAllMiniblockDetails()
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetMiniblockDetailsByHash":
@@ -369,7 +369,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		result := wss.database[params.Tag].GetMiniblockDetailsByHash(params.BLID)
+		result := wss.database.GetMiniblockDetailsByHash(params.BLID)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetMiniblockCountByAddress":
@@ -379,7 +379,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
-		result := wss.database[params.Tag].GetMiniblockCountByAddress(params.Address)
+		result := wss.database.GetMiniblockCountByAddress(params.Address)
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "test":

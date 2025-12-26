@@ -30,8 +30,8 @@ import (
 )
 
 var (
-	databases = make(map[string]*db.BboltStore)
-	backups   = make(map[string]*db.BboltStore)
+	database        *db.BboltStore
+	backup_database *db.BboltStore
 
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
 	api_endpoint    = flag.String("api_endpoint", "", "-api_endpoint=<IP:PORT>")
@@ -164,13 +164,13 @@ func Start_gnomon_indexer() error {
 	// now that the backend is set up, start WS
 
 	fmt.Println("setting up websocket")
-	go connections.ListenWS(databases)
+	go connections.ListenWS(database)
 	server := connections.NewApiServer(&connections.APIConfig{
 		Enabled:              true,
 		Listen:               api,
 		StatsCollectInterval: "5s",
 		MBLLookup:            STORE_MINIBLOCKS, // default is false
-	}, databases["all"])
+	}, database)
 
 	// serving api
 	go server.Start()
@@ -202,7 +202,7 @@ func Start_gnomon_indexer() error {
 		Tags:    "all",
 	}
 
-	if err := databases["all"].AddSCIDToIndex(*staged); err != nil {
+	if err := database.AddSCIDToIndex(*staged); err != nil {
 		return err
 	}
 
@@ -219,7 +219,7 @@ func gnomon_indexer() {
 
 	// gather initial results
 	info := connections.GetDaemonInfo()
-	databases["all"].StoreGetInfoDetails(&info)
+	database.StoreGetInfoDetails(&info)
 
 	last := now
 	go func() { // Set up a listener for get info
@@ -230,7 +230,7 @@ func gnomon_indexer() {
 			if last < now {
 				last = now
 				info = connections.GetDaemonInfo()
-				databases["all"].StoreGetInfoDetails(&info)
+				database.StoreGetInfoDetails(&info)
 			}
 		}
 	}()
@@ -261,7 +261,7 @@ func gnomon_indexer() {
 
 			// a simple backup strategy
 			if achieved_current_height > 0 && !established_backup &&
-				find_lowest_height(backups, now) { // if the current height is greater than a day of blocks...
+				find_lowest_height(backup_database, now) { // if the current height is greater than a day of blocks...
 				backup(height)
 			}
 			if progress != nil && *progress {
@@ -419,9 +419,9 @@ var holding_queue struct {
 
 func tx_handling() {
 	// initial number collection
-	holding_queue.registration.Swap(databases["all"].GetTxCount("registration"))
-	holding_queue.burn.Swap(databases["all"].GetTxCount("burn"))
-	holding_queue.normal.Swap(databases["all"].GetTxCount("normal"))
+	holding_queue.registration.Swap(database.GetTxCount("registration"))
+	holding_queue.burn.Swap(database.GetTxCount("burn"))
+	holding_queue.normal.Swap(database.GetTxCount("normal"))
 
 	// let's register some callbacks so that we don't re-define over and over again
 	ringmember_callback := func(
@@ -439,7 +439,7 @@ func tx_handling() {
 				Height: height,
 			}
 			fmt.Println("normal with scid", ring, normTxWithSCID)
-			databases["all"].StoreNormalTxWithSCIDByAddr(ring, normTxWithSCID)
+			database.StoreNormalTxWithSCIDByAddr(ring, normTxWithSCID)
 		}
 	}
 
@@ -625,7 +625,7 @@ func filtering(indices map[string][]string) {
 
 			if _, ok := sc.VariableStringKeys["C"]; !ok {
 				// this is an invalid contract
-				if _, err := databases["all"].StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
+				if _, err := database.StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
 					fmt.Println(err)
 					return
 				}
@@ -741,7 +741,7 @@ type miniStructure struct {
 var mini_db_queue = make(chan miniStructure, 100_000)
 
 func mini_db_writer() {
-	all_details := databases["minis"].GetAllMiniblockDetails()
+	all_details := database.GetAllMiniblockDetails()
 	miner_map := map[string]int64{}
 	for _, each := range all_details {
 		for _, mini := range each {
@@ -752,10 +752,10 @@ func mini_db_writer() {
 		if _, ok := all_details[staged.Hash]; ok {
 			continue
 		}
-		databases["minis"].StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
+		database.StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
 		for _, mini := range staged.Minis {
 			miner_map[mini.Miner]++
-			databases["minis"].StoreMiniblockCountByAddress(miner_map[mini.Miner], mini.Miner)
+			database.StoreMiniblockCountByAddress(miner_map[mini.Miner], mini.Miner)
 		}
 	}
 }
@@ -780,25 +780,23 @@ func scid_db_writer() {
 		fmt.Printf(format, a...)
 
 		// store scid by tag
-		for name := range strings.SplitSeq(staged.Tags, ",") {
-			if err := databases[name].AddSCIDToIndex(*staged); err != nil {
+		if err := database.AddSCIDToIndex(*staged); err != nil {
+			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
+			continue
+		}
+
+		if achieved_current_height > 0 { // once the indexer has reached the top...
+			// do incremental backups
+			if err := backup_database.AddSCIDToIndex(*staged); err != nil {
 				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
 				continue
-			}
-
-			if achieved_current_height > 0 { // once the indexer has reached the top...
-				// do incremental backups
-				if err := backups[name].AddSCIDToIndex(*staged); err != nil {
-					log.Fatal("indexer error:", err, staged.Scid, staged.Height)
-					continue
-				}
 			}
 		}
 
 		// store counts
-		databases["all"].StoreTxCount(holding_queue.registration.Load(), "registration")
-		databases["all"].StoreTxCount(holding_queue.burn.Load(), "burn")
-		databases["all"].StoreTxCount(holding_queue.normal.Load(), "normal")
+		database.StoreTxCount(holding_queue.registration.Load(), "registration")
+		database.StoreTxCount(holding_queue.burn.Load(), "burn")
+		database.StoreTxCount(holding_queue.normal.Load(), "normal")
 
 		// store height
 		storeHeight(int64(staged.Height))
@@ -807,10 +805,8 @@ func scid_db_writer() {
 }
 
 func storeHeight(height int64) error {
-	for _, index := range databases {
-		if ok, err := index.StoreLastIndexHeight(height); !ok && err != nil {
-			return err
-		}
+	if ok, err := database.StoreLastIndexHeight(height); !ok && err != nil {
+		return err
 	}
 	return nil
 }
@@ -849,24 +845,21 @@ func set_up_backend(name string) error {
 	lowest_height = min(lowest_height, height)
 
 	// initialize each indexer
-	databases[name] = b
+	database = b
 
-	backups[name] = bb
+	backup_database = bb
 
 	return nil
 }
 
-func find_lowest_height(backups map[string]*db.BboltStore, now int64) bool {
-
+func find_lowest_height(backup *db.BboltStore, now int64) bool {
 	lowest := now
-	for _, each := range backups {
-		height, err := each.GetLastIndexHeight()
-		if err != nil {
-			fmt.Println(err)
-			continue // what else could you do?
-		}
-		lowest = min(lowest, height)
+	height, err := backup.GetLastIndexHeight()
+	if err != nil {
+		fmt.Println(err)
+		return false
 	}
+	lowest = min(lowest, height)
 	return (achieved_current_height - day_of_blocks) > lowest
 }
 
@@ -875,11 +868,9 @@ func backup(each int64) {
 	mu := sync.Mutex{}
 
 	// full backup
-	for _, index := range databases {
-		mu.Lock()
-		index.BackUpDatabases()
-		mu.Unlock()
-	}
+	mu.Lock()
+	database.BackUpDatabases()
+	mu.Unlock()
 
 	storeHeight(each)
 
