@@ -102,15 +102,19 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var errDisconnected = fmt.Errorf("server disconnect request")
+
 func handleMashalError(err error) error {
 	if err != nil {
 		fmt.Printf("err writing message: err: %v\n", err)
 
 		fmt.Printf("server disconnect request\n")
-		return fmt.Errorf("server disconnect request")
+		return errDisconnected
 	}
 	return nil
 }
+
+// func handleUnmarshalError(err error) error {}
 func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, request *http.Request) error {
 	var err error
 
@@ -140,7 +144,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
-	case "GetLastIndexHeight": // "Gnomon.GetLastIndexHeight": handler.New(GetLastIndexHeight),
+	case "GetLastIndexHeight":
 		var params *structures.GnomonAllOwnersAndSCIDsQuery
 		err = json.Unmarshal(*req.Params, &params)
 		if err != nil {
@@ -153,11 +157,11 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("err geting last indexed height: err: %v\n", err)
 
 			fmt.Printf("server disconnect request\n")
-			return disconnected
+			return errDisconnected
 		}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
-	case "GetTxCount": // "Gnomon.GetTxCount": handler.New(GetTxCount)
+	case "GetTxCount":
 		var params *structures.GnomonTxCountQuery
 		err = json.Unmarshal(*req.Params, &params)
 		if err != nil {
@@ -174,7 +178,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
 		return handleMashalError(wsjson.Write(ctx, c, message))
-	case "GetOwner": // "Gnomon.GetOwner": handler.New(GetOwner)
+	case "GetOwner":
 		var params *structures.GnomonOwnerQuery
 		err = json.Unmarshal(*req.Params, &params)
 		if err != nil {
@@ -396,7 +400,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		fmt.Printf("Not login or submit method\n")
 
 		fmt.Printf("server disconnect request\n")
-		return disconnected
+		return errDisconnected
 	}
 
 	// return err
