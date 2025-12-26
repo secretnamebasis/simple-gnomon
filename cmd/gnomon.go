@@ -215,18 +215,20 @@ func gnomon_indexer() {
 	now := connections.Get_TopoHeight()
 
 	fmt.Println("starting to index ", now)
+
+	// gather initial results
+	info := connections.GetDaemonInfo()
+	databases["all"].StoreGetInfoDetails(&info)
+
 	last := now
 	go func() { // Set up a listener for get info
-		// gather initial results
-		info := connections.GetDaemonInfo()
-		databases["all"].StoreGetInfoDetails(&info)
 
 		for RUNNING {
 			now = connections.Get_TopoHeight()
 			time.Sleep(time.Second * 1)
 			if last < now {
 				last = now
-				info := connections.GetDaemonInfo()
+				info = connections.GetDaemonInfo()
 				databases["all"].StoreGetInfoDetails(&info)
 			}
 		}
@@ -236,7 +238,7 @@ func gnomon_indexer() {
 	for RUNNING {
 
 		if achieved_current_height != 0 {
-			time.Sleep(time.Second * 1)
+			time.Sleep(time.Second * time.Duration(info.Target))
 		}
 
 		if ending_height != nil && *ending_height > -1 {
