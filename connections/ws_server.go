@@ -105,7 +105,7 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 var disconnected = fmt.Errorf("server disconnect request")
 
 func handleMashalError(err error) {
-	
+
 }
 func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, request *http.Request) error {
 	var err error
@@ -142,7 +142,6 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("server disconnect request\n")
 			return disconnected
 		}
-
 	case "GetLastIndexHeight": // "Gnomon.GetLastIndexHeight": handler.New(GetLastIndexHeight),
 		var params *structures.GnomonAllOwnersAndSCIDsQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -166,7 +165,6 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("server disconnect request\n")
 			return disconnected
 		}
-
 	case "GetTxCount": // "Gnomon.GetTxCount": handler.New(GetTxCount)
 		var params *structures.GnomonTxCountQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -206,8 +204,6 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("server disconnect request\n")
 			return disconnected
 		}
-
-		// this isn't being stored at the moment...
 	case "GetAllNormalTxWithSCIDByAddr":
 		var params *structures.GnomonAllNormalTxWithSCIDByAddrQuery
 		err = json.Unmarshal(*req.Params, &params)
@@ -468,7 +464,6 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			fmt.Printf("server disconnect request\n")
 			return disconnected
 		}
-
 	case "GetAllMiniblockDetails":
 		var params *structures.GnomonInteractionIndex
 		err = json.Unmarshal(*req.Params, &params)
