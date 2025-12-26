@@ -309,10 +309,10 @@ func (bbs *BboltStore) GetTxCount(txType string) (txCount int64) {
 	return
 }
 
-// Stores the owner (who deployed it) of a given scid
+// Stores the scid as key to the owner (addr that deployed it) , headers , class , and comma tags
 func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags string) (changes bool, err error) {
 	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
-		b, err := tx.CreateBucketIfNotExists([]byte("scowner"))
+		b, err := tx.CreateBucketIfNotExists([]byte("owner"))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
 		}
@@ -320,35 +320,27 @@ func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags strin
 		if err != nil {
 			return err
 		}
-		b, err = tx.CreateBucketIfNotExists([]byte("scheaders"))
+		b, err = tx.CreateBucketIfNotExists([]byte("headers"))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
 		}
-		err = b.Put([]byte(scid), []byte(owner))
+		err = b.Put([]byte(scid), []byte(headers))
 		if err != nil {
 			return err
 		}
-		b, err = tx.CreateBucketIfNotExists([]byte("scowner"))
+		b, err = tx.CreateBucketIfNotExists([]byte("class"))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
 		}
-		err = b.Put([]byte(scid), []byte(owner))
+		err = b.Put([]byte(scid), []byte(class))
 		if err != nil {
 			return err
 		}
-		b, err = tx.CreateBucketIfNotExists([]byte("scclass"))
+		b, err = tx.CreateBucketIfNotExists([]byte("tags"))
 		if err != nil {
 			return fmt.Errorf("bucket: %s", err)
 		}
-		err = b.Put([]byte(scid), []byte(owner))
-		if err != nil {
-			return err
-		}
-		b, err = tx.CreateBucketIfNotExists([]byte("sctags"))
-		if err != nil {
-			return fmt.Errorf("bucket: %s", err)
-		}
-		err = b.Put([]byte(scid), []byte(owner))
+		err = b.Put([]byte(scid), []byte(tags))
 		if err != nil {
 			return err
 		}
