@@ -130,7 +130,7 @@ func Start_gnomon_indexer() error {
 		// this is the base db, it contains all scids and contract interactions
 		"all": {""},
 
-		// TODO: we are not currently indexing contract interactions within search filters
+		// TODO: building separate search dbs... config.json?
 		"g45":  {"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"},
 		"nfa":  {"ART-NFA-MS1"},
 		"tela": {"docVersion", "telaVersion"},
