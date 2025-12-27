@@ -800,7 +800,6 @@ func set_up_backend() error {
 		// for now, these are the collections we are looking for
 		// title, search terms
 		indices = []structures.SearchFilter{
-			{Name: "all", Terms: []string{""}},
 			{Name: "g45", Terms: []string{"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"}},
 			{Name: "nfa", Terms: []string{"ART-NFA-MS1"}},
 			{Name: "tela", Terms: []string{"docVersion", "telaVersion"}},
