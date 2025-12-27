@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -37,9 +38,11 @@ var (
 	backup_database *db.BboltStore
 	indices         = []structures.SearchFilter{}
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
-	api_endpoint    = flag.String("api_endpoint", "", "-api_endpoint=<IP:PORT>")
-	starting_height = flag.Int64("starting_height", -1, "-starting_height=123")
-	ending_height   = flag.Int64("ending_height", -1, "-ending_height=123")
+	api_endpoint    = flag.String("api-endpoint", "", "-api-endpoint=<IP:PORT>")
+	starting_height = flag.Int64("starting-height", -1, "-starting-height=123")
+	ending_height   = flag.Int64("ending-height", -1, "-ending-height=123")
+	search_filter   = flag.String("search-filter", "", `-search="one-term;second-term;;;another-term;second-term"`)
+	exclusions      = flag.String("exclude", "", `-exclude=<SCID>;;;<SCID1>`)
 	progress        = flag.Bool("progress", false, "-progress")
 	help            = flag.Bool("help", false, "-help")
 	help_msg        = `Usage: simple-gnomon [options]
@@ -47,9 +50,11 @@ A simple indexer for the DERO blockchain.
 
 Options:
   -endpoint <DAEMON_IP:PORT>       Address of the daemon to connect to.
-  -api_endpoint <DAEMON_IP:PORT>   Address of the api to connect to.
-  -starting_height <N>             Height to start indexing from.
-  -ending_height <N>               Height to stop indexing at.
+  -api-endpoint <DAEMON_IP:PORT>   Address of the api to connect to.
+  -starting-height <N>             Height to start indexing from.
+  -ending-height <N>               Height to stop indexing at.
+  -search-filter "<F;F>;;;<F;F>"   Exclusively search filter(s), overides search.json. 
+  -exclude "<F>;;;<F>"             Exclude SCID(s), overides exclude.json. 
   -progress                        Show download progress stats.
   -help                            Show this help message.`
 
@@ -410,7 +415,7 @@ func tx_handling() {
 				Fees:   tx.Fees(),
 				Height: height,
 			}
-			fmt.Println("normal with scid", ring, normTxWithSCID)
+			// fmt.Println("normal with scid", ring, normTxWithSCID)
 			database.StoreNormalTxWithSCIDByAddr(ring, normTxWithSCID)
 		}
 	}
@@ -659,6 +664,12 @@ func filtering() {
 			}
 		}
 
+		// if they are providing a search filter, they are being specific
+		// if none of the filters matches the sc code, skip this txid
+		if search_filter != nil && *search_filter != "" && class == "" {
+			return
+		}
+
 		// catch globals
 		switch parsed_transaction.Scid {
 		case globals.NAMESERVICE:
@@ -799,101 +810,164 @@ func storeHeight(height int64) error {
 // BACKEND & BACKUPS
 func set_up_backend() error {
 
-	cfg := filepath.Join("config", "search.json")
+	// if there is a search filter...
+	if search_filter != nil && *search_filter != "" {
+		search := *search_filter
 
-	if _, err := os.Stat(cfg); err != nil {
-		// for now, these are the collections we are looking for
-		// title, search terms
-		indices = []structures.SearchFilter{
-			{Name: "g45", Terms: []string{"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"}},
-			{Name: "nfa", Terms: []string{"ART-NFA-MS1"}},
-			{Name: "tela", Terms: []string{"docVersion", "telaVersion"}},
+		action := func(i int, terms []string) {
+			indices = append(indices, structures.SearchFilter{
+				Name:  "Filter " + strconv.Itoa(i),
+				Terms: terms,
+			})
 		}
 
-		if err := os.Mkdir(filepath.Dir(cfg), 0700); err != nil {
-			if errors.Is(err, os.ErrExist) {
-				fmt.Println(err)
+		callback := func(i int, filter string) {
+			if strings.Contains(filter, ";") {
+				terms := strings.Split(filter, ";")
+				action(i, terms)
 			} else {
-				return err
+				action(i, []string{filter})
 			}
 		}
 
-		b, err := json.MarshalIndent(indices, "", "\t")
-		if err != nil {
-			return err
+		switch {
+		case strings.Contains(search, ";;;"):
+			for i, filter := range strings.Split(search, ";;;") {
+				callback(i, filter)
+			}
+		case !strings.Contains(search, ";;;"):
+			callback(0, search)
 		}
 
-		if err := os.WriteFile(cfg, b, 0600); err != nil {
-			return err
-		}
+	}
 
-	} else {
+	if search_filter == nil && *search_filter == "" && len(indices) == 0 {
+		cfg := filepath.Join("config", "search.json")
+		if _, err := os.Stat(cfg); err != nil {
+			// for now, these are the collections we are looking for
+			// title, search terms
+			indices = []structures.SearchFilter{
+				{Name: "g45", Terms: []string{"G45-NFT", "G45-AT", "G45-C", "G45-FAT", "G45-NAME", "T345"}},
+				{Name: "nfa", Terms: []string{"ART-NFA-MS1"}},
+				{Name: "tela", Terms: []string{"docVersion", "telaVersion"}},
+			}
 
-		fi, err := os.OpenFile(cfg, os.O_RDONLY, 0600)
-		if err != nil {
-			return err
-		}
+			if err := os.Mkdir(filepath.Dir(cfg), 0700); err != nil {
+				if errors.Is(err, os.ErrExist) {
+					fmt.Println(err)
+				} else {
+					return err
+				}
+			}
 
-		b, err := io.ReadAll(fi)
-		if err != nil {
-			return err
-		}
+			b, err := json.MarshalIndent(indices, "", "\t")
+			if err != nil {
+				return err
+			}
 
-		if err := json.Unmarshal(b, &indices); err != nil {
-			return err
+			if err := os.WriteFile(cfg, b, 0600); err != nil {
+				return err
+			}
+
+		} else {
+
+			fi, err := os.OpenFile(cfg, os.O_RDONLY, 0600)
+			if err != nil {
+				return err
+			}
+
+			b, err := io.ReadAll(fi)
+			if err != nil {
+				return err
+			}
+
+			if err := json.Unmarshal(b, &indices); err != nil {
+				return err
+			}
 		}
 	}
 
-	excludes := filepath.Join("config", "exclude.json")
-	exclusions := []struct {
+	excluded := []struct {
 		Name   string
 		SCID   string
 		Reason string
 	}{}
-	if _, err := os.Stat(excludes); err != nil {
-		// for now, these are the collections we are looking for
-		// title, search terms
-		exclusions = []struct {
-			Name   string
-			SCID   string
-			Reason string
-		}{
-			{Name: "NAMESERVICE", SCID: globals.NAMESERVICE, Reason: "Hardcoded Contract"},
-			{Name: "Gnomon Smart Contract", SCID: globals.MAINNET_GNOMON_SCID, Reason: "Large Contract"},
+
+	// if exclusions are provided...
+	if exclusions != nil && *exclusions != "" {
+		exclude := *exclusions
+
+		callback := func(i int, scid string) {
+			excluded = append(excluded, struct {
+				Name   string
+				SCID   string
+				Reason string
+			}{
+				Name:   "Exclusion " + strconv.Itoa(i),
+				SCID:   scid,
+				Reason: "exclusion flag",
+			})
 		}
 
-		if err := os.Mkdir(filepath.Dir(excludes), 0700); err != nil {
+		switch {
+		case strings.Contains(exclude, ";;;"):
+			for i, filter := range strings.Split(exclude, ";;;") {
+				callback(i, filter)
+			}
+		case !strings.Contains(exclude, ";;;"):
+			callback(0, exclude)
+		}
+	}
 
-			if errors.Is(err, os.ErrExist) {
-				fmt.Println(err)
-			} else {
+	// otherwise if there is no flag
+	if exclusions == nil && *exclusions == "" && len(excluded) == 0 {
+		excludes := filepath.Join("config", "exclude.json")
+		if _, err := os.Stat(excludes); err != nil {
+			// for now, these are the collections we are looking for
+			// title, search terms
+			excluded = []struct {
+				Name   string
+				SCID   string
+				Reason string
+			}{
+				{Name: "NAMESERVICE", SCID: globals.NAMESERVICE, Reason: "Hardcoded Contract"},
+				{Name: "Gnomon Smart Contract", SCID: globals.MAINNET_GNOMON_SCID, Reason: "Large Contract"},
+			}
+
+			if err := os.Mkdir(filepath.Dir(excludes), 0700); err != nil {
+
+				if errors.Is(err, os.ErrExist) {
+					fmt.Println(err)
+				} else {
+					return err
+				}
+			}
+
+			b, err := json.MarshalIndent(excluded, "", "\t")
+			if err != nil {
+				return err
+			}
+
+			if err := os.WriteFile(excludes, b, 0600); err != nil {
+				return err
+			}
+		} else {
+			fi, err := os.OpenFile(excludes, os.O_RDONLY, 0600)
+			if err != nil {
+				return err
+			}
+
+			b, err := io.ReadAll(fi)
+			if err != nil {
+				return err
+			}
+
+			if err := json.Unmarshal(b, &excluded); err != nil {
 				return err
 			}
 		}
-
-		b, err := json.MarshalIndent(exclusions, "", "\t")
-		if err != nil {
-			return err
-		}
-
-		if err := os.WriteFile(excludes, b, 0600); err != nil {
-			return err
-		}
-	} else {
-		fi, err := os.OpenFile(excludes, os.O_RDONLY, 0600)
-		if err != nil {
-			return err
-		}
-
-		b, err := io.ReadAll(fi)
-		if err != nil {
-			return err
-		}
-
-		if err := json.Unmarshal(b, &exclusions); err != nil {
-			return err
-		}
 	}
+
 	// DB SETUP
 	db_name := fmt.Sprintf("%s.db", "GNOMON")
 	db_backup_name := db_name + ".bak"
@@ -915,7 +989,7 @@ func set_up_backend() error {
 	}
 	time.Sleep(time.Second * 1) // we need a second okay...
 
-	for _, exclude := range exclusions {
+	for _, exclude := range excluded {
 		b.Exclusions = append(b.Exclusions, exclude.SCID)
 		bb.Exclusions = append(bb.Exclusions, exclude.SCID)
 	}
