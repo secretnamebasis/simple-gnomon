@@ -853,7 +853,7 @@ func set_up_backend() error {
 			Reason string
 		}{
 			{Name: "NAMESERVICE", SCID: globals.NAMESERVICE, Reason: "Hardcoded Contract"},
-			{Name: "Gnomon Smart Contract", SCID: globals.NAMESERVICE, Reason: "Large Contract"},
+			{Name: "Gnomon Smart Contract", SCID: globals.MAINNET_GNOMON_SCID, Reason: "Large Contract"},
 		}
 
 		if err := os.Mkdir(filepath.Dir(excludes), 0700); err != nil {
