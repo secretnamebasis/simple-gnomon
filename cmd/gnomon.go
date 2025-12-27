@@ -592,7 +592,15 @@ func filtering() {
 
 		var sc rpc.GetSC_Result
 
-		if !slices.Contains(database.Exclusions, params.SCID) {
+		if !slices.Contains(database.Exclusions, parsed_transaction.Scid) {
+
+			params = rpc.GetSC_Params{
+				SCID:       parsed_transaction.Scid,
+				Code:       true,
+				Variables:  true,
+				TopoHeight: height,
+			}
+
 			sc = connections.GetSC(params)
 
 			if _, ok := sc.VariableStringKeys["C"]; !ok {
