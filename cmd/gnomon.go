@@ -59,7 +59,7 @@ Options:
 	day_of_blocks           int64
 
 	// we are going to use these for later
-
+	now         int64
 	TOPO        int64
 	IN_PROGRESS int64
 	RUNNING     bool
@@ -185,7 +185,7 @@ func Start_gnomon_indexer() error {
 
 func gnomon_indexer() {
 	RUNNING = true
-	now := connections.Get_TopoHeight()
+	now = connections.Get_TopoHeight()
 
 	fmt.Println("starting to index ", now)
 
@@ -750,7 +750,7 @@ func scid_db_writer() {
 			staged.Scid,
 			staged.Sender,
 			staged.Height,
-			connections.Get_TopoHeight(),
+			now,
 			staged.Headers,
 			len(staged.ScVars),
 			staged.Class,
