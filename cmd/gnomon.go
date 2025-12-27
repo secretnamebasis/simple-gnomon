@@ -745,10 +745,12 @@ var scid_db_queue = make(chan *structures.SCIDToIndexStage, 100_000)
 func scid_db_writer() {
 	for staged := range scid_db_queue {
 
-		format := "staged scid: %s:%s %d / %d %s %d class:%s tags:%s\n"
+		format := "staged txid %s sender %s | %s | scid: %s %d / %d %s %d class:%s tags:%s\n"
 		a := []any{
-			staged.Scid,
+			staged.Txid,
 			staged.Sender,
+			staged.Method,
+			staged.Scid,
 			staged.Height,
 			now,
 			staged.Headers,
