@@ -673,7 +673,7 @@ func filtering() {
 			parsed_transaction.Class = class
 		}
 
-		tags := []string{}
+		tags := []string{"all"}
 
 		// roll through the indices again to obtain tags
 		for _, search := range indices {
@@ -699,7 +699,6 @@ func filtering() {
 
 		// store as a single string
 		parsed_transaction.Tags = strings.Join(tags, ",")
-
 		// because these are being processed asynchronously...
 		// don't block on writing them to the db,
 		// just queue em and write em when the writer has a moment
