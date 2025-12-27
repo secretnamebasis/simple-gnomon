@@ -546,9 +546,8 @@ func filtering() {
 		// https://github.com/deroproject/derohe/blob/e9df1205b6603c62f0651d0e18e5e77a2584b15e/walletapi/rpcserver/rpc_transfer.go#L64
 		if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) && !each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
 			scid := each.GetHash().String()
-			parsed_transaction.Method = "installsc"
 			parsed_transaction.Scid = scid
-			params = rpc.GetSC_Params{SCID: scid, Code: true, Variables: true, TopoHeight: height}
+			parsed_transaction.Method = "install"
 		}
 
 		// contract interactions
@@ -567,9 +566,8 @@ func filtering() {
 			}
 			scid := value.String()
 			parsed_transaction.Scid = scid
-			parsed_transaction.Method = "scinvoke"
+			parsed_transaction.Method = "invoke"
 			parsed_transaction.Entrypoint = entrypoint
-			params = rpc.GetSC_Params{SCID: scid, Code: false, Variables: true, TopoHeight: height}
 		}
 
 		parsed_transaction.Sc_args = each.SCDATA
