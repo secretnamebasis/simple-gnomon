@@ -79,14 +79,29 @@ func RenderGUI() {
 	data_dir = filepath.Base(globals.GetDataDirectory())
 	endpoint := ""
 	connection := widget.NewEntry()
-	minis := widget.NewCheck("STORE MINIs?", func(b bool) { cmd.STORE_MINIBLOCKS = b })
 
+	starting_height := widget.NewEntry()
+	starting_height.SetPlaceHolder("defaults to 0")
+	ending_height := widget.NewEntry()
+	ending_height.SetPlaceHolder("defaults to current height")
+	search_filter := widget.NewEntry()
+	search_filter.SetPlaceHolder(`search-term;second-term;;;search-term1;second-term1`)
+	exclusions := widget.NewEntry()
+	exclusions.SetPlaceHolder("SCID;;;SCID1")
+	minis := widget.NewCheck("STORE MINIs?", func(b bool) {})
 	msg := "NOTICE:\n" +
 		"Storing miniblocks adds overhead to indexing,\n" +
 		"and takes considerably more time.\n Please be advised.\n"
 
 	notice := widget.NewLabel(msg)
 	notice.Alignment = fyne.TextAlignCenter
+	drop_down := widget.NewAccordion(
+		widget.NewAccordionItem("starting height", starting_height),
+		widget.NewAccordionItem("ending height", ending_height),
+		widget.NewAccordionItem("search filter", search_filter),
+		widget.NewAccordionItem("exclusions", exclusions),
+		widget.NewAccordionItem("store minis", container.NewVBox(notice, container.NewCenter(minis))),
+	)
 
 	progress_bar := widget.NewProgressBar()
 	progress_bar.Hide()
@@ -97,6 +112,8 @@ func RenderGUI() {
 		minis.Hide()
 		notice.Hide()
 		connection.Hide()
+		drop_down.Hide()
+		table.Show()
 		progress_bar.Show()
 		if cmd.RUNNING {
 			return
@@ -105,9 +122,29 @@ func RenderGUI() {
 		// now go start gnomon
 		endpoint = connection.Text
 
+		if endpoint == "" {
+			return
+		}
+
 		endpoint_flag := "-endpoint=" + endpoint
 
 		os.Args = append(os.Args, endpoint_flag)
+
+		if starting_height.Text != "" {
+			os.Args = append(os.Args, "-starting-height="+starting_height.Text)
+		}
+		if ending_height.Text != "" {
+			os.Args = append(os.Args, "-ending-height="+ending_height.Text)
+		}
+		if search_filter.Text != "" {
+			os.Args = append(os.Args, "-search-filter="+search_filter.Text)
+		}
+		if exclusions.Text != "" {
+			os.Args = append(os.Args, "-exclude="+exclusions.Text)
+		}
+		if minis.Checked {
+			os.Args = append(os.Args, "-store-minis")
+		}
 
 		node_connection = endpoint
 
@@ -117,6 +154,8 @@ func RenderGUI() {
 			minis.Show()
 			notice.Show()
 			connection.Show()
+			drop_down.Show()
+			table.Hide()
 			progress_bar.Hide()
 			return
 		}
@@ -148,7 +187,17 @@ func RenderGUI() {
 			if err != nil {
 				panic(err)
 			}
+
 			first := int64(height1.Result)
+			if starting_height.Text != "" {
+				v, err := strconv.Atoi(starting_height.Text)
+				if err != nil {
+					fmt.Println(err)
+					dialog.ShowError(err, w)
+					return
+				}
+				first = int64(v)
+			}
 
 			action := func(now int64) {
 				last := cmd.TOPO
@@ -320,12 +369,12 @@ func RenderGUI() {
 	}
 	table.SetColumnWidth(0, 200)
 	table.SetColumnWidth(1, 150)
+	table.Hide()
 	content := container.NewBorder(
 		container.NewVBox(
 			progress_bar,
 			connection,
-			container.NewCenter(minis),
-			notice,
+			drop_down,
 		),
 		nil, nil, nil,
 		table,
