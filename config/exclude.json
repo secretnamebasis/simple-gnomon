@@ -8,5 +8,10 @@
 		"Name": "Gnomon Smart Contract",
 		"SCID": "a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4",
 		"Reason": "Large Contract"
+	},
+	{
+		"Name": "Smart Contract Market",
+		"SCID": "bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2",
+		"Reason": "47.3Mb is a big contract"
 	}
 ]
