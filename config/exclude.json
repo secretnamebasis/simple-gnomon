@@ -13,5 +13,10 @@
 		"Name": "Smart Contract Market",
 		"SCID": "bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2",
 		"Reason": "47.3Mb is a big contract"
+	},
+	{
+		"Name": "Copy Cat Smart Contract Market",
+		"SCID": "e2ec01dcb1fc87abc6af5e958c936c0ad05e19b318be1c87e9ba2d188e8d689f:dero1qyhfculsxu2e7g9yyaksdnnx48zxrzauwzuqfqmlrjz8wd6wsrls7qq5afmvm",
+		"Reason": "Another big contract"
 	}
 ]
