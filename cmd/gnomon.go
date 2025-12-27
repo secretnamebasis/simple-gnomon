@@ -43,6 +43,7 @@ var (
 	ending_height   = flag.Int64("ending-height", -1, "-ending-height=123")
 	search_filter   = flag.String("search-filter", "", `-search="one-term;second-term;;;another-term;second-term"`)
 	exclusions      = flag.String("exclude", "", `-exclude=<SCID>;;;<SCID1>`)
+	store_minis     = flag.Bool("store-minis", false, "-store-minis")
 	progress        = flag.Bool("progress", false, "-progress")
 	help            = flag.Bool("help", false, "-help")
 	help_msg        = `Usage: simple-gnomon [options]
@@ -54,7 +55,8 @@ Options:
   -starting-height <N>             Height to start indexing from.
   -ending-height <N>               Height to stop indexing at.
   -search-filter "<F;F>;;;<F;F>"   Exclusively search filter(s), overides search.json. 
-  -exclude "<F>;;;<F>"             Exclude SCID(s), overides exclude.json. 
+  -exclude "<F>;;;<F>"             Exclude SCID(s), overides exclude.json.
+  -store-minis                     Store miniblock details within index 
   -progress                        Show download progress stats.
   -help                            Show this help message.`
 
@@ -108,6 +110,10 @@ func Start_gnomon_indexer() error {
 	api := "127.0.0.1:8082"
 	if api_endpoint != nil && *api_endpoint != "" {
 		api = *api_endpoint
+	}
+
+	if store_minis != nil && *store_minis {
+		STORE_MINIBLOCKS = *store_minis
 	}
 
 	// if you are getting a zero... yeah, you are not connected
