@@ -338,7 +338,6 @@ func RenderGUI() {
 				if err != nil {
 					panic(err)
 				}
-
 				all_registration = strconv.Itoa(int(result.Result))
 
 				result, err = getTxCount(getTxCountParams{"scids"})
@@ -346,7 +345,6 @@ func RenderGUI() {
 					panic(err)
 				}
 				all_scids = strconv.Itoa(int(result.Result))
-
 				g45s, err := getSCIDsByTag(getSCIDsByTagParams{"g45"})
 				if err != nil {
 					panic(err)
@@ -358,8 +356,8 @@ func RenderGUI() {
 				if err != nil {
 					panic(err)
 				}
-				all_nfas = strconv.Itoa(len(nfas.Result))
 
+				all_nfas = strconv.Itoa(len(nfas.Result))
 				height1, err := getLastIndexHeight()
 				if err != nil {
 					panic(err)
@@ -519,7 +517,7 @@ type getSCIDsByTagParams struct {
 	Tag string
 }
 type getSCIDsByTagResult struct {
-	Result []string `json:"result"`
+	Result []any `json:"result"`
 }
 
 func getSCIDsByTag(params getSCIDsByTagParams) (getSCIDsByTagResult, error) {
@@ -546,7 +544,7 @@ func getSCIDsByTag(params getSCIDsByTagParams) (getSCIDsByTagResult, error) {
 		return getSCIDsByTagResult{}, errors.New("failed to unmarshal")
 	}
 
-	return getSCIDsByTagResult{r.Result.([]string)}, nil
+	return getSCIDsByTagResult{r.Result.([]any)}, nil
 }
 
 // type getMiniDetailsParams struct {
