@@ -65,6 +65,7 @@ var (
 		"NFAs & OWNERS:",
 	}
 )
+var indexer_connection *websocket.Conn
 
 func RenderGUI() {
 	closing := false
@@ -217,7 +218,11 @@ func RenderGUI() {
 
 		go func() {
 			var err error
-			url := "ws://" + ws_endpoint.Text + "/ws"
+			ws := "127.0.0.1:9190"
+			if ws_endpoint.Text != "" {
+				ws = ws_endpoint.Text
+			}
+			url := "ws://" + ws + "/ws"
 			websocket_address = url
 			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true, // allow self-signed certs
@@ -228,7 +233,7 @@ func RenderGUI() {
 				panic(err)
 			}
 
-			height1, err := getLastIndexHeight(getAllParams{Tag: "all"})
+			height1, err := getLastIndexHeight()
 			if err != nil {
 				panic(err)
 			}
@@ -342,20 +347,20 @@ func RenderGUI() {
 				}
 				all_scids = strconv.Itoa(int(result.Result))
 
-				// result, err = getTxCount(getTxCountParams{"g45", "scids"})
-				// if err != nil {
-				// 	panic(err)
-				// }
+				g45s, err := getSCIDsByTag(getSCIDsByTagParams{"g45"})
+				if err != nil {
+					panic(err)
+				}
 
-				// all_g45s = strconv.Itoa(int(result.Result))
+				all_g45s = strconv.Itoa(len(g45s.Result))
 
-				// result, err = getTxCount(getTxCountParams{"nfa", "scids"})
-				// if err != nil {
-				// 	panic(err)
-				// }
-				// all_nfas = strconv.Itoa(int(result.Result))
+				nfas, err := getSCIDsByTag(getSCIDsByTagParams{"nfa"})
+				if err != nil {
+					panic(err)
+				}
+				all_nfas = strconv.Itoa(len(nfas.Result))
 
-				height1, err := getLastIndexHeight(getAllParams{"all"})
+				height1, err := getLastIndexHeight()
 				if err != nil {
 					panic(err)
 				}
@@ -420,18 +425,11 @@ type getAllSCIDSAndOwnersResult struct {
 	Result map[string]any `json:"result"`
 }
 
-type getAllParams struct {
-	Tag string
-}
-
-var indexer_connection *websocket.Conn
-
-func getAllSCIDSAndOwners(params getAllParams) (getAllSCIDSAndOwnersResult, error) {
+func getAllSCIDSAndOwners() (getAllSCIDSAndOwnersResult, error) {
 
 	msg := map[string]any{
 		"method": "GetAllOwnersAndSCIDs",
 		"id":     "1",
-		"params": params,
 	}
 
 	var err error
@@ -457,12 +455,11 @@ type getLastHeightResult struct {
 	Result float64 `json:"result"`
 }
 
-func getLastIndexHeight(params getAllParams) (getLastHeightResult, error) {
+func getLastIndexHeight() (getLastHeightResult, error) {
 
 	msg := map[string]any{
 		"method": "GetLastIndexHeight",
 		"id":     "1",
-		"params": params,
 	}
 
 	var err error
@@ -516,6 +513,40 @@ func getTxCount(params getTxCountParams) (getTxCountResult, error) {
 	}
 
 	return getTxCountResult{r.Result.(float64)}, nil
+}
+
+type getSCIDsByTagParams struct {
+	Tag string
+}
+type getSCIDsByTagResult struct {
+	Result []string `json:"result"`
+}
+
+func getSCIDsByTag(params getSCIDsByTagParams) (getSCIDsByTagResult, error) {
+
+	msg := map[string]any{
+		"method": "GetTxCount",
+		"id":     "1",
+		"params": params,
+	}
+
+	var err error
+
+	if err := indexer_connection.WriteJSON(msg); err != nil {
+		return getSCIDsByTagResult{}, errors.New("failed to write")
+	}
+
+	_, b, err := indexer_connection.ReadMessage()
+	if err != nil {
+		return getSCIDsByTagResult{}, errors.New("failed to read")
+	}
+
+	var r structures.JSONRpcResp
+	if err := json.Unmarshal(b, &r); err != nil {
+		return getSCIDsByTagResult{}, errors.New("failed to unmarshal")
+	}
+
+	return getSCIDsByTagResult{r.Result.([]string)}, nil
 }
 
 // type getMiniDetailsParams struct {
