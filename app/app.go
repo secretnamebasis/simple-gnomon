@@ -525,7 +525,7 @@ type getSCIDsByTagResult struct {
 func getSCIDsByTag(params getSCIDsByTagParams) (getSCIDsByTagResult, error) {
 
 	msg := map[string]any{
-		"method": "GetTxCount",
+		"method": "GetAllSCIDsByTag",
 		"id":     "1",
 		"params": params,
 	}
