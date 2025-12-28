@@ -155,6 +155,7 @@ func Start_gnomon_indexer() error {
 		for {
 			select {
 			case <-signalChan:
+				RUNNING = false
 				cancel()
 				gracefullyStopAndExit()
 				return
