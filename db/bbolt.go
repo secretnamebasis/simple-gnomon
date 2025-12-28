@@ -481,7 +481,7 @@ func (bbs *BboltStore) GetAllSCIDsByClass(class string) []string {
 				if !strings.Contains(string(v), class) {
 					continue
 				}
-				results = append(results, string(v))
+				results = append(results, string(k))
 			}
 		}
 
@@ -506,7 +506,7 @@ func (bbs *BboltStore) GetAllSCIDsByTag(tag string) []string {
 				if !strings.Contains(string(v), tag) {
 					continue
 				}
-				results = append(results, string(v))
+				results = append(results, string(k))
 			}
 		}
 
