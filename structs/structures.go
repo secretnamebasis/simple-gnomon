@@ -74,32 +74,20 @@ type (
 		KeysUint64 []uint64
 	}
 
-	GnomonAllOwnersAndSCIDsQuery struct{}
-
-	GnomonGetInfoParams struct{}
-
-	GnomonAllNormalTxWithSCIDByAddrQuery struct {
+	GnomonAddressQuery struct {
 		Address string
 	}
 
-	GnomonMiniblockDetailsByAddress struct {
-		Address string
-	}
-
-	GnomonAllNormalTxWithSCIDBySCIDQuery struct {
+	GnomonSCIDQuery struct {
 		SCID string
 	}
 
-	GnomonAllSCIDInteractionHeight struct {
-		SCID string
+	GnomonClassQuery struct {
+		Class string
 	}
 
-	GnomonAllSCIDInteractionAddr struct {
-		Addr string
-	}
-
-	GnomonAllSCIDInvokeDetails struct {
-		SCID string
+	GnomonTagQuery struct {
+		Tag string
 	}
 
 	GnomonAllSCIDInvokeDetailsByEntrypoint struct {
@@ -125,10 +113,6 @@ type (
 
 	GnomonTxCountQuery struct {
 		Tx_Type string
-	}
-
-	GnomonOwnerQuery struct {
-		SCID string
 	}
 
 	GnomonMiniblockDetailsByHash struct {
