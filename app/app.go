@@ -79,7 +79,11 @@ func RenderGUI() {
 	data_dir = filepath.Base(globals.GetDataDirectory())
 	endpoint := ""
 	connection := widget.NewEntry()
-
+	connection.SetPlaceHolder("dero node: 127.0.0.1:10102")
+	ws_endpoint := widget.NewEntry()
+	ws_endpoint.SetPlaceHolder("serve ws on: 127.0.0.1:9190")
+	api_endpoint := widget.NewEntry()
+	api_endpoint.SetPlaceHolder("serve api on: 127.0.0.1:8082")
 	starting_height := widget.NewEntry()
 	starting_height.SetPlaceHolder("defaults to 0")
 	ending_height := widget.NewEntry()
@@ -101,6 +105,7 @@ func RenderGUI() {
 	mini_notice := widget.NewLabel(msg)
 	mini_notice.Alignment = fyne.TextAlignCenter
 	drop_down := widget.NewAccordion(
+		widget.NewAccordionItem("indexer endpoints", container.NewVBox(ws_endpoint, api_endpoint)),
 		widget.NewAccordionItem("starting height", starting_height),
 		widget.NewAccordionItem("ending height", ending_height),
 		widget.NewAccordionItem("search filter", search_filter),
@@ -133,7 +138,12 @@ func RenderGUI() {
 		endpoint_flag := "-endpoint=" + endpoint
 
 		os.Args = append(os.Args, endpoint_flag)
-
+		if ws_endpoint.Text != "" {
+			os.Args = append(os.Args, "-ws-endpoint="+ws_endpoint.Text)
+		}
+		if api_endpoint.Text != "" {
+			os.Args = append(os.Args, "-api-endpoint="+api_endpoint.Text)
+		}
 		if starting_height.Text != "" {
 			os.Args = append(os.Args, "-starting-height="+starting_height.Text)
 		}

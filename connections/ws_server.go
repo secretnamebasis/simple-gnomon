@@ -37,7 +37,8 @@ var WSS *WSServer = &WSServer{}
 var options = &jrpc2.ServerOptions{AllowPush: true}
 
 // Starts websocket listening for web miners
-func ListenWS(databases *db.BboltStore) {
+func ListenWS(ctx context.Context, databases *db.BboltStore, address string) {
+
 	// srvTLS, clientTLS, err := certification()
 	// if err != nil {
 	// 	log.Fatal(err)
@@ -46,7 +47,7 @@ func ListenWS(databases *db.BboltStore) {
 	bindAddr := "127.0.0.1:9190"
 
 	// Err check to ensure address resolves fine
-	addr, err := net.ResolveTCPAddr("tcp", bindAddr)
+	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
 		log.Fatalf("[ListenWS] Error: %v", err)
 	}
@@ -55,14 +56,14 @@ func ListenWS(databases *db.BboltStore) {
 	WSS.mux = http.NewServeMux()
 
 	WSS.Lock()
-	WSS.srv = &http.Server{Addr: bindAddr, Handler: WSS.mux}
-	// WSS.srv = &http.Server{Addr: bindAddr, Handler: WSS.mux, TLSConfig: srvTLS}
+	WSS.srv = &http.Server{Addr: address, Handler: WSS.mux}
+	// WSS.srv = &http.Server{Addr: address, Handler: WSS.mux, TLSConfig: srvTLS}
 	WSS.Unlock()
 
 	// Setup handler for /ws directory which web miners will connect through
 	WSS.mux.HandleFunc("/ws", WSS.wshandler)
 
-	fmt.Printf("Starting WSServer on %v\n", bindAddr)
+	fmt.Printf("Starting WSServer on %v\n", address)
 
 	// err = WSS.srv.ListenAndServeTLS("", "")
 	err = WSS.srv.ListenAndServe()

@@ -39,6 +39,7 @@ var (
 	backup_database *db.BboltStore
 	indices         = []structures.SearchFilter{}
 	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
+	ws_endpoint     = flag.String("ws-endpoint", "", "-ws-endpoint=<IP:PORT>")
 	api_endpoint    = flag.String("api-endpoint", "", "-api-endpoint=<IP:PORT>")
 	starting_height = flag.Int64("starting-height", -1, "-starting-height=123")
 	ending_height   = flag.Int64("ending-height", -1, "-ending-height=123")
@@ -53,7 +54,8 @@ A simple indexer for the DERO blockchain.
 
 Options:
   -endpoint <DAEMON_IP:PORT>       Address of the daemon to connect to.
-  -api-endpoint <DAEMON_IP:PORT>   Address of the api to connect to.
+  -ws-endpoint <IP:PORT>    Address of the ws.
+  -api-endpoint <IP:PORT>   Address of the api.
   -starting-height <N>             Height to start indexing from.
   -ending-height <N>               Height to stop indexing at.
   -search-filter "<F;F>;;;<F;F>"   Exclusively search filter(s), overides search.json. 
@@ -150,7 +152,17 @@ func Start_gnomon_indexer() error {
 	// now that the backend is set up, start WS
 
 	fmt.Println("setting up websocket")
-	go connections.ListenWS(database)
+	address := "127.0.0.1:9190"
+	if ws_endpoint != nil && *ws_endpoint != "" {
+		address = *ws_endpoint
+	}
+	go connections.ListenWS(ctx, database, address)
+
+	fmt.Println("setting up api")
+	api := "127.0.0.1:8082"
+	if api_endpoint != nil && *api_endpoint != "" {
+		api = *api_endpoint
+	}
 	server := connections.NewApiServer(&connections.APIConfig{
 		Enabled:              true,
 		Listen:               api,
