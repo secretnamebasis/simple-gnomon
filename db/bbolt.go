@@ -401,6 +401,232 @@ func (bbs *BboltStore) GetAllOwnersAndSCIDs() map[string]string {
 	return results
 }
 
+// Returns all classes used by indexed SCIDs
+func (bbs *BboltStore) GetAllClasses() []string {
+	results := []string{}
+	unique := map[string]bool{}
+	bName := "class"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil {
+					continue
+				}
+				if _, ok := unique[string(k)]; ok {
+					continue
+				}
+				unique[string(k)] = true
+				results = append(results, string(v))
+			}
+		}
+
+		slices.Sort(results)
+
+		return
+	})
+
+	return results
+}
+
+// Returns all tags used by indexed SCIDs
+func (bbs *BboltStore) GetAllTags() []string {
+	results := []string{}
+	uniquestrings := map[string]bool{}
+	uniquetags := map[string]bool{}
+	bName := "tags"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil {
+					continue
+				}
+				if _, ok := uniquestrings[string(k)]; ok {
+					continue
+				}
+				uniquestrings[string(k)] = true
+			}
+		}
+
+		for each := range uniquestrings {
+			for _, tag := range strings.Split(each, ",") {
+				if _, ok := uniquetags[tag]; ok {
+					continue
+				}
+				uniquetags[tag] = true
+			}
+		}
+
+		for each := range uniquetags {
+			results = append(results, each)
+		}
+
+		slices.Sort(results)
+
+		return
+	})
+
+	return results
+}
+
+// Returns all of the deployed SCIDs with their corresponding class
+func (bbs *BboltStore) GetAllSCIDsByClass(class string) []string {
+	results := []string{}
+
+	bName := "class"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil && !strings.Contains(string(v), class) {
+					continue
+				}
+				results = append(results, string(v))
+			}
+		}
+
+		return
+	})
+
+	return results
+}
+
+// Returns all of the deployed SCIDs with their corresponding tag
+func (bbs *BboltStore) GetAllSCIDsByTag(tag string) []string {
+	results := []string{}
+
+	bName := "tags"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil && !strings.Contains(string(v), tag) {
+					continue
+				}
+				results = append(results, string(v))
+			}
+		}
+
+		return
+	})
+
+	return results
+}
+
+// Returns all of the deployed SCIDs
+func (bbs *BboltStore) GetAllSCIDs() []string {
+	results := []string{}
+
+	bName := "owner"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil {
+					continue
+				}
+				results = append(results, string(k))
+			}
+		}
+
+		return
+	})
+
+	return results
+}
+
+// Returns all of the deployed SCIDs
+func (bbs *BboltStore) GetAllOwners() []string {
+	results := []string{}
+	unique := map[string]bool{}
+	bName := "owner"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil {
+					continue
+				}
+				if _, ok := unique[string(v)]; ok {
+					continue
+				}
+				results = append(results, string(v))
+			}
+		}
+		return
+	})
+
+	return results
+}
+
+// Returns all SCIDs and their Headers
+func (bbs *BboltStore) GetAllSCIDsAndHeaders() map[string]string {
+	results := make(map[string]string)
+
+	bName := "headers"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil {
+					continue
+				}
+				results[string(k)] = string(v)
+			}
+		}
+
+		return
+	})
+
+	return results
+}
+
+// Returns all of the deployed SCIDs
+func (bbs *BboltStore) GetAllHeaders() []string {
+	results := []string{}
+
+	bName := "headers"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); ; k, v = c.Next() {
+				if k == nil && v == nil {
+					continue
+				}
+				results = append(results, string(v))
+			}
+		}
+		return
+	})
+
+	return results
+}
+
 // Returns all normal txs with SCIDs based on a given address
 func (bbs *BboltStore) GetAllNormalTxWithSCIDByAddr(addr string) (normTxsWithSCID []*structures.NormalTXWithSCIDParse) {
 	bName := "normaltxwithscid"
