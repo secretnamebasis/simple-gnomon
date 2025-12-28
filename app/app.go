@@ -217,7 +217,7 @@ func RenderGUI() {
 
 		go func() {
 			var err error
-			url := "ws://127.0.0.1:9190/ws"
+			url := "ws://" + ws_endpoint.Text + "/ws"
 			websocket_address = url
 			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true, // allow self-signed certs
