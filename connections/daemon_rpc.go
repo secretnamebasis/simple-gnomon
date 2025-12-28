@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -69,6 +70,8 @@ const deadline = time.Second * 300 // some content is just bigger
 //const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 
 func callRPC[t any](method string, params any, validator func(t) bool) t {
+	tries := 0
+try_again:
 	result, err := handleResult[t](method, params)
 	if err != nil {
 		//	log.Fatal(err)
@@ -76,9 +79,17 @@ func callRPC[t any](method string, params any, validator func(t) bool) t {
 		return zero
 	}
 	if !validator(result) {
-		log.Println(errors.New("failed validation"), method, params)
+		if tries <= 3 {
+			tries++
+			time.Sleep(time.Millisecond * 20)
+			goto try_again
+		}
+		log.Println(errors.New("failed validation, attempts:"+strconv.Itoa(tries)), method, params, result)
 		var zero t
 		return zero
+	}
+	if tries > 0 {
+		log.Println("succeeded", tries, method, params, result)
 	}
 
 	return result
