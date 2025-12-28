@@ -551,23 +551,27 @@ func filtering() {
 	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
 		defer func() { IN_PROGRESS = height }()
 
-		parsed_transaction := &structures.SCIDToIndexStage{}
-
-		parsed_transaction.Txid = each.GetHash().String()
-
 		if len(each.SCDATA) == 0 {
 			return
 		}
 
 		// we go pull the contract anyway to determine that it installed
-		params := rpc.GetSC_Params{}
+		var (
+			scid       string
+			method     string
+			entrypoint string
+			code       string
+			class      string
+			headers    string
+			params     = rpc.GetSC_Params{}
+			tags       = []string{"all"} // catch all
+		)
 
 		// contract installs
 		// https://github.com/deroproject/derohe/blob/e9df1205b6603c62f0651d0e18e5e77a2584b15e/walletapi/rpcserver/rpc_transfer.go#L64
 		if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) && !each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-			scid := each.GetHash().String()
-			parsed_transaction.Scid = scid
-			parsed_transaction.Method = "install"
+			scid = each.GetHash().String()
+			method = "install"
 		}
 
 		// contract interactions
@@ -580,46 +584,41 @@ func filtering() {
 			if value.String() == "" || value.IsZero() {
 				return
 			}
-			entrypoint, ok := each.SCDATA.Value("entrypoint", rpc.DataString).(string)
+			entrypoint, ok = each.SCDATA.Value("entrypoint", rpc.DataString).(string)
 			if !ok {
 				return
 			}
-			scid := value.String()
-			parsed_transaction.Scid = scid
-			parsed_transaction.Method = "invoke"
-			parsed_transaction.Entrypoint = entrypoint
+			scid = value.String()
+			method = "invoke"
 		}
-
-		parsed_transaction.Sc_args = each.SCDATA
-
-		signer := tx_related_info.Signer
-		if signer == "" { // when ringsize is greater than 2...
-			signer = "null" // maybe empty is better?
-		}
-		parsed_transaction.Sender = signer
-
-		parsed_transaction.Payloads = each.Payloads
-
-		parsed_transaction.Fees = each.Fees()
-
-		parsed_transaction.Height = height
-
-		if parsed_transaction.Scid == "" {
+		if scid == "" {
 			return
 		}
 
 		var sc rpc.GetSC_Result
-
-		if !slices.Contains(database.Exclusions, parsed_transaction.Scid) {
+		if !slices.Contains(database.Exclusions, scid) {
 
 			params = rpc.GetSC_Params{
-				SCID:       parsed_transaction.Scid,
+				SCID:       scid,
 				Code:       true,
 				Variables:  true,
 				TopoHeight: height,
 			}
-
+			// 	tries := 0
+			// try_again:
 			sc = connections.GetSC(params)
+
+			// if sc.Code == "" && len(sc.VariableStringKeys) == 0 {
+			// 	tries++
+			// 	if tries <= 3 {
+			// 		goto try_again
+			// 	}
+			// 	fmt.Println("failed")
+			// 	return
+			// }
+			// if tries > 0 {
+			// 	fmt.Println("recovered", height, tx_related_info, each)
+			// }
 
 			if _, ok := sc.VariableStringKeys["C"]; !ok {
 				// this is an invalid contract
@@ -630,31 +629,11 @@ func filtering() {
 			}
 
 			// currently not storing ScCode...
-			parsed_transaction.ScCode = sc.Code
+			code = sc.Code
 			// the compromise, I think, is the entrypoint...
 		}
 
-		kv := sc.VariableStringKeys
-
-		nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
-
-		if strings.Contains(sc.Code, nfa_signature) {
-			parsed_transaction.Headers = GetSCNameFromVars(kv) + ";" + GetSCDescriptionFromVars(kv) + ";" + GetSCIDImageURLFromVars(kv)
-		}
-
-		if parsed_transaction.Headers == "" && len(kv) != 0 { // there could be a possability that it is a g45
-			parsed_transaction.Headers = GetSCHeaderFromMetaData(kv)
-		}
-
-		if parsed_transaction.Headers == "" {
-			name, description, image := "null", "null", "null"
-			parsed_transaction.Headers = name + ";" + description + ";" + image
-		}
-
-		parsed_transaction.ScVars = GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
-
 		// unfortunately, there isn't a way to do this without checking twice
-		class := ""
 
 		// roll through the indices to obtain the class
 		for _, search := range indices {
@@ -665,7 +644,7 @@ func filtering() {
 			for _, filter := range filters { // range through the filters
 
 				// if the code does not contain the filter, skip
-				if !strings.Contains(parsed_transaction.ScCode, filter) {
+				if !strings.Contains(code, filter) {
 					continue
 				}
 
@@ -686,26 +665,23 @@ func filtering() {
 		}
 
 		// catch globals
-		switch parsed_transaction.Scid {
+		switch scid {
 		case globals.NAMESERVICE:
 			class = "NAMESERVICE"
 		case globals.MAINNET_GNOMON_SCID:
 			class = "GNOMONSC"
 		}
+
 		// as class is currently the filter...
 		// make sure to implement more classes as necessary
 		switch class {
 		case "": // catchall
-			parsed_transaction.Class = "null"
+			class = "null"
 		case "docVersion":
-			parsed_transaction.Class = "TELA-DOC-1"
+			class = "TELA-DOC-1"
 		case "telaVersion":
-			parsed_transaction.Class = "TELA-INDEX-1"
-		default:
-			parsed_transaction.Class = class
+			class = "TELA-INDEX-1"
 		}
-
-		tags := []string{"all"}
 
 		// roll through the indices again to obtain tags
 		for _, search := range indices {
@@ -716,7 +692,7 @@ func filtering() {
 			for _, filter := range filters { // range through the filters
 
 				// if the code does not contina the filter, skip it
-				if !strings.Contains(sc.Code, filter) {
+				if !strings.Contains(code, filter) {
 					continue
 				}
 
@@ -729,12 +705,48 @@ func filtering() {
 		// lexicographical order
 		slices.Sort(tags)
 
-		// store as a single string
-		parsed_transaction.Tags = strings.Join(tags, ",")
+		signer := tx_related_info.Signer
+		if signer == "" { // when ringsize is greater than 2...
+			signer = "null" // maybe empty is better?
+		}
+
+		nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
+
+		if strings.Contains(sc.Code, nfa_signature) {
+			headers = GetSCNameFromVars(sc.VariableStringKeys) + ";" + GetSCDescriptionFromVars(sc.VariableStringKeys) + ";" + GetSCIDImageURLFromVars(sc.VariableStringKeys)
+		}
+
+		if headers == "" && len(sc.VariableStringKeys) != 0 { // there could be a possability that it is a g45
+			headers = GetSCHeaderFromMetaData(sc.VariableStringKeys)
+		}
+
+		if headers == "" {
+			name, description, image := "null", "null", "null"
+			headers = name + ";" + description + ";" + image
+		}
+
 		// because these are being processed asynchronously...
 		// don't block on writing them to the db,
 		// just queue em and write em when the writer has a moment
-		scid_db_queue <- parsed_transaction
+		scid_db_queue <- &structures.SCIDToIndexStage{
+			SCTXParse: structures.SCTXParse{
+				Height:     height,
+				Txid:       each.GetHash().String(),
+				Scid:       scid,
+				Entrypoint: entrypoint,
+				Method:     method,
+				Sc_args:    each.SCDATA,
+				Sender:     signer,
+				Payloads:   each.Payloads,
+				Fees:       each.Fees(),
+			},
+			Headers: headers,
+			ScVars:  GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys),
+			ScCode:  code,
+			Class:   class,
+			// store as a single string
+			Tags: strings.Join(tags, ","),
+		}
 
 	}
 
