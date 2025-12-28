@@ -133,12 +133,19 @@ func Start_gnomon_indexer() error {
 
 	// build separate databases for each index, for portability
 	fmt.Println("opening dbs")
-
-	if err := set_up_backend(); err != nil {
-		return err
+	if database == nil || backup_database == nil {
+		if err := set_up_backend(); err != nil {
+			return err
+		}
 	}
 
-	fmt.Println("setting up queue processors")
+	height, err := database.GetLastIndexHeight()
+	if err != nil {
+		height = 0
+	}
+
+	// this will always be behind current topo height
+	lowest_height = min(lowest_height, height)
 
 	if STORE_MINIBLOCKS {
 		fmt.Println("STORING MINIBLOCKS")
@@ -1164,14 +1171,6 @@ func set_up_backend() error {
 		b.Exclusions = append(b.Exclusions, exclude.SCID)
 		bb.Exclusions = append(bb.Exclusions, exclude.SCID)
 	}
-
-	height, err := b.GetLastIndexHeight()
-	if err != nil {
-		height = 0
-	}
-
-	// this will always be behind current topo height
-	lowest_height = min(lowest_height, height)
 
 	// initialize each indexer
 	database = b
