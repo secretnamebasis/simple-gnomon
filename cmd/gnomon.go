@@ -847,7 +847,7 @@ func set_up_backend() error {
 
 	}
 
-	if search_filter == nil && *search_filter == "" && len(indices) == 0 {
+	if search_filter != nil && *search_filter == "" && len(indices) == 0 {
 		cfg := filepath.Join("config", "search.json")
 		if _, err := os.Stat(cfg); err != nil {
 			// for now, these are the collections we are looking for
@@ -892,6 +892,8 @@ func set_up_backend() error {
 			}
 		}
 	}
+
+	fmt.Println("searches indices:", len(indices))
 
 	excluded := []struct {
 		Name   string
