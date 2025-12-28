@@ -3,12 +3,14 @@ package connections
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,8 +46,6 @@ func ListenWS(ctx context.Context, databases *db.BboltStore, address string) {
 	// 	log.Fatal(err)
 	// }
 
-	bindAddr := "127.0.0.1:9190"
-
 	// Err check to ensure address resolves fine
 	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
@@ -64,12 +64,20 @@ func ListenWS(ctx context.Context, databases *db.BboltStore, address string) {
 	WSS.mux.HandleFunc("/ws", WSS.wshandler)
 
 	fmt.Printf("Starting WSServer on %v\n", address)
-
+	go func() {
+		<-ctx.Done()
+		if err := WSS.srv.Shutdown(ctx); err != nil {
+			fmt.Println("error shutting down server", err)
+			return
+		}
+	}()
 	// err = WSS.srv.ListenAndServeTLS("", "")
 	err = WSS.srv.ListenAndServe()
-	if err != nil {
+	if err != nil && err != http.ErrServerClosed {
 		log.Fatalf("[ListenWS] Failed to start WSServer: %v", err)
 	}
+
+	log.Println("WS server stopped cleanly")
 }
 
 func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
@@ -90,17 +98,50 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(websocket.StatusInternalError, "[wshandler] Disconnected")
 
 	for {
+
 		// log.Printf("[wshandler] Handling client...")
 		err = wss.wsHandleClient(r.Context(), conn, r)
-		if websocket.CloseStatus(err) == websocket.StatusNormalClosure || websocket.CloseStatus(err) == websocket.StatusGoingAway {
-			fmt.Printf("[wshandler] Websocket close status: %v\n", websocket.CloseStatus(err))
+
+		if err == nil {
+			continue
+		}
+
+		if isNormalWSDisconnect(err) {
 			return
 		}
-		if err != nil {
-			fmt.Printf("[wshandler] Disconnected %v: %v\n", r.RemoteAddr, err)
-			return
-		}
+
+		fmt.Printf("[wshandler] Disconnected %v: %v\n", r.RemoteAddr, err)
 	}
+}
+
+func isNormalWSDisconnect(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	if errors.Is(err, io.EOF) {
+		return true
+	}
+
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+
+	switch websocket.CloseStatus(err) {
+	case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+		return true
+	}
+
+	// Fallback for wrapped EOFs
+	if strings.Contains(err.Error(), "EOF") {
+		return true
+	}
+
+	return false
 }
 
 var errDisconnected = fmt.Errorf("server disconnect request")
@@ -117,6 +158,10 @@ func handleMashalError(err error) error {
 
 // func handleUnmarshalError(err error) error {}
 func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, request *http.Request) error {
+	go func() {
+		<-ctx.Done()
+		_ = c.Close(websocket.StatusGoingAway, "server shutdown")
+	}()
 	var err error
 
 	var req *structures.JSONRpcReq
@@ -126,6 +171,17 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 	if err != nil {
 		if err == io.EOF {
 			fmt.Printf("io.EOF - disconnected\n")
+		}
+		if errors.Is(err, context.Canceled) {
+			return err
+		}
+		if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
+			websocket.CloseStatus(err) == websocket.StatusGoingAway {
+			return err
+		}
+		if errors.Is(err, net.ErrClosed) ||
+			strings.Contains(err.Error(), "use of closed network connection") {
+			return err
 		}
 
 		return err

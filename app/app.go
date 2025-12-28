@@ -74,6 +74,8 @@ func RenderGUI() {
 	w.SetCloseIntercept(func() {
 		cmd.RUNNING = false
 		closing = true
+		cmd.WaitForQueues()
+		fmt.Println("gracefully stopped")
 		os.Exit(0)
 	})
 	data_dir = filepath.Base(globals.GetDataDirectory())
@@ -114,13 +116,41 @@ func RenderGUI() {
 		widget.NewAccordionItem("store minis", container.NewVBox(mini_notice, container.NewCenter(minis))),
 	)
 
+	// var table *widget.Table
+	length := func() (int, int) { return len(row_headers), 2 }
+	create := func() fyne.CanvasObject { return widget.NewLabel("") }
+	update := func(id widget.TableCellID, co fyne.CanvasObject) {
+		switch id.Col {
+		case 0:
+			if id.Row >= len(row_headers) {
+				return
+			}
+			co.(*widget.Label).SetText(row_headers[id.Row])
+		case 1:
+			if id.Row >= len(row_values) {
+				return
+			}
+			co.(*widget.Label).SetText(row_values[id.Row])
+		}
+	}
+	table := widget.NewTable(length, create, update)
 	progress_bar := widget.NewProgressBar()
 	progress_bar.Hide()
-	connection.SetPlaceHolder("127.0.0.1:10102")
-	var table *widget.Table
+
+	stop_btn := widget.NewButtonWithIcon("Stop Gnomon", theme.MediaStopIcon(), nil)
+	stop_btn.Hide()
+	stop_btn.OnTapped = func() {
+		cmd.RUNNING = false
+		stop_btn.Hide()
+		table.Hide()
+		progress_bar.Hide()
+		drop_down.Show()
+		connection.Show()
+	}
 
 	tapped := func() {
 		connection.Hide()
+		stop_btn.Show()
 		drop_down.Hide()
 		table.Show()
 		progress_bar.Show()
@@ -256,9 +286,10 @@ func RenderGUI() {
 			// var min, ers int
 			// miner_index := []string{}
 			for range ticker.C {
-				if closing {
-					os.Exit(0)
+				if !cmd.RUNNING {
+					return
 				}
+
 				now := connections.GetDaemonInfo().TopoHeight
 				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
 				// if cmd.STORE_MINIBLOCKS {
@@ -357,31 +388,14 @@ func RenderGUI() {
 				default:
 					action(now)
 				}
-
 			}
 		}()
 	}
+
 	button := widget.NewButtonWithIcon("Start Gnomon Indexer", theme.MediaPlayIcon(), tapped)
 	connection.OnSubmitted = func(s string) { button.OnTapped() }
 	connection.ActionItem = button
 
-	length := func() (int, int) { return len(row_headers), 2 }
-	create := func() fyne.CanvasObject { return widget.NewLabel("") }
-	update := func(id widget.TableCellID, co fyne.CanvasObject) {
-		switch id.Col {
-		case 0:
-			if id.Row >= len(row_headers) {
-				return
-			}
-			co.(*widget.Label).SetText(row_headers[id.Row])
-		case 1:
-			if id.Row >= len(row_values) {
-				return
-			}
-			co.(*widget.Label).SetText(row_values[id.Row])
-		}
-	}
-	table = widget.NewTable(length, create, update)
 	table.OnSelected = func(id widget.TableCellID) {
 		table.UnselectAll()
 	}
@@ -390,8 +404,9 @@ func RenderGUI() {
 	table.Hide()
 	content := container.NewBorder(
 		container.NewVBox(
-			progress_bar,
 			connection,
+			stop_btn,
+			progress_bar,
 			drop_down,
 		),
 		nil, nil, nil,

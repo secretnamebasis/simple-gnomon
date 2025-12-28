@@ -1,6 +1,7 @@
 package connections
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -50,7 +51,7 @@ func NewApiServer(cfg *APIConfig, database *db.BboltStore) *ApiServer {
 }
 
 // Starts the api server
-func (apiServer *ApiServer) Start() {
+func (apiServer *ApiServer) Start(ctx context.Context) {
 
 	apiServer.StatsIntv, _ = time.ParseDuration(apiServer.Config.StatsCollectInterval)
 	statsTimer := time.NewTimer(apiServer.StatsIntv)
@@ -59,24 +60,29 @@ func (apiServer *ApiServer) Start() {
 	apiServer.collectStats()
 
 	go func() {
-		for range statsTimer.C {
-			apiServer.collectStats()
-			statsTimer.Reset(apiServer.StatsIntv)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-statsTimer.C:
+				apiServer.collectStats()
+				statsTimer.Reset(apiServer.StatsIntv)
+			}
 		}
 	}()
 
 	// If SSL is configured, due to nature of listenandserve, put HTTP in go routine then call SSL afterwards so they can run in parallel. Otherwise, run http as normal
 	if apiServer.Config.SSL {
-		go apiServer.listen()
-		go apiServer.listenSSL()
+		go apiServer.listen(ctx)
+		go apiServer.listenSSL(ctx)
 		apiServer.getInfoListenSSL()
 	} else {
-		apiServer.listen()
+		apiServer.listen(ctx)
 	}
 }
 
 // Sets up the non-SSL API listener
-func (apiServer *ApiServer) listen() {
+func (apiServer *ApiServer) listen(ctx context.Context) {
 	fmt.Printf("[API] Starting API on %v\n", apiServer.Config.Listen)
 	router := mux.NewRouter()
 	router.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
@@ -90,14 +96,28 @@ func (apiServer *ApiServer) listen() {
 	}
 	router.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	router.NotFoundHandler = http.HandlerFunc(notFound)
-	err := http.ListenAndServe(apiServer.Config.Listen, router)
-	if err != nil {
-		log.Fatalf("[API] Failed to start API: %v\n", err)
+	srv := &http.Server{
+		Addr:    apiServer.Config.Listen,
+		Handler: router,
 	}
+	go func() {
+		<-ctx.Done()
+		if err := srv.Shutdown(ctx); err != nil {
+			fmt.Println("error shutting down server", err)
+			return
+		}
+	}()
+	err := srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("[API] Failed to start api: %v", err)
+	}
+
+	log.Println("api server stopped cleanly")
 }
 
 // Sets up the SSL API listener
-func (apiServer *ApiServer) listenSSL() {
+func (apiServer *ApiServer) listenSSL(ctx context.Context) {
+
 	fmt.Printf("[API] Starting SSL API on %v\n", apiServer.Config.SSLListen)
 	routerSSL := mux.NewRouter()
 	routerSSL.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
@@ -111,10 +131,24 @@ func (apiServer *ApiServer) listenSSL() {
 	}
 	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
 	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
-	err := http.ListenAndServeTLS(apiServer.Config.SSLListen, apiServer.Config.CertFile, apiServer.Config.KeyFile, routerSSL)
-	if err != nil {
-		log.Fatalf("[API] Failed to start SSL API: %v\n", err)
+	srv := &http.Server{
+		Addr:    apiServer.Config.SSLListen,
+		Handler: routerSSL,
 	}
+	go func() {
+		<-ctx.Done()
+		if err := srv.Shutdown(ctx); err != nil {
+			fmt.Println("error shutting down server", err)
+			return
+		}
+	}()
+	err := srv.ListenAndServeTLS(apiServer.Config.CertFile, apiServer.Config.KeyFile)
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("[API] Failed to start api: %v", err)
+	}
+
+	log.Println("api server stopped cleanly")
+
 }
 
 // Sets up a separate getinfo SSL listener. Use cases is for things like benchmark.dero.network and others that may want to consume a https endpoint of derod getinfo or other future command output

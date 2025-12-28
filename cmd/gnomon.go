@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -71,17 +73,20 @@ Options:
 	day_of_blocks           int64
 
 	// we are going to use these for later
-	now         int64
-	TOPO        int64
-	IN_PROGRESS int64
-	RUNNING     bool
-
+	now              int64
+	TOPO             int64
+	IN_PROGRESS      int64
+	RUNNING          bool
 	STORE_MINIBLOCKS bool
+
+	ctx    context.Context
+	cancel context.CancelFunc
 )
 
 // this is the processing thread
 func Start_gnomon_indexer() error {
 	runtime.GC() // let's clean things up before beginning
+
 	flag.Parse()
 	if help != nil && *help {
 		fmt.Println(help_msg)
@@ -111,11 +116,6 @@ func Start_gnomon_indexer() error {
 	opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 30, Transport: transport}} // this is insane... but, let's find out.
 	url := "http://" + *endpoint + "/json_rpc"
 	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
-
-	api := "127.0.0.1:8082"
-	if api_endpoint != nil && *api_endpoint != "" {
-		api = *api_endpoint
-	}
 
 	if store_minis != nil && *store_minis {
 		STORE_MINIBLOCKS = *store_minis
@@ -147,15 +147,30 @@ func Start_gnomon_indexer() error {
 	// this will always be behind current topo height
 	lowest_height = min(lowest_height, height)
 
+	fmt.Println("setting up queue processors")
+	ctx, cancel = context.WithCancel(context.Background())
+	go func() {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt)
+		for {
+			select {
+			case <-signalChan:
+				cancel()
+				gracefullyStopAndExit()
+				return
+			case <-ctx.Done():
+			}
+		}
+	}()
 	if STORE_MINIBLOCKS {
 		fmt.Println("STORING MINIBLOCKS")
-		go mini_db_writer()
+		go mini_db_writer(ctx)
 	}
 
-	go scid_db_writer()
-	go filtering()
-	go tx_handling()
-	go indexing()
+	go scid_db_writer(ctx)
+	go filtering(ctx)
+	go tx_handling(ctx)
+	go indexing(ctx)
 	// now that the backend is set up, start WS
 
 	fmt.Println("setting up websocket")
@@ -178,7 +193,9 @@ func Start_gnomon_indexer() error {
 	}, database)
 
 	// serving api
-	go server.Start()
+	go server.Start(ctx)
+
+	RUNNING = true
 
 	fmt.Println("Pulling Latest Copy of NameService Contract")
 	// there are two contracts that need to be processed with special consideration:
@@ -213,7 +230,6 @@ func Start_gnomon_indexer() error {
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
 	if fastsync != nil && *fastsync {
-
 		fmt.Println("fastsync activated")
 
 		params = rpc.GetSC_Params{
@@ -285,6 +301,7 @@ func Start_gnomon_indexer() error {
 		})
 
 		imports := make(chan importable, 10)
+		defer close(imports)
 
 		task := func(important importable) {
 
@@ -331,7 +348,17 @@ func Start_gnomon_indexer() error {
 		}
 		// let's do this really fast
 		for _, importable := range importables {
-			imports <- importable
+			select {
+			case <-ctx.Done():
+				gracefullyStopAndExit()
+				return nil
+			default:
+				if !RUNNING {
+					gracefullyStop()
+					return nil
+				}
+				imports <- importable
+			}
 		}
 		close(imports)
 		wg.Wait()
@@ -339,12 +366,48 @@ func Start_gnomon_indexer() error {
 
 		lowest_height = connections.Get_TopoHeight()
 	}
-	go gnomon_indexer()
+	go gnomon_indexer(ctx)
 	return nil
 }
+func gracefullyStop() {
+	WaitForQueues()
+	fmt.Println("gracefully stopped")
+}
+func gracefullyStopAndExit() {
+	gracefullyStop()
+	os.Exit(0)
+}
+func areQueuesEmpty() bool {
+	return len(block_processing) != 0 ||
+		len(transaction_processing) != 0 ||
+		len(batch_processing) != 0 ||
+		len(scid_processing) != 0 ||
+		len(scid_db_queue) != 0 ||
+		len(mini_db_queue) != 0 ||
+		len(mini_queue) != 0
+}
+func WaitForQueues() {
+	for areQueuesEmpty() {
+		format := "waiting for queues: BLOCKS: %d MINIS: %d TXS: %d BATCHES: %d SCIDS: %d SCID_DB: %d MINI_DB %d "
 
-func gnomon_indexer() {
-	RUNNING = true
+		a := []any{
+			len(block_processing),
+			len(mini_queue),
+			len(transaction_processing),
+			len(batch_processing),
+			len(scid_processing),
+			len(scid_db_queue),
+			len(mini_db_queue),
+		}
+
+		format += "\n"
+
+		fmt.Printf(format, a...)
+		time.Sleep(time.Millisecond * 200)
+	}
+}
+func gnomon_indexer(ctx context.Context) {
+
 	now = connections.Get_TopoHeight()
 
 	fmt.Println("starting to index ", now)
@@ -386,6 +449,8 @@ func gnomon_indexer() {
 
 		for height := lowest_height; height < now; height++ {
 			if !RUNNING {
+				cancel()
+				WaitForQueues()
 				return
 			}
 
@@ -395,12 +460,7 @@ func gnomon_indexer() {
 			if achieved_current_height > 0 && !established_backup &&
 				find_lowest_height(backup_database, now) { // if the current height is greater than a day of blocks...
 
-				for len(block_processing) != 0 ||
-					len(transaction_processing) != 0 ||
-					len(scid_processing) != 0 ||
-					len(scid_db_queue) != 0 {
-					time.Sleep(time.Millisecond * 200)
-				}
+				WaitForQueues()
 
 				backup(height)
 			}
@@ -485,10 +545,10 @@ var block_processing = make(chan *processingStruct, 100_000)
 var mini_queue = make(chan *processingStruct, 100_000)
 
 // this is the indexing action
-func indexing() {
+func indexing(ctx context.Context) {
 
-	process_minis := func(mini_queue chan *processingStruct) {
-		for staged := range mini_queue {
+	process_minis := func(ctx context.Context, mini_queue chan *processingStruct) {
+		work := func(staged *processingStruct) {
 			var minis []*structures.MBLInfo
 			for i, miner := range staged.Result.Block_Header.Miners {
 				mini := &structures.MBLInfo{
@@ -502,17 +562,27 @@ func indexing() {
 				Hash:  staged.Result.Block_Header.Hash,
 				Minis: minis,
 			}
-
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				for areQueuesEmpty() {
+					for staged := range mini_queue {
+						work(staged)
+					}
+				}
+			case staged := <-mini_queue:
+				work(staged)
+			}
 		}
 	}
 
 	if STORE_MINIBLOCKS {
 		for range runtime.GOMAXPROCS(0) - 2 {
-			go process_minis(mini_queue)
+			go process_minis(ctx, mini_queue)
 		}
 	}
-
-	for staged := range block_processing {
+	work := func(staged *processingStruct) {
 
 		bl := GetBlockDeserialized(staged.Result.Blob)
 
@@ -530,7 +600,7 @@ func indexing() {
 		}
 
 		if len(bl.Tx_hashes) == 0 || count == 0 { // paranoia...
-			continue
+			return
 		}
 
 		hashes := []string{}
@@ -546,11 +616,24 @@ func indexing() {
 			Height:    staged.Height,
 			Tx_Hashes: hashes,
 		}
-		// fmt.Println("ENTERED TX HANDLING:", time.Since(staged.Start).Milliseconds())
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			for areQueuesEmpty() {
+				for staged := range block_processing {
+					work(staged)
+				}
+			}
+			return
+		case staged := <-block_processing:
+			work(staged)
+		}
 	}
 }
 
 var transaction_processing = make(chan *processingStruct, 100_000)
+var batch_processing = make(chan rpc.GetTransaction_Result, 100_000)
 
 var holding_queue struct {
 	registration atomic.Int64
@@ -558,7 +641,7 @@ var holding_queue struct {
 	normal       atomic.Int64
 }
 
-func tx_handling() {
+func tx_handling(ctx context.Context) {
 	// initial number collection
 	holding_queue.registration.Swap(database.GetTxCount("registration"))
 	holding_queue.burn.Swap(database.GetTxCount("burn"))
@@ -598,7 +681,7 @@ func tx_handling() {
 	}
 
 	// build a handle for results
-	handle := func(height int64, result rpc.GetTransaction_Result) {
+	handle := func(result rpc.GetTransaction_Result) {
 
 		for i, each := range result.Txs_as_hex {
 
@@ -624,12 +707,12 @@ func tx_handling() {
 			case transaction.NORMAL:
 				holding_queue.normal.Add(1)
 				if len(tx.Payloads) > 0 {
-					payload_callback(i, height, result, tx)
+					payload_callback(i, result.Txs[i].Block_Height, result, tx)
 				}
 			case transaction.SC_TX:
 				// at this point the only thing that should remain is scids
 				scid_processing <- &processingStruct{
-					Height:      height,
+					Height:      result.Txs[i].Block_Height,
 					Tx:          result.Txs[i],
 					Transaction: tx,
 				}
@@ -639,17 +722,17 @@ func tx_handling() {
 		}
 	}
 
-	task := func(height int64, result_chan chan rpc.GetTransaction_Result) {
+	task := func() {
 		// because order doesn't really matter here... just grab the first one
-		for result := range result_chan {
-			handle(height, result)
+		for result := range batch_processing {
+			handle(result)
 		}
 	}
 
 	// this might be a good size...
 	batch_size := 100
 
-	batching := func(batch, batch_count int, hashes []string, result_chan chan rpc.GetTransaction_Result, wg *sync.WaitGroup) {
+	batching := func(batch, batch_count int, hashes []string, wg *sync.WaitGroup) {
 		defer wg.Done()
 
 		end := batch_size * batch
@@ -658,36 +741,46 @@ func tx_handling() {
 		}
 
 		// and dump them into the listener channel
-		result_chan <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
+		batch_processing <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
+	}
+
+	operation := func(staged *processingStruct) {
+		tx_count := len(staged.Tx_Hashes)
+
+		//Find total number of batches
+		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
+
+		// turn on the listener
+		go task()
+
+		batchgroup := sync.WaitGroup{}
+
+		// because the order of transactions processed doesn't matter..
+		for batch := range batch_count {
+
+			batchgroup.Add(1)
+			// schedule each batch of transfers
+			go batching(batch, batch_count, staged.Tx_Hashes, &batchgroup)
+		}
+		// wait for all the results to come in
+		batchgroup.Wait()
 	}
 
 	work := func(transaction_processing chan *processingStruct) {
-		for staged := range transaction_processing {
-			tx_count := len(staged.Tx_Hashes)
-
-			//Find total number of batches
-			batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
-
-			result_chan := make(chan rpc.GetTransaction_Result, batch_count)
-
-			// turn on the listener
-			go task(staged.Height, result_chan)
-
-			batchgroup := sync.WaitGroup{}
-
-			// because the order of transactions processed doesn't matter..
-			for batch := range batch_count {
-
-				batchgroup.Add(1)
-				// schedule each batch of transfers
-				go batching(batch, batch_count, staged.Tx_Hashes, result_chan, &batchgroup)
+		for {
+			select {
+			case <-ctx.Done():
+				for areQueuesEmpty() {
+					for staged := range transaction_processing {
+						operation(staged)
+					}
+				}
+				return
+			case staged := <-transaction_processing:
+				operation(staged)
 			}
-			// wait for all the results to come in
-			batchgroup.Wait()
-			close(result_chan)
 		}
 	}
-
 	for range runtime.GOMAXPROCS(0) - 2 {
 		go work(transaction_processing)
 	}
@@ -695,7 +788,7 @@ func tx_handling() {
 
 var scid_processing = make(chan *processingStruct, 100_000)
 
-func filtering() {
+func filtering(ctx context.Context) {
 
 	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
 		defer func() { IN_PROGRESS = height }()
@@ -899,9 +992,19 @@ func filtering() {
 
 	}
 
-	// sift transactions over the sieve
-	for staged := range scid_processing {
-		sieve(int64(staged.Height), staged.Tx, staged.Transaction)
+	for {
+		select {
+		case <-ctx.Done():
+			for areQueuesEmpty() {
+				for staged := range scid_processing {
+					sieve(int64(staged.Height), staged.Tx, staged.Transaction)
+				}
+			}
+			return
+		case staged := <-scid_processing:
+			// sift transactions over the sieve
+			sieve(int64(staged.Height), staged.Tx, staged.Transaction)
+		}
 	}
 }
 
@@ -912,7 +1015,7 @@ type miniStructure struct {
 
 var mini_db_queue = make(chan miniStructure, 100_000)
 
-func mini_db_writer() {
+func mini_db_writer(ctx context.Context) {
 	all_details := database.GetAllMiniblockDetails()
 	miner_map := map[string]int64{}
 	for _, each := range all_details {
@@ -920,9 +1023,9 @@ func mini_db_writer() {
 			miner_map[mini.Miner]++
 		}
 	}
-	for staged := range mini_db_queue {
+	work := func(staged miniStructure) {
 		if _, ok := all_details[staged.Hash]; ok {
-			continue
+			return
 		}
 		database.StoreMiniblockDetailsByHash(staged.Hash, staged.Minis)
 		for _, mini := range staged.Minis {
@@ -930,13 +1033,25 @@ func mini_db_writer() {
 			database.StoreMiniblockCountByAddress(miner_map[mini.Miner], mini.Miner)
 		}
 	}
+	for {
+		select {
+		case <-ctx.Done():
+			for areQueuesEmpty() {
+				for staged := range mini_db_queue {
+					work(staged)
+				}
+			}
+			return
+		case staged := <-mini_db_queue:
+			work(staged)
+		}
+	}
 }
 
 var scid_db_queue = make(chan *structures.SCIDToIndexStage, 100_000)
 
-func scid_db_writer() {
-	for staged := range scid_db_queue {
-
+func scid_db_writer(ctx context.Context) {
+	work := func(staged *structures.SCIDToIndexStage) {
 		format := "staged txid %s sender %s | %s | scid: %s %d / %d %s %d class:%s tags:%s\n"
 		a := []any{
 			staged.Txid,
@@ -955,14 +1070,14 @@ func scid_db_writer() {
 		// store scid by tag
 		if err := database.AddSCIDToIndex(*staged); err != nil {
 			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
-			continue
+			return
 		}
 
 		if achieved_current_height > 0 { // once the indexer has reached the top...
 			// do incremental backups
 			if err := backup_database.AddSCIDToIndex(*staged); err != nil {
 				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
-				continue
+				return
 			}
 		}
 
@@ -973,6 +1088,19 @@ func scid_db_writer() {
 
 		// store height
 		storeHeight(int64(staged.Height))
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			for areQueuesEmpty() {
+				for staged := range scid_db_queue {
+					work(staged)
+				}
+			}
+			return
+		case staged := <-scid_db_queue:
+			work(staged)
+		}
 	}
 }
 
