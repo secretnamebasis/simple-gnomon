@@ -135,14 +135,6 @@ type (
 		BLID string
 	}
 
-	GnomonAllMiniblockDetails struct {
-	}
-	GnomonSCIDQuery struct {
-		Owner  string
-		Height uint64
-		SCID   string
-	}
-
 	JSONRpcReq struct {
 		Id     *json.RawMessage `json:"id"`
 		Method string           `json:"method"`

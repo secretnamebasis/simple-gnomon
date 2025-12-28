@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -180,52 +179,13 @@ func (apiServer *ApiServer) collectStats() {
 	}
 
 	stats := make(map[string]interface{})
-
-	// TODO: Removeme
-	var scinstalls []*structures.SCTXParse
-
 	sclist := apiServer.Database.GetAllOwnersAndSCIDs()
-	for k := range sclist {
-
-		if apiServer.Database.Closing {
-			return
-		}
-
-		invokedetails := apiServer.Database.GetAllSCIDInvokeDetails(k)
-		// i := 0
-		for _, v := range invokedetails {
-			sc_action := fmt.Sprintf("%v\n", v.Sc_args.Value("SC_ACTION", "U"))
-			if sc_action == "1" {
-				// i++
-				scinstalls = append(scinstalls, v)
-			}
-		}
-	}
-
-	if len(scinstalls) > 0 {
-		// Sort heights so most recent is index 0 [if preferred reverse, just swap > with <]
-		sort.SliceStable(scinstalls, func(i, j int) bool {
-			return scinstalls[i].Height < scinstalls[j].Height
-		})
-	}
-
-	var lastQueries []*structures.GnomonSCIDQuery
-
-	for _, v := range scinstalls {
-		curr := &structures.GnomonSCIDQuery{Owner: v.Sender, Height: uint64(v.Height), SCID: v.Scid}
-		lastQueries = append(lastQueries, curr)
-	}
-
-	// Get all scid:owner
-	// TODO: Re-add
-	//sclist := apiServer.Backend.GetAllOwnersAndSCIDs()
 
 	stats["countSCs"] = len(sclist)
 	stats["countRegTX"] = apiServer.Database.GetTxCount("registration")
 	stats["countBurnTX"] = apiServer.Database.GetTxCount("burn")
 	stats["countNormTX"] = apiServer.Database.GetTxCount("normal")
 	stats["indexedscs"] = sclist
-	stats["indexdetails"] = lastQueries
 
 	apiServer.Stats.Store(stats)
 }
@@ -245,7 +205,6 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 		reply["countBurnTX"] = stats["countBurnTX"]
 		reply["countNormTX"] = stats["countNormTX"]
 		reply["indexedscs"] = stats["indexedscs"]
-		reply["indexdetails"] = stats["indexdetails"]
 	} else {
 		// Default reply - for testing etc.
 		reply["hello"] = "world"
