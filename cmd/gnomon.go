@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +44,7 @@ var (
 	ending_height   = flag.Int64("ending-height", -1, "-ending-height=123")
 	search_filter   = flag.String("search-filter", "", `-search="one-term;second-term;;;another-term;second-term"`)
 	exclusions      = flag.String("exclude", "", `-exclude=<SCID>;;;<SCID1>`)
+	fastsync        = flag.Bool("fastsync", false, "-fastsync")
 	store_minis     = flag.Bool("store-minis", false, "-store-minis")
 	progress        = flag.Bool("progress", false, "-progress")
 	help            = flag.Bool("help", false, "-help")
@@ -56,6 +58,7 @@ Options:
   -ending-height <N>               Height to stop indexing at.
   -search-filter "<F;F>;;;<F;F>"   Exclusively search filter(s), overides search.json. 
   -exclude "<F>;;;<F>"             Exclude SCID(s), overides exclude.json.
+  -fastsync                        Pulls gnomonSC and installs scid to index (disclaimer: automated-service subject to error)
   -store-minis                     Store miniblock details within index 
   -progress                        Show download progress stats.
   -help                            Show this help message.`
@@ -190,6 +193,133 @@ func Start_gnomon_indexer() error {
 	}
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
+	if fastsync != nil && *fastsync {
+
+		fmt.Println("fastsync activated")
+
+		params = rpc.GetSC_Params{
+			SCID:       globals.MAINNET_GNOMON_SCID,
+			Code:       true,
+			Variables:  true,
+			TopoHeight: -1,
+		}
+
+		sc = connections.GetSC(params)
+		fmt.Println("gnomonSC collected")
+		kv := sc.VariableStringKeys
+
+		sig, err := hex.DecodeString(kv["signature"].(string))
+		if err != nil {
+			return err
+		}
+
+		validated, signer, err := ValidateSCSignature(sc.Code, string(sig))
+		fmt.Println("gnomonSC validated")
+
+		if err != nil {
+			return err
+		} else if !validated {
+			return errors.New("gnomonSC is not validated")
+		}
+		vars := GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
+		fmt.Println("vars collected")
+		staged = &structures.SCIDToIndexStage{
+			SCTXParse: structures.SCTXParse{
+				Scid:   globals.MAINNET_GNOMON_SCID,
+				Sender: signer,
+				Height: -1,
+			},
+			Headers: GetSCNameFromVars(kv) + ";" + GetSCDescriptionFromVars(kv) + ";" + GetSCIDImageURLFromVars(kv),
+			ScVars:  vars,
+			ScCode:  sc.Code,
+			Class:   "GNOMONSC",
+			Tags:    "all",
+		}
+
+		if err := database.AddSCIDToIndex(*staged); err != nil {
+			return err
+		}
+		fmt.Println("gnomonSC added to index")
+		type importable struct {
+			hash   string
+			height int64
+		}
+
+		importables := []importable{}
+		for k := range kv {
+			if len(k) != 64 {
+				continue
+			}
+			// we can't rely any of the data other than scids
+			v := kv[k+"height"].(float64)
+			height := int64(v)
+
+			// fmt.Println(v, int(v), int64(v), uint(v), uint64(v))
+			importables = append(importables, importable{
+				hash:   k,
+				height: height,
+			})
+		}
+
+		sort.Slice(importables, func(i, j int) bool {
+			return importables[i].height < importables[j].height
+		})
+
+		imports := make(chan importable, 10)
+
+		task := func(important importable) {
+
+			// invalid tx version
+			if important.hash == "a7ef2d109900158bcd84794cd70de64b9e08e9268345e6b64270561a2f1985fb" ||
+				important.hash == globals.NAMESERVICE {
+				return
+			}
+
+			tx := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{important.hash}})
+			var transact transaction.Transaction
+			b, err := hex.DecodeString(tx.Txs_as_hex[0])
+			if err != nil {
+				log.Fatal(err)
+			}
+			transact.Deserialize(b)
+			if transact.Version != 1 {
+				log.Fatal("key", important.hash, "tx", tx, "transact", transact)
+			}
+
+			if starting_height != nil && *starting_height > important.height {
+				return
+			}
+			fmt.Println("fast syncing", important.hash, important.height)
+
+			scid_processing <- &processingStruct{
+				Height:      tx.Txs[0].Block_Height,
+				Tx:          tx.Txs[0],
+				Transaction: transact,
+			}
+
+		}
+		work := func(imports chan importable, wg *sync.WaitGroup) {
+			defer wg.Done()
+			for importable := range imports {
+				task(importable)
+			}
+		}
+
+		wg := sync.WaitGroup{}
+		for range runtime.GOMAXPROCS(0) {
+			wg.Add(1)
+			go work(imports, &wg)
+		}
+		// let's do this really fast
+		for _, importable := range importables {
+			imports <- importable
+		}
+		close(imports)
+		wg.Wait()
+		fmt.Println("setting lowest height current block")
+
+		lowest_height = connections.Get_TopoHeight()
+	}
 	go gnomon_indexer()
 	return nil
 }

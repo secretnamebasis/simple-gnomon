@@ -3,12 +3,15 @@ package cmd
 import (
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net/url"
 	"regexp"
 	"strings"
 
 	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/cryptography/bn256"
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/rpc"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
@@ -261,7 +264,7 @@ func GetSCHeaderFromMetaData(kv map[string]any) string {
 
 		var metadata map[string]any
 		if err := json.Unmarshal(b, &metadata); err != nil {
-			fmt.Println(err, k, string(b))
+			// fmt.Println(err, k, string(b)) // just noise
 			continue
 		}
 
@@ -293,4 +296,58 @@ func GetSCHeaderFromMetaData(kv map[string]any) string {
 	}
 
 	return name + ";" + description + ";" + image
+}
+
+func ValidateSCSignature(code string, key string) (validated bool, signer string, err error) {
+	if key == "" {
+		return
+	}
+
+	// CheckSignature
+	filedata := []byte(key)
+	p, _ := pem.Decode(filedata)
+	if p == nil {
+		fmt.Printf("[ValidateSCSignature] ERR - Unknown format of input data - %v\n", key)
+		return
+	}
+
+	astr := p.Headers["Address"]
+	cstr := p.Headers["C"]
+	sstr := p.Headers["S"]
+
+	addr, err := rpc.NewAddress(astr)
+	if err != nil {
+		fmt.Printf("[ValidateSCSignature] ERR - Cannot validate Address header\n")
+		return
+	}
+
+	c, ok := new(big.Int).SetString(cstr, 16)
+	if !ok {
+		err = fmt.Errorf("[ValidateSCSignature] Unknown C format")
+		return
+	}
+
+	s, ok := new(big.Int).SetString(sstr, 16)
+	if !ok {
+		err = fmt.Errorf("[ValidateSCSignature] Unknown S format")
+		return
+	}
+
+	tmppoint := new(bn256.G1).Add(new(bn256.G1).ScalarMult(crypto.G, s), new(bn256.G1).ScalarMult(addr.PublicKey.G1(), new(big.Int).Neg(c)))
+	serialize := fmt.Appendf(nil, "%s%s%x", addr.PublicKey.G1().String(), tmppoint.String(), p.Bytes)
+
+	c_calculated := crypto.ReducedHash(serialize)
+	if c.String() != c_calculated.String() {
+		err = fmt.Errorf("[ValidateSCSignature] signature mismatch")
+		return
+	}
+
+	signer = addr.String()
+	message := p.Bytes
+
+	if string(message) == code {
+		validated = true
+	}
+
+	return
 }

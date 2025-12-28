@@ -88,19 +88,25 @@ func RenderGUI() {
 	search_filter.SetPlaceHolder(`search-term;second-term;;;search-term1;second-term1`)
 	exclusions := widget.NewEntry()
 	exclusions.SetPlaceHolder("SCID;;;SCID1")
-	minis := widget.NewCheck("STORE MINIs?", func(b bool) {})
+	fastsync := widget.NewCheck("fastsync?", func(b bool) {})
 	msg := "NOTICE:\n" +
+		"Fastsync data is provided by gnomonSC,\n" +
+		"as an automated service, it is subject to error.\nPlease be advised.\n"
+	fastsync_notice := widget.NewLabel(msg)
+	fastsync_notice.Alignment = fyne.TextAlignCenter
+	minis := widget.NewCheck("store mini block data?", func(b bool) {})
+	msg = "NOTICE:\n" +
 		"Storing miniblocks adds overhead to indexing,\n" +
-		"and takes considerably more time.\n Please be advised.\n"
-
-	notice := widget.NewLabel(msg)
-	notice.Alignment = fyne.TextAlignCenter
+		"and takes considerably more time.\nPlease be advised.\n"
+	mini_notice := widget.NewLabel(msg)
+	mini_notice.Alignment = fyne.TextAlignCenter
 	drop_down := widget.NewAccordion(
 		widget.NewAccordionItem("starting height", starting_height),
 		widget.NewAccordionItem("ending height", ending_height),
 		widget.NewAccordionItem("search filter", search_filter),
 		widget.NewAccordionItem("exclusions", exclusions),
-		widget.NewAccordionItem("store minis", container.NewVBox(notice, container.NewCenter(minis))),
+		widget.NewAccordionItem("fastsync", container.NewVBox(fastsync_notice, container.NewCenter(fastsync))),
+		widget.NewAccordionItem("store minis", container.NewVBox(mini_notice, container.NewCenter(minis))),
 	)
 
 	progress_bar := widget.NewProgressBar()
@@ -109,8 +115,6 @@ func RenderGUI() {
 	var table *widget.Table
 
 	tapped := func() {
-		minis.Hide()
-		notice.Hide()
 		connection.Hide()
 		drop_down.Hide()
 		table.Show()
@@ -142,6 +146,9 @@ func RenderGUI() {
 		if exclusions.Text != "" {
 			os.Args = append(os.Args, "-exclude="+exclusions.Text)
 		}
+		if fastsync.Checked {
+			os.Args = append(os.Args, "-fastsync")
+		}
 		if minis.Checked {
 			os.Args = append(os.Args, "-store-minis")
 		}
@@ -151,8 +158,6 @@ func RenderGUI() {
 		if err := cmd.Start_gnomon_indexer(); err != nil {
 			fmt.Println(err)
 			dialog.ShowError(err, w)
-			minis.Show()
-			notice.Show()
 			connection.Show()
 			drop_down.Show()
 			table.Hide()
@@ -162,7 +167,7 @@ func RenderGUI() {
 
 		if !cmd.RUNNING {
 			if closing {
-				return
+				os.Exit(0)
 			}
 			fmt.Println("gnomon is starting, please hold")
 			time.Sleep(time.Second * 1)
@@ -241,6 +246,9 @@ func RenderGUI() {
 			// var min, ers int
 			// miner_index := []string{}
 			for range ticker.C {
+				if closing {
+					os.Exit(0)
+				}
 				now := connections.GetDaemonInfo().TopoHeight
 				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
 				// if cmd.STORE_MINIBLOCKS {
