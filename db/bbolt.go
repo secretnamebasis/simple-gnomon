@@ -386,12 +386,8 @@ func (bbs *BboltStore) GetAllOwnersAndSCIDs() map[string]string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); err == nil; k, v = c.Next() {
-				if k != nil && v != nil {
-					results[string(k)] = string(v)
-				} else {
-					break
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				results[string(k)] = string(v)
 			}
 		}
 
@@ -412,10 +408,7 @@ func (bbs *BboltStore) GetAllClasses() []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil {
-					continue
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
 				if _, ok := unique[string(k)]; ok {
 					continue
 				}
@@ -444,19 +437,16 @@ func (bbs *BboltStore) GetAllTags() []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil {
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				if _, ok := uniquestrings[string(v)]; ok {
 					continue
 				}
-				if _, ok := uniquestrings[string(k)]; ok {
-					continue
-				}
-				uniquestrings[string(k)] = true
+				uniquestrings[string(v)] = true
 			}
 		}
 
 		for each := range uniquestrings {
-			for _, tag := range strings.Split(each, ",") {
+			for tag := range strings.SplitSeq(each, ",") {
 				if _, ok := uniquetags[tag]; ok {
 					continue
 				}
@@ -487,8 +477,8 @@ func (bbs *BboltStore) GetAllSCIDsByClass(class string) []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil && !strings.Contains(string(v), class) {
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				if !strings.Contains(string(v), class) {
 					continue
 				}
 				results = append(results, string(v))
@@ -512,8 +502,8 @@ func (bbs *BboltStore) GetAllSCIDsByTag(tag string) []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil && !strings.Contains(string(v), tag) {
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				if !strings.Contains(string(v), tag) {
 					continue
 				}
 				results = append(results, string(v))
@@ -537,10 +527,7 @@ func (bbs *BboltStore) GetAllSCIDs() []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil {
-					continue
-				}
+			for k, _ := c.First(); k != nil; k, _ = c.Next() {
 				results = append(results, string(k))
 			}
 		}
@@ -562,10 +549,7 @@ func (bbs *BboltStore) GetAllOwners() []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil {
-					continue
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
 				if _, ok := unique[string(v)]; ok {
 					continue
 				}
@@ -589,10 +573,7 @@ func (bbs *BboltStore) GetAllSCIDsAndHeaders() map[string]string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil {
-					continue
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
 				results[string(k)] = string(v)
 			}
 		}
@@ -614,10 +595,7 @@ func (bbs *BboltStore) GetAllHeaders() []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); ; k, v = c.Next() {
-				if k == nil && v == nil {
-					continue
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
 				results = append(results, string(v))
 			}
 		}
@@ -659,19 +637,16 @@ func (bbs *BboltStore) GetAllNormalTxWithSCIDBySCID(scid string) (normTxsWithSCI
 
 			c := b.Cursor()
 
-			for _, v := c.First(); err == nil; _, v = c.Next() {
-				if v != nil {
-					var currdetails []*structures.NormalTXWithSCIDParse
-					_ = json.Unmarshal(v, &currdetails)
-					for _, cv := range currdetails {
-						if cv.Scid == scid && !slices.Contains(resultset, cv.Txid) {
-							normTxsWithSCID = append(normTxsWithSCID, cv)
-							resultset = append(resultset, cv.Txid)
-						}
+			for _, v := c.First(); v != nil; _, v = c.Next() {
+				var currdetails []*structures.NormalTXWithSCIDParse
+				_ = json.Unmarshal(v, &currdetails)
+				for _, cv := range currdetails {
+					if cv.Scid == scid && !slices.Contains(resultset, cv.Txid) {
+						normTxsWithSCID = append(normTxsWithSCID, cv)
+						resultset = append(resultset, cv.Txid)
 					}
-				} else {
-					break
 				}
+
 			}
 		}
 
@@ -774,14 +749,10 @@ func (bbs *BboltStore) GetAllSCIDInvokeDetails(scid string) (invokedetails []*st
 
 			c := b.Cursor()
 
-			for _, v := c.First(); err == nil; _, v = c.Next() {
-				if v != nil {
-					var currdetails *structures.SCTXParse
-					_ = json.Unmarshal(v, &currdetails)
-					invokedetails = append(invokedetails, currdetails)
-				} else {
-					break
-				}
+			for _, v := c.First(); v != nil; _, v = c.Next() {
+				var currdetails *structures.SCTXParse
+				_ = json.Unmarshal(v, &currdetails)
+				invokedetails = append(invokedetails, currdetails)
 			}
 		}
 
@@ -806,15 +777,11 @@ func (bbs *BboltStore) GetAllSCIDInvokeDetailsByEntrypoint(scid string, entrypoi
 
 			c := b.Cursor()
 
-			for _, v := c.First(); err == nil; _, v = c.Next() {
-				if v != nil {
-					var currdetails *structures.SCTXParse
-					_ = json.Unmarshal(v, &currdetails)
-					if currdetails.Entrypoint == entrypoint {
-						invokedetails = append(invokedetails, currdetails)
-					}
-				} else {
-					break
+			for _, v := c.First(); v != nil; _, v = c.Next() {
+				var currdetails *structures.SCTXParse
+				_ = json.Unmarshal(v, &currdetails)
+				if currdetails.Entrypoint == entrypoint {
+					invokedetails = append(invokedetails, currdetails)
 				}
 			}
 		}
@@ -840,16 +807,12 @@ func (bbs *BboltStore) GetAllSCIDInvokeDetailsBySigner(scid string, signerPart s
 
 			c := b.Cursor()
 
-			for _, v := c.First(); err == nil; _, v = c.Next() {
-				if v != nil {
-					var currdetails *structures.SCTXParse
-					_ = json.Unmarshal(v, &currdetails)
-					split := strings.Split(currdetails.Sender, signerPart)
-					if len(split) > 1 {
-						invokedetails = append(invokedetails, currdetails)
-					}
-				} else {
-					break
+			for _, v := c.First(); v != nil; _, v = c.Next() {
+				var currdetails *structures.SCTXParse
+				_ = json.Unmarshal(v, &currdetails)
+				split := strings.Split(currdetails.Sender, signerPart)
+				if len(split) > 1 {
+					invokedetails = append(invokedetails, currdetails)
 				}
 			}
 		}
@@ -951,16 +914,12 @@ func (bbs *BboltStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheigh
 
 			c := b.Cursor()
 
-			for k, v := c.First(); err == nil; k, v = c.Next() {
-				if k != nil && v != nil {
-					topoheight, _ := strconv.ParseInt(string(k), 10, 64)
-					heights = append(heights, topoheight)
-					var variables []*structures.SCIDVariable
-					_ = json.Unmarshal(v, &variables)
-					results[topoheight] = variables
-				} else {
-					break
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				topoheight, _ := strconv.ParseInt(string(k), 10, 64)
+				heights = append(heights, topoheight)
+				var variables []*structures.SCIDVariable
+				_ = json.Unmarshal(v, &variables)
+				results[topoheight] = variables
 			}
 		}
 
@@ -1109,16 +1068,12 @@ func (bbs *BboltStore) GetAllSCIDVariableDetails(scid string) (hVars []*structur
 
 			c := b.Cursor()
 
-			for k, v := c.First(); err == nil; k, v = c.Next() {
-				if k != nil && v != nil {
-					topoheight, _ := strconv.ParseInt(string(k), 10, 64)
-					heights = append(heights, topoheight)
-					var variables []*structures.SCIDVariable
-					_ = json.Unmarshal(v, &variables)
-					results[topoheight] = variables
-				} else {
-					break
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				topoheight, _ := strconv.ParseInt(string(k), 10, 64)
+				heights = append(heights, topoheight)
+				var variables []*structures.SCIDVariable
+				_ = json.Unmarshal(v, &variables)
+				results[topoheight] = variables
 			}
 		}
 
@@ -1623,14 +1578,10 @@ func (bbs *BboltStore) GetAllMiniblockDetails() map[string][]*structures.MBLInfo
 
 			c := b.Cursor()
 
-			for k, v := c.First(); err == nil; k, v = c.Next() {
-				if k != nil && v != nil {
-					var currdetails []*structures.MBLInfo
-					_ = json.Unmarshal(v, &currdetails)
-					mbldetails[string(k)] = currdetails
-				} else {
-					break
-				}
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				var currdetails []*structures.MBLInfo
+				_ = json.Unmarshal(v, &currdetails)
+				mbldetails[string(k)] = currdetails
 			}
 		}
 
