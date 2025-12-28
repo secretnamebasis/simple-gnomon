@@ -245,8 +245,17 @@ func gnomon_indexer() {
 			// a simple backup strategy
 			if achieved_current_height > 0 && !established_backup &&
 				find_lowest_height(backup_database, now) { // if the current height is greater than a day of blocks...
+
+				for len(block_processing) != 0 ||
+					len(transaction_processing) != 0 ||
+					len(scid_processing) != 0 ||
+					len(scid_db_queue) != 0 {
+					time.Sleep(time.Millisecond * 200)
+				}
+
 				backup(height)
 			}
+
 			if progress != nil && *progress {
 				format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
 
