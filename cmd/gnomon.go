@@ -564,7 +564,7 @@ func gnomon_indexer(ctx context.Context) {
 			go work(height_processing, &wg)
 		}
 
-		fmt.Println("loading heights into queue")
+		log.Printf("loading heights into queue %d", result)
 		for height := lowest_height; height < now; height++ {
 			if !RUNNING {
 				return
