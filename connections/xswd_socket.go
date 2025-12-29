@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var Conn *websocket.Conn
+var conn *websocket.Conn
 
 func Set_xswd_conn() error {
 	websocket_endpoint := "ws://127.0.0.1:44326/xswd"
@@ -22,7 +22,7 @@ func Set_xswd_conn() error {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // allow self-signed certs
 	}
 
-	Conn, _, err = dialer.Dial(websocket_endpoint, nil)
+	conn, _, err = dialer.Dial(websocket_endpoint, nil)
 	if err != nil {
 		return err
 	}
@@ -42,12 +42,12 @@ MzE3MzYxNTI1NTQ3M2VlOQ==
 	appData.Url = "http://localhost:8080"
 	appData.Permissions = map[string]xswd.Permission{}
 	appData.Id = "4e3ed10099d9eec9767524402164b97506cc0d772f2e657e3173615255473ee9"
-	if err := Conn.WriteJSON(appData); err != nil {
+	if err := conn.WriteJSON(appData); err != nil {
 		return err
 	}
 	fmt.Println("Auth handshake sent")
 
-	_, msg, err := Conn.ReadMessage()
+	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		return err
 	}
@@ -64,12 +64,12 @@ MzE3MzYxNTI1NTQ3M2VlOQ==
 
 func postBytes(b []byte) []byte {
 
-	err := Conn.WriteMessage(websocket.TextMessage, b)
+	err := conn.WriteMessage(websocket.TextMessage, b)
 	if err != nil {
 		panic(err)
 	}
 
-	_, msg, err := Conn.ReadMessage()
+	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		panic(err)
 	}
