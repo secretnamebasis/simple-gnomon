@@ -1305,7 +1305,7 @@ func set_up_backend() error {
 				}
 			}
 
-			b, err := json.MarshalIndent(exclude, "", "\t")
+			b, err := json.MarshalIndent(excludes, "", "\t")
 			if err != nil {
 				return err
 			}
