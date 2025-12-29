@@ -396,8 +396,8 @@ func Start_gnomon_indexer() error {
 			if int64(starting_height) > important.height {
 				return
 			}
-			fmt.Println("fast syncing", important.hash, important.height)
 
+			fmt.Printf("fast syncing %s %d \n", important.hash, important.height)
 			scid_processing <- &processingStruct{
 				Height:      tx.Txs[0].Block_Height,
 				Tx:          tx.Txs[0],
@@ -420,16 +420,24 @@ func Start_gnomon_indexer() error {
 			wg.Add(1)
 			go work(imports, &wg)
 		}
+
+		fmt.Println("fast sync Starting")
 		// let's do this really fast
 		for _, importable := range importables {
-
-			if !RUNNING {
+			select {
+			case <-ctx.Done():
 				return nil
+			default:
+				if !RUNNING {
+					return nil
+				}
+				imports <- importable
 			}
-			imports <- importable
 		}
 		close(imports)
 		wg.Wait()
+
+		fmt.Println("fast sync done")
 		fmt.Println("setting lowest height current block")
 
 		lowest_height = connections.Get_TopoHeight()
