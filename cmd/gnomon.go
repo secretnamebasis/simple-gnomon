@@ -536,6 +536,10 @@ func gnomon_indexer(ctx context.Context) {
 			go task(height)
 		}
 	}
+	// at least one is required
+	parallel_blocks = max(parallel_blocks, 1)
+
+	fmt.Println("starting blocks in parallel", parallel_blocks)
 	// simple-daemon
 	for RUNNING {
 
@@ -552,13 +556,8 @@ func gnomon_indexer(ctx context.Context) {
 		}
 
 		result := now - lowest_height
-		fmt.Println("now", now, "lowest height", lowest_height, "result", result)
 		height_processing = make(chan int64, result)
 
-		// at least one is required
-		parallel_blocks = max(parallel_blocks, 1)
-
-		fmt.Println("starting blocks in parallel", parallel_blocks)
 		wg := sync.WaitGroup{}
 		for range parallel_blocks {
 			wg.Add(1)
