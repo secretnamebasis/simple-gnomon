@@ -557,24 +557,26 @@ func gnomon_indexer(ctx context.Context) {
 
 		result := now - lowest_height
 		height_processing = make(chan int64, result)
-
-		wg := sync.WaitGroup{}
-		for range parallel_blocks {
-			wg.Add(1)
-			go work(height_processing, &wg)
-		}
-
-		log.Printf("loading heights into queue %d", result)
-		for height := lowest_height; height < now; height++ {
-			if !RUNNING {
-				return
+		if result != 0 {
+			wg := sync.WaitGroup{}
+			for range parallel_blocks {
+				wg.Add(1)
+				go work(height_processing, &wg)
 			}
-			TOPO = height
 
-			height_processing <- height
+			log.Printf("loading heights into queue %d", result)
+			for height := lowest_height; height < now; height++ {
+				if !RUNNING {
+					return
+				}
+				TOPO = height
+
+				height_processing <- height
+			}
+			close(height_processing)
+			wg.Wait()
 		}
-		close(height_processing)
-		wg.Wait()
+
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
 		}
