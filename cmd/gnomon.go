@@ -1255,24 +1255,20 @@ func set_up_backend() error {
 
 	fmt.Println("searches indices:", len(indices))
 
-	type excluded []struct {
+	type excluded struct {
 		Name   string
 		SCID   string
 		Reason string
 	}
 
-	var excludes excluded
+	var excludes []excluded
 
 	// if exclusions are provided...
 	if exclusions != "" {
 		exclude := exclusions
 
 		callback := func(i int, scid string) {
-			excludes = append(excludes, struct {
-				Name   string
-				SCID   string
-				Reason string
-			}{
+			excludes = append(excludes, excluded{
 				Name:   "Exclusion " + strconv.Itoa(i),
 				SCID:   scid,
 				Reason: "exclusion flag",
@@ -1295,7 +1291,7 @@ func set_up_backend() error {
 		if _, err := os.Stat(exclude); err != nil {
 			// for now, these are the collections we are looking for
 			// title, search terms
-			excludes = excluded{
+			excludes = []excluded{
 				{Name: "NAMESERVICE", SCID: globals.NAMESERVICE, Reason: "Hardcoded Contract"},
 				{Name: "Gnomon Smart Contract", SCID: globals.MAINNET_GNOMON_SCID, Reason: "Large Contract"},
 			}
