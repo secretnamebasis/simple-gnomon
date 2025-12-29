@@ -39,7 +39,7 @@ simple-gnomon
 ## Run 
 As simple-gnomon aims to be quite versitle as a tool, there are three means of starting simple-gnomon: gui, no-gui, or as a package
 
-> If an enpoint is not provided either in the endpoint entry of the GUI or as a flag (`-endpoint=<daemon_ip:port>`), simple-gnomon will attempt to connect to an xswd websocket (`ws://127.0.0.1:44326/xswd`) to get daemon endpoint.
+> If an enpoint is not provided either in the endpoint entry of the GUI or as a flag (`--daemon-rpc-address=<daemon_ip:port>`), simple-gnomon will attempt to connect to an xswd websocket (`ws://127.0.0.1:44326/xswd`) to get daemon endpoint.
 
 ### GUI
 Simple as it gets, `./simple-gnomon`. 
@@ -47,9 +47,9 @@ Simple as it gets, `./simple-gnomon`.
 The primary dashboard will appear asking for a endpoint to connect to for node queries. 
 
 ### NO-GUI
-Minimal set up is required: `./simple-gnomon -no-gui -endpoint=127.0.0.1:10102`, and the indexer will begin. 
+Minimal set up is required: `./simple-gnomon --no-gui --daemon-rpc-address=127.0.0.1:10102`, and the indexer will begin. 
 
-> N.B. There some useful options when running simple-gnomon, just call on `-help` to see more.
+> N.B. There some useful options when running simple-gnomon, just call on `--help` to see more.
 
 ### PACKAGE
 To use simple gnomon in a go application; 
@@ -67,7 +67,7 @@ func foobar(){
     endpoint := "127.0.0.1:10102" 
 
     // build endpoint flag to parse
-    endpoint_flag := "-endpoint=" + endpoint
+    endpoint_flag := "--daemon-rpc-address=" + endpoint
 
     // load flag into os arguments
     os.Args = append(os.Args, endpoint_flag)
@@ -86,7 +86,7 @@ func foobar(){
 > N.B. `https` & `wss`: these endpoints will likely be configurable in the future. The code is all there...
 
 ### `http`
-This endpoint, if not set by the `-api_endpoint=<ip:port>` flag, defaults to `http://127.0.0.1:8082`
+This endpoint, if not set by the `--api-address=<ip:port>` flag, defaults to `http://127.0.0.1:8082`
 
 ```html
 /api/indexedscs => {"indexdetails":null,"indexedscs": [scid,scid,scid], "numscs":49573}
@@ -100,10 +100,10 @@ This endpoint, if not set by the `-api_endpoint=<ip:port>` flag, defaults to `ht
 ```
 
 ### `ws`
-This endpoint defaults to `ws://127.0.0.1:9190/ws`. 
+This endpoint defaults to `ws://127.0.0.1:9190/ws`. However, by using the `--ws-address=<ip:port>` flag, one cane set it to what is desired. 
 
 ## FILTERS
-In addition to a catch all search filter, simple-gnomon contains 3 filters found in `config/search.json`: "g45", "nfa", "tela" ; these named searches are applied to indexed scids in a comma separated format, eg `tags`. In future development, `GetAllSCIDsByTag` will be made to access this content, making it simple to gather scids based on search names.
+In addition to a catch all search filter, simple-gnomon contains 3 filters found in `config/search.json`: "g45", "nfa", "tela" ; these named searches are applied to indexed scids in a comma separated format, eg `tags`. The `--search-filter="<F;F>;;;<F;F>"` flag allows users do override the `search.json` file with multiple searches (using the `;;;` separator), with multiple search terms (using the `;` separator), eg `one-term;with a second term;;;another search;with another term`.
 
 ## EXCLUSIONS
-There may be contracts that users would like to skip on account of their size or lack of apparent usefulness. An exclusions file has been included within the repo as `config/exclude.json`. Each contract can be named, defined, and given reason for exclusion.  
+There may be contracts that users would like to skip on account of their size or lack of apparent usefulness. An exclusions file has been included within the repo as `config/exclude.json`. Each contract can be named, defined, and given reason for exclusion.  The `--sf-scid-exclusions="<F>;;;<F>" ` flag allows users do override the `exclude.json` file with multiple searches (using the `;;;` separator), eg `<SCID1>;;;<SCID2>`.
