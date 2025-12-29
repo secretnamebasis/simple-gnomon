@@ -1194,18 +1194,20 @@ func set_up_backend() error {
 
 	fmt.Println("searches indices:", len(indices))
 
-	excluded := []struct {
+	type excluded []struct {
 		Name   string
 		SCID   string
 		Reason string
-	}{}
+	}
+
+	var excludes excluded
 
 	// if exclusions are provided...
 	if exclusions != nil && *exclusions != "" {
 		exclude := *exclusions
 
 		callback := func(i int, scid string) {
-			excluded = append(excluded, struct {
+			excludes = append(excludes, struct {
 				Name   string
 				SCID   string
 				Reason string
@@ -1227,21 +1229,17 @@ func set_up_backend() error {
 	}
 
 	// otherwise if there is no flag
-	if exclusions == nil && *exclusions == "" && len(excluded) == 0 {
-		excludes := filepath.Join("config", "exclude.json")
-		if _, err := os.Stat(excludes); err != nil {
+	if exclusions != nil && *exclusions == "" && len(excludes) == 0 {
+		exclude := filepath.Join("config", "exclude.json")
+		if _, err := os.Stat(exclude); err != nil {
 			// for now, these are the collections we are looking for
 			// title, search terms
-			excluded = []struct {
-				Name   string
-				SCID   string
-				Reason string
-			}{
+			excludes = excluded{
 				{Name: "NAMESERVICE", SCID: globals.NAMESERVICE, Reason: "Hardcoded Contract"},
 				{Name: "Gnomon Smart Contract", SCID: globals.MAINNET_GNOMON_SCID, Reason: "Large Contract"},
 			}
 
-			if err := os.Mkdir(filepath.Dir(excludes), 0700); err != nil {
+			if err := os.Mkdir(filepath.Dir(exclude), 0700); err != nil {
 
 				if errors.Is(err, os.ErrExist) {
 					fmt.Println(err)
@@ -1250,16 +1248,16 @@ func set_up_backend() error {
 				}
 			}
 
-			b, err := json.MarshalIndent(excluded, "", "\t")
+			b, err := json.MarshalIndent(exclude, "", "\t")
 			if err != nil {
 				return err
 			}
 
-			if err := os.WriteFile(excludes, b, 0600); err != nil {
+			if err := os.WriteFile(exclude, b, 0600); err != nil {
 				return err
 			}
 		} else {
-			fi, err := os.OpenFile(excludes, os.O_RDONLY, 0600)
+			fi, err := os.OpenFile(exclude, os.O_RDONLY, 0600)
 			if err != nil {
 				return err
 			}
@@ -1269,11 +1267,12 @@ func set_up_backend() error {
 				return err
 			}
 
-			if err := json.Unmarshal(b, &excluded); err != nil {
+			if err := json.Unmarshal(b, &excludes); err != nil {
 				return err
 			}
 		}
 	}
+	fmt.Println("exclusions", len(excludes))
 
 	// DB SETUP
 	db_name := fmt.Sprintf("%s.db", "GNOMON")
@@ -1296,7 +1295,7 @@ func set_up_backend() error {
 	}
 	time.Sleep(time.Second * 1) // we need a second okay...
 
-	for _, exclude := range excluded {
+	for _, exclude := range excludes {
 		b.Exclusions = append(b.Exclusions, exclude.SCID)
 		bb.Exclusions = append(bb.Exclusions, exclude.SCID)
 	}
