@@ -395,8 +395,9 @@ func Start_gnomon_indexer() error {
 			if int64(starting_height) > important.height {
 				return
 			}
-
-			fmt.Printf("fast syncing %s %d \n", important.hash, important.height)
+			if progress {
+				fmt.Printf("fast syncing %s %d \n", important.hash, important.height)
+			}
 			scid_processing <- &processingStruct{
 				Height:      tx.Txs[0].Block_Height,
 				Tx:          tx.Txs[0],
@@ -1121,21 +1122,24 @@ var scid_db_queue = make(chan *structures.SCIDToIndexStage, 100_000)
 
 func scid_db_writer(ctx context.Context) {
 	work := func(staged *structures.SCIDToIndexStage) {
-		format := "staged txid %s sender %s | %s | scid: %s %d / %d %s %d class:%s tags:%s\n"
-		a := []any{
-			staged.Txid,
-			staged.Sender,
-			staged.Method,
-			staged.Scid,
-			staged.Height,
-			now,
-			staged.Headers,
-			len(staged.ScVars),
-			staged.Class,
-			staged.Tags,
+		if progress {
+			format := "staged txid %s sender %s | %s | scid: %s %d / %d %s %d class:%s tags:%s\n"
+			a := []any{
+				staged.Txid,
+				staged.Sender,
+				staged.Method,
+				staged.Scid,
+				staged.Height,
+				now,
+				staged.Headers,
+				len(staged.ScVars),
+				staged.Class,
+				staged.Tags,
+			}
+
+			fmt.Printf(format, a...)
 		}
 
-		fmt.Printf(format, a...)
 		// store scid by tag
 		if err := database.AddSCIDToIndex(*staged); err != nil {
 			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
