@@ -470,7 +470,6 @@ func gnomon_indexer(ctx context.Context) {
 	}()
 
 	task := func(height int64) {
-		TOPO = height
 
 		if progress {
 			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
@@ -555,14 +554,6 @@ func gnomon_indexer(ctx context.Context) {
 		result := now - lowest_height
 		fmt.Println("now", now, "lowest height", lowest_height, "result", result)
 		height_processing = make(chan int64, result)
-		fmt.Println("loading heights into queue")
-		for height := lowest_height; height < result; height++ {
-			if !RUNNING {
-				return
-			}
-			fmt.Print("height ", height, "\r")
-			height_processing <- height
-		}
 
 		// at least one is required
 		parallel_blocks = max(parallel_blocks, 1)
@@ -573,6 +564,18 @@ func gnomon_indexer(ctx context.Context) {
 			wg.Add(1)
 			go work(height_processing, &wg)
 		}
+
+		fmt.Println("loading heights into queue")
+		for height := lowest_height; height < now; height++ {
+			if !RUNNING {
+				return
+			}
+			TOPO = height
+
+			fmt.Print("height ", height, "\r")
+			height_processing <- height
+		}
+		close(height_processing)
 		wg.Wait()
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
