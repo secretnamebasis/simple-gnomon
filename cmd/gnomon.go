@@ -572,7 +572,6 @@ func gnomon_indexer(ctx context.Context) {
 			}
 			TOPO = height
 
-			fmt.Print("height ", height, "\r")
 			height_processing <- height
 		}
 		close(height_processing)
