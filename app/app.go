@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -73,16 +74,24 @@ func RenderGUI() {
 	w := a.NewWindow("simple-gnomon")
 	w.Resize(fyne.NewSize(400, 600))
 	w.SetCloseIntercept(func() {
-		cmd.RUNNING = false
 		closing = true
-		cmd.WaitForQueues()
-		fmt.Println("gracefully stopped")
+		if cmd.RUNNING {
+			cmd.RUNNING = false
+			cmd.EXIT <- os.Interrupt
+			cmd.GracefullyStopAndExit()
+		}
 		os.Exit(0)
 	})
 	data_dir = filepath.Base(globals.GetDataDirectory())
 	endpoint := ""
 	connection := widget.NewEntry()
 	connection.SetPlaceHolder("dero node: 127.0.0.1:10102")
+	parallel := widget.NewEntry()
+	parallel.SetPlaceHolder("n blocks processed in parallel: 5")
+	msg := "NOTICE:\n" +
+		"Number fo parallel blocks increases load on machine,\n" +
+		"results may vary, and are subject to error.\nPlease be advised.\n"
+	parallel_notice := widget.NewLabel(msg)
 	ws_endpoint := widget.NewEntry()
 	ws_endpoint.SetPlaceHolder("serve ws on: 127.0.0.1:9190")
 	api_endpoint := widget.NewEntry()
@@ -96,7 +105,7 @@ func RenderGUI() {
 	exclusions := widget.NewEntry()
 	exclusions.SetPlaceHolder("SCID;;;SCID1")
 	fastsync := widget.NewCheck("fastsync?", func(b bool) {})
-	msg := "NOTICE:\n" +
+	msg = "NOTICE:\n" +
 		"Fastsync data is provided by gnomonSC,\n" +
 		"as an automated service, it is subject to error.\nPlease be advised.\n"
 	fastsync_notice := widget.NewLabel(msg)
@@ -109,6 +118,7 @@ func RenderGUI() {
 	mini_notice.Alignment = fyne.TextAlignCenter
 	drop_down := widget.NewAccordion(
 		widget.NewAccordionItem("indexer endpoints", container.NewVBox(ws_endpoint, api_endpoint)),
+		widget.NewAccordionItem("Block Parallelization", container.NewVBox(parallel, parallel_notice)),
 		widget.NewAccordionItem("starting height", starting_height),
 		widget.NewAccordionItem("ending height", ending_height),
 		widget.NewAccordionItem("search filter", search_filter),
@@ -166,32 +176,37 @@ func RenderGUI() {
 			return
 		}
 
-		endpoint_flag := "-endpoint=" + endpoint
+		endpoint_flag := "--daemon-rpc-address=" + endpoint
 
 		os.Args = append(os.Args, endpoint_flag)
+
+		if parallel.Text != "" {
+			os.Args = append(os.Args, "--num-parallel-blocks="+parallel.Text)
+		}
+
 		if ws_endpoint.Text != "" {
-			os.Args = append(os.Args, "-ws-endpoint="+ws_endpoint.Text)
+			os.Args = append(os.Args, "--ws-endpoint="+ws_endpoint.Text)
 		}
 		if api_endpoint.Text != "" {
-			os.Args = append(os.Args, "-api-endpoint="+api_endpoint.Text)
+			os.Args = append(os.Args, "--api-endpoint="+api_endpoint.Text)
 		}
 		if starting_height.Text != "" {
-			os.Args = append(os.Args, "-starting-height="+starting_height.Text)
+			os.Args = append(os.Args, "--starting-height="+starting_height.Text)
 		}
 		if ending_height.Text != "" {
-			os.Args = append(os.Args, "-ending-height="+ending_height.Text)
+			os.Args = append(os.Args, "--ending-height="+ending_height.Text)
 		}
 		if search_filter.Text != "" {
-			os.Args = append(os.Args, "-search-filter="+search_filter.Text)
+			os.Args = append(os.Args, "--search-filter="+search_filter.Text)
 		}
 		if exclusions.Text != "" {
-			os.Args = append(os.Args, "-exclude="+exclusions.Text)
+			os.Args = append(os.Args, "--exclude="+exclusions.Text)
 		}
 		if fastsync.Checked {
-			os.Args = append(os.Args, "-fastsync")
+			os.Args = append(os.Args, "--fastsync")
 		}
 		if minis.Checked {
-			os.Args = append(os.Args, "-store-minis")
+			os.Args = append(os.Args, "--store-minis")
 		}
 
 		node_connection = endpoint
@@ -206,7 +221,7 @@ func RenderGUI() {
 			return
 		}
 
-		if !cmd.RUNNING {
+		for !cmd.RUNNING {
 			if closing {
 				os.Exit(0)
 			}
@@ -230,12 +245,14 @@ func RenderGUI() {
 
 			indexer_connection, _, err = dialer.Dial(url, nil)
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
+				return
 			}
 
 			height1, err := getLastIndexHeight()
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
+				return
 			}
 
 			first := int64(height1.Result)

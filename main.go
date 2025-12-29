@@ -13,14 +13,14 @@ var exit chan struct{}
 
 func main() {
 
-	if slices.Contains(os.Args, "-help") {
+	if slices.Contains(os.Args, "--help") || slices.Contains(os.Args, "-h") {
 		cmd.Start_gnomon_indexer()
-		fmt.Println(`  -no-gui                          Disable GUI`)
+		fmt.Println(`  --no-gui                          Disable GUI`)
 		return
 	}
 
 	fmt.Println("Clear is better than clever. \n- Robert Pike")
-	if !slices.Contains(os.Args, "-no-gui") {
+	if !slices.Contains(os.Args, "--no-gui") {
 
 		fmt.Println("GUI ENABLED")
 		app.RenderGUI()
@@ -30,7 +30,7 @@ func main() {
 		fmt.Println("GUI DISABLED")
 
 		// remove flag from args
-		i := slices.Index(os.Args, "-no-gui")
+		i := slices.Index(os.Args, "--no-gui")
 		j := i + 1
 		os.Args = slices.Delete(os.Args, i, j)
 

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -37,35 +36,38 @@ import (
 )
 
 var (
-	database        *db.BboltStore
-	backup_database *db.BboltStore
-	indices         = []structures.SearchFilter{}
-	endpoint        = flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
-	ws_endpoint     = flag.String("ws-endpoint", "", "-ws-endpoint=<IP:PORT>")
-	api_endpoint    = flag.String("api-endpoint", "", "-api-endpoint=<IP:PORT>")
-	starting_height = flag.Int64("starting-height", -1, "-starting-height=123")
-	ending_height   = flag.Int64("ending-height", -1, "-ending-height=123")
-	search_filter   = flag.String("search-filter", "", `-search="one-term;second-term;;;another-term;second-term"`)
-	exclusions      = flag.String("exclude", "", `-exclude=<SCID>;;;<SCID1>`)
-	fastsync        = flag.Bool("fastsync", false, "-fastsync")
-	store_minis     = flag.Bool("store-minis", false, "-store-minis")
-	progress        = flag.Bool("progress", false, "-progress")
-	help            = flag.Bool("help", false, "-help")
-	help_msg        = `Usage: simple-gnomon [options]
+	database           *db.BboltStore
+	backup_database    *db.BboltStore
+	indices            = []structures.SearchFilter{}
+	endpoint           string //= flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
+	ws_endpoint        string //= flag.String("ws-endpoint", "", "-ws-endpoint=<IP:PORT>")
+	api_endpoint       string //= flag.String("api-endpoint", "", "-api-endpoint=<IP:PORT>")
+	starting_height    int64  //= flag.Int64("starting-height", -1, "-starting-height=123")
+	ending_height      int64  //= flag.Int64("ending-height", -1, "-ending-height=123")
+	search_filter      string //= flag.String("search-filter", "", `-search="one-term;second-term;;;another-term;second-term"`)
+	exclusions         string //= flag.String("exclude", "", `-exclude=<SCID>;;;<SCID1>`)
+	parallel_blocks    int64
+	default_num_blocks int64 = 5
+	fastsync           bool  //= flag.Bool("fastsync", false, "-fastsync")
+	store_minis        bool  //= flag.Bool("store-minis", false, "-store-minis")
+	progress           bool  //= flag.Bool("progress", false, "-progress")
+
+	help_msg = `Usage: simple-gnomon [options]
 A simple indexer for the DERO blockchain.
 
 Options:
-  -endpoint <DAEMON_IP:PORT>       Address of the daemon to connect to.
-  -ws-endpoint <IP:PORT>    Address of the ws.
-  -api-endpoint <IP:PORT>   Address of the api.
-  -starting-height <N>             Height to start indexing from.
-  -ending-height <N>               Height to stop indexing at.
-  -search-filter "<F;F>;;;<F;F>"   Exclusively search filter(s), overides search.json. 
-  -exclude "<F>;;;<F>"             Exclude SCID(s), overides exclude.json.
-  -fastsync                        Pulls gnomonSC and installs scid to index (disclaimer: automated-service subject to error)
-  -store-minis                     Store miniblock details within index 
-  -progress                        Show download progress stats.
-  -help                            Show this help message.`
+  --daemon-rpc-address=<DAEMON_IP:PORT>       Address of the daemon to connect to.
+  --ws-address=<IP:PORT>                      Address to serve the ws.
+  --api-address=<IP:PORT>                     Address to serve the api.
+  --start-topoheight=<N>                      Height to start indexing from.
+  --ending-topoheight=<N>                     Height to stop indexing at.
+  --search-filter="<F;F>;;;<F;F>"             Exclusively search filter(s), overides search.json. 
+  --sf-scid-exclusions="<F>;;;<F>"            Exclude SCID(s), overides exclude.json.
+  --fastsync                                  Pulls gnomonSC and installs scid to index (disclaimer: automated-service subject to error)
+  --enable-miniblock-lookup                   Store miniblock details within index
+  --num-parallel-blocks=<N>                   Concurrently process blocks
+  --progress                                  Show download progress stats.
+  --help, -h                                  Show this help message.`
 
 	established_backup      bool
 	achieved_current_height int64
@@ -73,39 +75,100 @@ Options:
 	day_of_blocks           int64
 
 	// we are going to use these for later
-	now              int64
-	TOPO             int64
-	IN_PROGRESS      int64
-	RUNNING          bool
-	STORE_MINIBLOCKS bool
-
-	ctx    context.Context
-	cancel context.CancelFunc
+	now         int64
+	TOPO        int64
+	IN_PROGRESS int64
+	EXIT        = make(chan os.Signal, 1)
+	RUNNING     bool
+	ctx         context.Context
+	cancel      context.CancelFunc
 )
 
-// this is the processing thread
-func Start_gnomon_indexer() error {
-	runtime.GC() // let's clean things up before beginning
+// a simple flag-parser
+func parseFalgs() error {
+	fmt.Println(os.Args)
+	launch_args := os.Args[1:] // we'll skip the first one
 
-	flag.Parse()
-	if help != nil && *help {
+	// launch help when present
+	if slices.Contains(launch_args, "--help") || slices.Contains(launch_args, "-h") {
 		fmt.Println(help_msg)
 		return nil
 	}
 
-	if endpoint != nil && *endpoint == "" {
+	for _, each := range launch_args {
 
-		// first call on the wallet ws for authorizations
+		if strings.Contains(each, "=") {
+
+			parts := strings.Split(each, "=")
+			flag := parts[0]
+			value := parts[1]
+
+			switch flag {
+			case `--daemon-rpc-address`:
+				endpoint = value
+			case `--ws-address`:
+				ws_endpoint = value
+			case `--api-address`:
+				api_endpoint = value
+			case `--start-topoheight`:
+				n, err := strconv.Atoi(value)
+				if err != nil {
+					return err
+				}
+				starting_height = int64(n)
+			case `--ending-topoheight`:
+				n, err := strconv.Atoi(value)
+				if err != nil {
+					return err
+				}
+
+				ending_height = int64(max(n, -1))
+
+			case `--search-filter`:
+				search_filter = value
+			case `--sf-scid-exclusions`:
+				exclusions = value
+			case `--num-parallel-blocks`:
+				n, err := strconv.Atoi(value)
+				if err != nil {
+					return err
+				}
+				parallel_blocks = int64(max(n, 0))
+			}
+
+		} else {
+
+			switch each {
+			case `--fastsync`:
+				fastsync = true
+			case `--enable-miniblock-lookup`:
+				store_minis = true
+			case `--progress`:
+				progress = true
+			}
+
+		}
+	}
+	return nil
+}
+
+// Starts gnomon indexer
+func Start_gnomon_indexer() error {
+	runtime.GC() // let's clean things up before beginning
+	parseFalgs()
+
+	if endpoint == "" {
+		// call on the wallet ws for authorizations
 		if err := connections.Set_xswd_conn(); err != nil {
 			return err
 		}
 
 		// next, establish the daemon endpoint for rpc calls, waaaaay faster than through the wallet
 		daemon := connections.GetDaemonEndpoint()
-		*endpoint = daemon.Endpoint
+		endpoint = daemon.Endpoint
 	}
 
-	transport := &http.Transport{
+	transport := &http.Transport{ // this is insane... but, let's find out.
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
 		MaxConnsPerHost:     20,
@@ -113,13 +176,17 @@ func Start_gnomon_indexer() error {
 		IdleConnTimeout:     time.Second * 90,
 		DisableCompression:  false,
 	}
-	opts := &jsonrpc.RPCClientOpts{HTTPClient: &http.Client{Timeout: time.Second * 30, Transport: transport}} // this is insane... but, let's find out.
-	url := "http://" + *endpoint + "/json_rpc"
-	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
 
-	if store_minis != nil && *store_minis {
-		STORE_MINIBLOCKS = *store_minis
+	client := &http.Client{
+		Timeout:   time.Second * 30, // things might take a moment
+		Transport: transport,
 	}
+
+	opts := &jsonrpc.RPCClientOpts{HTTPClient: client}
+
+	url := "http://" + endpoint + "/json_rpc"
+
+	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
 
 	// if you are getting a zero... yeah, you are not connected
 	if connections.Get_TopoHeight() == 0 {
@@ -149,25 +216,23 @@ func Start_gnomon_indexer() error {
 
 	fmt.Println("setting up queue processors")
 	ctx, cancel = context.WithCancel(context.Background())
+
 	go func() {
-		signalChan := make(chan os.Signal, 1)
-		signal.Notify(signalChan, os.Interrupt)
+		signal.Notify(EXIT, os.Interrupt)
 		for {
 			select {
-			case <-signalChan:
+			case <-EXIT:
 				RUNNING = false
-				cancel()
-				gracefullyStopAndExit()
+				GracefullyStopAndExit()
 				return
 			case <-ctx.Done():
 			}
 		}
 	}()
-	if STORE_MINIBLOCKS {
+	if store_minis {
 		fmt.Println("STORING MINIBLOCKS")
 		go mini_db_writer(ctx)
 	}
-
 	go scid_db_writer(ctx)
 	go filtering(ctx)
 	go tx_handling(ctx)
@@ -176,21 +241,23 @@ func Start_gnomon_indexer() error {
 
 	fmt.Println("setting up websocket")
 	address := "127.0.0.1:9190"
-	if ws_endpoint != nil && *ws_endpoint != "" {
-		address = *ws_endpoint
+	if ws_endpoint != "" {
+		address = ws_endpoint
 	}
+
 	go connections.ListenWS(ctx, database, address)
 
 	fmt.Println("setting up api")
 	api := "127.0.0.1:8082"
-	if api_endpoint != nil && *api_endpoint != "" {
-		api = *api_endpoint
+	if api_endpoint != "" {
+		api = api_endpoint
 	}
+
 	server := connections.NewApiServer(&connections.APIConfig{
 		Enabled:              true,
 		Listen:               api,
 		StatsCollectInterval: "5s",
-		MBLLookup:            STORE_MINIBLOCKS, // default is false
+		MBLLookup:            store_minis, // default is false
 	}, database)
 
 	// serving api
@@ -202,6 +269,7 @@ func Start_gnomon_indexer() error {
 	// there are two contracts that need to be processed with special consideration:
 	// - nameservice: pull this one first, as it has no height
 	// - gnomonSC: skip this one
+
 	// let's go get the name service contract
 	params := rpc.GetSC_Params{
 		SCID:       globals.NAMESERVICE,
@@ -230,7 +298,9 @@ func Start_gnomon_indexer() error {
 	}
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
-	if fastsync != nil && *fastsync {
+
+	// and in the event that the user wants to fast sync
+	if fastsync {
 		fmt.Println("fastsync activated")
 
 		params = rpc.GetSC_Params{
@@ -323,7 +393,7 @@ func Start_gnomon_indexer() error {
 				log.Fatal("key", important.hash, "tx", tx, "transact", transact)
 			}
 
-			if starting_height != nil && *starting_height > important.height {
+			if int64(starting_height) > important.height {
 				return
 			}
 			fmt.Println("fast syncing", important.hash, important.height)
@@ -338,6 +408,9 @@ func Start_gnomon_indexer() error {
 		work := func(imports chan importable, wg *sync.WaitGroup) {
 			defer wg.Done()
 			for importable := range imports {
+				if !RUNNING {
+					return
+				}
 				task(importable)
 			}
 		}
@@ -349,17 +422,11 @@ func Start_gnomon_indexer() error {
 		}
 		// let's do this really fast
 		for _, importable := range importables {
-			select {
-			case <-ctx.Done():
-				gracefullyStopAndExit()
+
+			if !RUNNING {
 				return nil
-			default:
-				if !RUNNING {
-					gracefullyStop()
-					return nil
-				}
-				imports <- importable
 			}
+			imports <- importable
 		}
 		close(imports)
 		wg.Wait()
@@ -391,7 +458,6 @@ func gnomon_indexer(ctx context.Context) {
 
 	last := now
 	go func() { // Set up a listener for get info
-
 		for RUNNING {
 			now = connections.Get_TopoHeight()
 			time.Sleep(time.Second * 1)
@@ -403,57 +469,48 @@ func gnomon_indexer(ctx context.Context) {
 		}
 	}()
 
-	// simple-daemon
-	for RUNNING {
+	task := func(height int64) {
+		TOPO = height
 
-		if achieved_current_height != 0 {
-			time.Sleep(time.Second * time.Duration(info.Target))
-		}
+		if progress {
+			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
 
-		if ending_height != nil && *ending_height > -1 {
-			now = *ending_height
-		}
-		// in case db needs to re-parse from a desired height
-		if starting_height != nil && *starting_height < now && *starting_height > -1 && achieved_current_height == 0 {
-			lowest_height = *starting_height
-		}
-
-		wg := sync.WaitGroup{}
-
-		for height := lowest_height; height < now; height++ {
-			if !RUNNING {
-				cancel()
-				WaitForQueues()
-				return
+			a := []any{
+				height,
+				connections.DOWNLOADS.Load(),
+				runtime.NumGoroutine(),
+				len(block_processing),
+				len(transaction_processing),
+				len(scid_processing),
+				len(scid_db_queue),
 			}
 
-			TOPO = height
+			format += "\n"
 
+			fmt.Printf(format, a...)
+		}
+
+		// wg.Add(1)
+		// go func(height int64, wg *sync.WaitGroup) {
+		// 	defer wg.Done()
+		block_processing <- &processingStruct{Height: height,
+			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+		}
+	}
+
+	work := func(height_processing chan int64, wg *sync.WaitGroup) {
+		defer wg.Done()
+		for height := range height_processing {
+			if !RUNNING {
+				return
+			}
 			// a simple backup strategy
 			if achieved_current_height > 0 && !established_backup &&
 				find_lowest_height(backup_database, now) { // if the current height is greater than a day of blocks...
 
-				WaitForQueues()
+				waitForAllQueues()
 
 				backup(height)
-			}
-
-			if progress != nil && *progress {
-				format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
-
-				a := []any{
-					height,
-					connections.DOWNLOADS.Load(),
-					runtime.NumGoroutine(),
-					len(block_processing),
-					len(transaction_processing),
-					len(scid_processing),
-					len(scid_db_queue),
-				}
-
-				format += "\n"
-
-				fmt.Printf(format, a...)
 			}
 
 			measurements := []int{
@@ -465,10 +522,9 @@ func gnomon_indexer(ctx context.Context) {
 				len(scid_db_queue),
 			}
 
-			if STORE_MINIBLOCKS {
+			if store_minis {
 				measurements = append(measurements, len(mini_queue), len(mini_db_queue))
 			}
-
 			var m int
 			for _, each := range measurements {
 				m = max(m, each)
@@ -478,18 +534,46 @@ func gnomon_indexer(ctx context.Context) {
 				time.Sleep(time.Millisecond * time.Duration(m))
 			}
 
+			go task(height)
+		}
+	}
+	// simple-daemon
+	for RUNNING {
+
+		if achieved_current_height != 0 {
+			time.Sleep(time.Second * time.Duration(info.Target))
+		}
+
+		if ending_height > 0 {
+			now = min(ending_height, now)
+		}
+		// in case db needs to re-parse from a desired height
+		if starting_height < now && starting_height > 0 && achieved_current_height == 0 {
+			lowest_height = starting_height
+		}
+
+		result := now - lowest_height
+		fmt.Println("now", now, "lowest height", lowest_height, "result", result)
+		height_processing = make(chan int64, result)
+		fmt.Println("loading heights into queue")
+		for height := lowest_height; height < result; height++ {
+			if !RUNNING {
+				return
+			}
+			fmt.Print("height ", height, "\r")
+			height_processing <- height
+		}
+
+		// at least one is required
+		parallel_blocks = max(parallel_blocks, 1)
+
+		fmt.Println("starting blocks in parallel", parallel_blocks)
+		wg := sync.WaitGroup{}
+		for range parallel_blocks {
 			wg.Add(1)
-			go func(height int64, wg *sync.WaitGroup) {
-				defer wg.Done()
-				block_processing <- &processingStruct{Height: height,
-					Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
-				}
-
-			}(height, &wg)
-
+			go work(height_processing, &wg)
 		}
 		wg.Wait()
-
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
 		}
@@ -499,6 +583,8 @@ func gnomon_indexer(ctx context.Context) {
 		lowest_height = min(now, achieved_current_height)
 	}
 }
+
+var height_processing chan int64
 
 type processingStruct struct {
 	// Stage 1
@@ -550,7 +636,7 @@ func indexing(ctx context.Context) {
 		}
 	}
 
-	if STORE_MINIBLOCKS {
+	if store_minis {
 		for range runtime.GOMAXPROCS(0) - 2 {
 			go process_minis(ctx, mini_queue)
 		}
@@ -559,7 +645,7 @@ func indexing(ctx context.Context) {
 
 		bl := GetBlockDeserialized(staged.Result.Blob)
 
-		if STORE_MINIBLOCKS {
+		if store_minis {
 			mini_queue <- &processingStruct{
 				Block:  bl,
 				Result: staged.Result,
@@ -875,7 +961,7 @@ func filtering(ctx context.Context) {
 
 		// if they are providing a search filter, they are being specific
 		// if none of the filters matches the sc code, skip this txid
-		if search_filter != nil && *search_filter != "" && class == "" {
+		if search_filter != "" && class == "" {
 			return
 		}
 
@@ -1088,8 +1174,8 @@ func storeHeight(height int64) error {
 func set_up_backend() error {
 
 	// if there is a search filter...
-	if search_filter != nil && *search_filter != "" {
-		search := *search_filter
+	if search_filter != "" {
+		search := search_filter
 
 		action := func(i int, terms []string) {
 			indices = append(indices, structures.SearchFilter{
@@ -1118,7 +1204,7 @@ func set_up_backend() error {
 
 	}
 
-	if search_filter != nil && *search_filter == "" && len(indices) == 0 {
+	if search_filter == "" && len(indices) == 0 {
 		cfg := filepath.Join("config", "search.json")
 		if _, err := os.Stat(cfg); err != nil {
 			// for now, these are the collections we are looking for
@@ -1175,8 +1261,8 @@ func set_up_backend() error {
 	var excludes excluded
 
 	// if exclusions are provided...
-	if exclusions != nil && *exclusions != "" {
-		exclude := *exclusions
+	if exclusions != "" {
+		exclude := exclusions
 
 		callback := func(i int, scid string) {
 			excludes = append(excludes, struct {
@@ -1201,7 +1287,7 @@ func set_up_backend() error {
 	}
 
 	// otherwise if there is no flag
-	if exclusions != nil && *exclusions == "" && len(excludes) == 0 {
+	if exclusions == "" && len(excludes) == 0 {
 		exclude := filepath.Join("config", "exclude.json")
 		if _, err := os.Stat(exclude); err != nil {
 			// for now, these are the collections we are looking for
