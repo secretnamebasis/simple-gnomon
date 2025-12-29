@@ -367,46 +367,18 @@ func Start_gnomon_indexer() error {
 
 		lowest_height = connections.Get_TopoHeight()
 	}
+
+	// default here... could be adjusted
+	if parallel_blocks == 0 {
+		parallel_blocks = default_num_blocks
+	}
+
+	// simple-daemon
 	go gnomon_indexer(ctx)
 	return nil
 }
-func gracefullyStop() {
-	WaitForQueues()
-	fmt.Println("gracefully stopped")
-}
-func gracefullyStopAndExit() {
-	gracefullyStop()
-	os.Exit(0)
-}
-func areQueuesEmpty() bool {
-	return len(block_processing) != 0 ||
-		len(transaction_processing) != 0 ||
-		len(batch_processing) != 0 ||
-		len(scid_processing) != 0 ||
-		len(scid_db_queue) != 0 ||
-		len(mini_db_queue) != 0 ||
-		len(mini_queue) != 0
-}
-func WaitForQueues() {
-	for areQueuesEmpty() {
-		format := "waiting for queues: BLOCKS: %d MINIS: %d TXS: %d BATCHES: %d SCIDS: %d SCID_DB: %d MINI_DB %d "
 
-		a := []any{
-			len(block_processing),
-			len(mini_queue),
-			len(transaction_processing),
-			len(batch_processing),
-			len(scid_processing),
-			len(scid_db_queue),
-			len(mini_db_queue),
-		}
-
-		format += "\n"
-
-		fmt.Printf(format, a...)
-		time.Sleep(time.Millisecond * 200)
-	}
-}
+// height processing point
 func gnomon_indexer(ctx context.Context) {
 
 	now = connections.Get_TopoHeight()

@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/cryptography/bn256"
@@ -350,4 +352,46 @@ func ValidateSCSignature(code string, key string) (validated bool, signer string
 	}
 
 	return
+}
+
+func gracefullyStop() {
+	cancel()
+	for database.Writing {
+		fmt.Printf("waiting for dbs writer to stop\r")
+		time.Sleep(time.Millisecond * 200)
+	}
+	fmt.Println("gracefully stopped")
+}
+func GracefullyStopAndExit() {
+	gracefullyStop()
+	os.Exit(0)
+}
+func areQueuesEmpty() bool {
+	return len(block_processing) != 0 ||
+		len(transaction_processing) != 0 ||
+		len(batch_processing) != 0 ||
+		len(scid_processing) != 0 ||
+		len(scid_db_queue) != 0 ||
+		len(mini_db_queue) != 0 ||
+		len(mini_queue) != 0
+}
+func waitForAllQueues() {
+	for areQueuesEmpty() {
+		format := "waiting for queues: BLOCKS: %d MINIS: %d TXS: %d BATCHES: %d SCIDS: %d SCID_DB: %d MINI_DB %d "
+
+		a := []any{
+			len(block_processing),
+			len(mini_queue),
+			len(transaction_processing),
+			len(batch_processing),
+			len(scid_processing),
+			len(scid_db_queue),
+			len(mini_db_queue),
+		}
+
+		format += "\n"
+
+		fmt.Printf(format, a...)
+		time.Sleep(time.Millisecond * 200)
+	}
 }
