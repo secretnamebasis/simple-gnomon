@@ -372,7 +372,6 @@ func Start_gnomon_indexer() error {
 		})
 
 		imports := make(chan importable, 10)
-		defer close(imports)
 
 		task := func(important importable) {
 
