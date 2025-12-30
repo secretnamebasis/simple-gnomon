@@ -919,7 +919,7 @@ func filtering(ctx context.Context) {
 				SCID:       scid,
 				Code:       true,
 				Variables:  true,
-				TopoHeight: height,
+				TopoHeight: h,
 			}
 			// 	tries := 0
 			// try_again:
