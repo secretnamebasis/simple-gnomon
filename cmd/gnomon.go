@@ -1036,8 +1036,10 @@ func filtering(ctx context.Context) {
 		}
 
 		nfa_signature := "Function Start(listType String, duration Uint64, startPrice Uint64, charityDonateAddr String, charityDonatePerc Uint64) Uint64"
+		tela_doc_signature := `STORE("docVersion",`
+		tela_index_signature := `STORE("telaVersion",`
 
-		if strings.Contains(sc.Code, nfa_signature) {
+		if strings.Contains(code, nfa_signature) || strings.Contains(code, tela_doc_signature) || strings.Contains(code, tela_index_signature) {
 			headers = GetSCNameFromVars(sc.VariableStringKeys) + ";" + GetSCDescriptionFromVars(sc.VariableStringKeys) + ";" + GetSCIDImageURLFromVars(sc.VariableStringKeys)
 		}
 
