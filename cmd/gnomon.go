@@ -431,7 +431,7 @@ func Start_gnomon_indexer() error {
 			go work(imports, &wg)
 		}
 
-		fmt.Println("fast sync Starting")
+		fmt.Println("fast sync started")
 		// let's do this really fast
 		for _, importable := range importables {
 			select {
