@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
@@ -66,21 +67,28 @@ var (
 		"NFAs & OWNERS:",
 	}
 )
+
 var indexer_connection *websocket.Conn
+var start time.Time
+var first, last, now int64
+var height1 getLastHeightResult
 
 func RenderGUI() {
+	ctx, cancel := context.WithCancel(context.Background())
 	closing := false
+
 	a := app.NewWithID("simple-gnomon_" + rand.Text())
 	w := a.NewWindow("simple-gnomon")
 	w.Resize(fyne.NewSize(400, 600))
 	w.SetCloseIntercept(func() {
+		cancel()
 		closing = true
 		if cmd.RUNNING {
 			cmd.RUNNING = false
 			cmd.EXIT <- os.Interrupt
 			cmd.GracefullyStopAndExit()
 		}
-		os.Exit(0)
+		w.Close()
 	})
 	data_dir = filepath.Base(globals.GetDataDirectory())
 	endpoint := ""
@@ -150,7 +158,9 @@ func RenderGUI() {
 
 	stop_btn := widget.NewButtonWithIcon("Stop Gnomon", theme.MediaStopIcon(), nil)
 	stop_btn.Hide()
+
 	stop_btn.OnTapped = func() {
+		cancel()
 		cmd.RUNNING = false
 		stop_btn.Hide()
 		table.Hide()
@@ -158,7 +168,183 @@ func RenderGUI() {
 		drop_down.Show()
 		connection.Show()
 	}
+	updateTable := func() {
+		result, err := getTxCount(getTxCountParams{"normal"})
+		if err != nil {
+			panic(err)
+		}
 
+		all_normal = strconv.Itoa(int(result.Result))
+
+		result, err = getTxCount(getTxCountParams{"registration"})
+		if err != nil {
+			panic(err)
+		}
+		all_registration = strconv.Itoa(int(result.Result))
+
+		result, err = getTxCount(getTxCountParams{"scids"})
+		if err != nil {
+			panic(err)
+		}
+		all_scids = strconv.Itoa(int(result.Result))
+		g45s, err := getSCIDsByTag(getSCIDsByTagParams{"g45"})
+		if err != nil {
+			panic(err)
+		}
+
+		all_g45s = strconv.Itoa(len(g45s.Result))
+
+		nfas, err := getSCIDsByTag(getSCIDsByTagParams{"nfa"})
+		if err != nil {
+			panic(err)
+		}
+
+		all_nfas = strconv.Itoa(len(nfas.Result))
+		height1, err := getLastIndexHeight()
+		if err != nil {
+			panic(err)
+		}
+		current_height = strconv.Itoa(int(now))
+		topo_height = strconv.Itoa(int(cmd.TOPO))
+		last_indexed = strconv.Itoa(int(height1.Result))
+		row_values = []string{
+			data_dir,
+			websocket_address,
+			node_connection,
+			current_height,
+			topo_height,
+			in_progress,
+			last_indexed,
+			average_per_hour,
+			estimated_hours,
+			total_hours,
+			// all_minis,
+			// all_miners,
+			all_normal,
+			all_registration,
+			all_scids,
+			all_g45s,
+			all_nfas,
+		}
+
+	}
+	var progressbar_value float64
+
+	action := func() {
+		if last == 0 {
+			last = int64(height1.Result)
+		}
+
+		duration := time.Since(start).Seconds()
+		average := last - first
+		if int64(duration) == 0 {
+			duration = 1 // avoid division by zero
+		}
+		average /= int64(duration)
+		if average == 0 {
+			average = 1
+		}
+		estimated := now / average
+		remaining := (now - int64(last)) / int64(average)
+
+		average_per_hour = strconv.Itoa(int(average * 60 * 60))
+		estimated_hours = strconv.Itoa(int(remaining / 60 / 60))
+		total_hours = strconv.Itoa(int(estimated / 60 / 60))
+		progressbar_value = float64(last) / float64(now)
+
+	}
+
+	passive := func() {
+		start = time.Now()
+		average_per_hour = strconv.Itoa(int((4800 / 24)))
+		estimated_hours = "PASSIVE MODE"
+		total_hours = "NEXT BLOCK"
+		progressbar_value = 1
+
+	}
+
+	set_connection := func() {
+		var err error
+		ws := "127.0.0.1:9190"
+		if ws_endpoint.Text != "" {
+			ws = ws_endpoint.Text
+		}
+		url := "ws://" + ws + "/ws"
+		websocket_address = url
+		dialer := websocket.Dialer{TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // allow self-signed certs
+		}}
+
+		indexer_connection, _, err = dialer.Dial(url, nil)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+	}
+
+	obtain_initial_height := func() getLastHeightResult {
+		height1, err := getLastIndexHeight()
+		if err != nil {
+			log.Fatal(err)
+			return getLastHeightResult{}
+		}
+
+		first = int64(height1.Result)
+
+		if starting_height.Text != "" {
+			v, err := strconv.Atoi(starting_height.Text)
+			if err != nil {
+				fmt.Println(err)
+				dialog.ShowError(err, w)
+				return getLastHeightResult{}
+			}
+			first = int64(v)
+		}
+
+		last = cmd.TOPO
+		now = connections.GetDaemonInfo().TopoHeight
+
+		return height1
+	}
+	start_gnomon := func(ctx context.Context) {
+		set_connection()
+		if indexer_connection != nil {
+			defer indexer_connection.Close()
+		}
+		height1 = obtain_initial_height()
+		updateTable()
+		action()
+
+		ticker := time.NewTicker(time.Second * 10)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !cmd.RUNNING {
+					return
+				}
+				now = connections.GetDaemonInfo().TopoHeight
+				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
+
+				updateTable()
+
+				switch now {
+				case cmd.TOPO + 1:
+					passive()
+				default:
+					action()
+				}
+
+				fyne.Do(func() {
+					table.Refresh()
+					progress_bar.SetValue(progressbar_value)
+				})
+			}
+		}
+	}
 	tapped := func() {
 		connection.Hide()
 		stop_btn.Show()
@@ -229,187 +415,8 @@ func RenderGUI() {
 			time.Sleep(time.Second * 1)
 		}
 
-		start := time.Now()
-
-		go func() {
-			var err error
-			ws := "127.0.0.1:9190"
-			if ws_endpoint.Text != "" {
-				ws = ws_endpoint.Text
-			}
-			url := "ws://" + ws + "/ws"
-			websocket_address = url
-			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // allow self-signed certs
-			}}
-
-			indexer_connection, _, err = dialer.Dial(url, nil)
-			if err != nil {
-				log.Fatal(err)
-				return
-			}
-
-			height1, err := getLastIndexHeight()
-			if err != nil {
-				log.Fatal(err)
-				return
-			}
-
-			first := int64(height1.Result)
-			if starting_height.Text != "" {
-				v, err := strconv.Atoi(starting_height.Text)
-				if err != nil {
-					fmt.Println(err)
-					dialog.ShowError(err, w)
-					return
-				}
-				first = int64(v)
-			}
-
-			action := func(now int64) {
-				last := cmd.TOPO
-				if last == 0 {
-					last = int64(height1.Result)
-				}
-
-				duration := time.Since(start).Seconds()
-				average := last - first
-				if int64(duration) == 0 {
-					duration = 1 // avoid division by zero
-				}
-				average /= int64(duration)
-				if average == 0 {
-					average = 1
-				}
-				estimated := now / average
-				remaining := (now - int64(last)) / int64(average)
-
-				average_per_hour = strconv.Itoa(int(average * 60 * 60))
-				estimated_hours = strconv.Itoa(int(remaining / 60 / 60))
-				total_hours = strconv.Itoa(int(estimated / 60 / 60))
-				fyne.DoAndWait(func() {
-					progress_bar.SetValue(float64(last) / float64(now))
-				})
-			}
-
-			passive := func() {
-				start = time.Now()
-				average_per_hour = strconv.Itoa(int((4800 / 24)))
-				estimated_hours = "PASSIVE MODE"
-				total_hours = "NEXT BLOCK"
-
-				fyne.DoAndWait(func() {
-					progress_bar.SetValue(1)
-				})
-
-			}
-
-			ticker := time.NewTicker(time.Second * 2)
-			// var min, ers int
-			// miner_index := []string{}
-			for range ticker.C {
-				if !cmd.RUNNING {
-					return
-				}
-
-				now := connections.GetDaemonInfo().TopoHeight
-				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
-				// if cmd.STORE_MINIBLOCKS {
-				// 	minis, err := getMiniDetails(getMiniDetailsParams{"all"})
-				// 	if err != nil {
-				// 		panic(err)
-				// 	}
-				// 	for _, ministructures := range minis.Result {
-				// 		// fmt.Println(hash)
-				// 		var mini []structures.MBLInfo
-				// 		this, err := json.Marshal(ministructures)
-				// 		if err != nil {
-				// 			panic(err)
-				// 		}
-				// 		err = json.Unmarshal(this, &mini)
-				// 		if err != nil {
-				// 			panic(err)
-				// 		}
-
-				// 		for _, each := range mini {
-				// 			if !slices.Contains(miner_index, each.Miner) {
-				// 				miner_index = append(miner_index, each.Miner)
-				// 			}
-				// 		}
-				// 		min += len(mini)
-				// 		fmt.Println(cmd.TOPO, min, len(mini))
-				// 		ers = len(miner_index)
-				// 	}
-
-				// 	all_miners = strconv.Itoa(ers)
-				// 	all_minis = strconv.Itoa(min)
-				// }
-				result, err := getTxCount(getTxCountParams{"normal"})
-				if err != nil {
-					panic(err)
-				}
-
-				all_normal = strconv.Itoa(int(result.Result))
-
-				result, err = getTxCount(getTxCountParams{"registration"})
-				if err != nil {
-					panic(err)
-				}
-				all_registration = strconv.Itoa(int(result.Result))
-
-				result, err = getTxCount(getTxCountParams{"scids"})
-				if err != nil {
-					panic(err)
-				}
-				all_scids = strconv.Itoa(int(result.Result))
-				g45s, err := getSCIDsByTag(getSCIDsByTagParams{"g45"})
-				if err != nil {
-					panic(err)
-				}
-
-				all_g45s = strconv.Itoa(len(g45s.Result))
-
-				nfas, err := getSCIDsByTag(getSCIDsByTagParams{"nfa"})
-				if err != nil {
-					panic(err)
-				}
-
-				all_nfas = strconv.Itoa(len(nfas.Result))
-				height1, err := getLastIndexHeight()
-				if err != nil {
-					panic(err)
-				}
-				current_height = strconv.Itoa(int(now))
-				topo_height = strconv.Itoa(int(cmd.TOPO))
-				last_indexed = strconv.Itoa(int(height1.Result))
-				row_values = []string{
-					data_dir,
-					websocket_address,
-					node_connection,
-					current_height,
-					topo_height,
-					in_progress,
-					last_indexed,
-					average_per_hour,
-					estimated_hours,
-					total_hours,
-					// all_minis,
-					// all_miners,
-					all_normal,
-					all_registration,
-					all_scids,
-					all_g45s,
-					all_nfas,
-				}
-				fyne.DoAndWait(func() { table.Refresh() })
-				switch now {
-				case cmd.TOPO + 1:
-					passive()
-				default:
-					action(now)
-				}
-			}
-		}()
+		start = time.Now()
+		go start_gnomon(ctx)
 	}
 
 	button := widget.NewButtonWithIcon("Start Gnomon Indexer", theme.MediaPlayIcon(), tapped)

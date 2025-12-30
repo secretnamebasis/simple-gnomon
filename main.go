@@ -28,14 +28,13 @@ func main() {
 		os.Args = slices.Delete(os.Args, i, j)
 
 		app.RenderGUI()
-		// block to prevent gnomon_indexer go routine closure
-		<-exit
 	} else {
 		// start the indexer
 		if err := cmd.Start_gnomon_indexer(); err != nil {
 			fmt.Println(err)
 			return
 		}
+		// block to prevent gnomon go routine closure
 		<-exit
 	}
 }
