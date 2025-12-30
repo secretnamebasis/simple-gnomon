@@ -240,18 +240,14 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 	var scid string
 	var address string
 
-	if !ok || len(scidkeys[0]) < 1 {
-		log.Printf("[API] URL Param 'scid' is missing. Debugging only.")
-	} else {
+	if ok && len(scidkeys[0]) > 0 {
 		scid = scidkeys[0]
 	}
 
 	// Query for address
 	addresskeys, ok := r.URL.Query()["address"]
 
-	if !ok || len(addresskeys[0]) < 1 {
-		log.Printf("[API] URL Param 'address' is missing.")
-	} else {
+	if ok && len(addresskeys[0]) > 0 {
 		address = addresskeys[0]
 	}
 
@@ -381,9 +377,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 	// Query for address
 	heightkey, ok := r.URL.Query()["height"]
 
-	if !ok || len(heightkey[0]) < 1 {
-		log.Printf("[API] URL Param 'height' is missing.")
-	} else {
+	if ok && len(heightkey[0]) > 0 {
 		height = heightkey[0]
 	}
 
@@ -493,18 +487,14 @@ func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http
 	var scid string
 	var address string
 
-	if !ok || len(scidkeys[0]) < 1 {
-		fmt.Println("[API] URL Param 'scid' is missing. Debugging only.")
-	} else {
+	if ok && len(scidkeys[0]) > 0 {
 		scid = scidkeys[0]
 	}
 
 	// Query for address
 	addresskeys, ok := r.URL.Query()["address"]
 
-	if !ok || len(addresskeys[0]) < 1 {
-		fmt.Println("[API] URL Param 'address' is missing.")
-	} else {
+	if ok && len(addresskeys[0]) > 0 {
 		address = addresskeys[0]
 	}
 
