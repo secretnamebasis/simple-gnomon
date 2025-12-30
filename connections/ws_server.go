@@ -338,13 +338,18 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetAllSCIDVariableDetails":
-		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
+		var params *structures.GnomonSCIDQuery
 		err = json.Unmarshal(*req.Params, &params)
 		if err != nil {
 			fmt.Printf("Unable to parse params\n")
 			return err
 		}
 		vars := wss.database.GetAllSCIDVariableDetails(params.SCID)
+		if vars == nil {
+			err = fmt.Errorf("vars are nil")
+			message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: err, Result: nil}
+			return handleMashalError(wsjson.Write(ctx, c, message))
+		}
 		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
 		return handleMashalError(wsjson.Write(ctx, c, message))
 	case "GetSCIDKeysByValue":
