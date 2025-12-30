@@ -297,9 +297,9 @@ func Start_gnomon_indexer() error {
 	}
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
-
+	now = connections.Get_TopoHeight()
 	// and in the event that the user wants to fast sync
-	if fastsync && connections.Get_TopoHeight()-lowest_height > (day_of_blocks/4) {
+	if fastsync && now-lowest_height > (day_of_blocks/4) {
 		fmt.Println("fastsync activated")
 
 		params = rpc.GetSC_Params{
