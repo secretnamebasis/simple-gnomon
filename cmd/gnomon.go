@@ -433,7 +433,7 @@ func Start_gnomon_indexer() error {
 				imports <- importable
 			}
 		}
-		close(imports)
+		// close(imports)
 		wg.Wait()
 
 		fmt.Println("fast sync done")
