@@ -177,6 +177,7 @@ func GetSCNameFromVars(keys map[string]interface{}) string {
 	}
 	return text
 }
+
 func GetSCDescriptionFromVars(keys map[string]interface{}) string {
 	var text string
 
@@ -230,6 +231,7 @@ func GetSCIDImageURLFromVars(keys map[string]interface{}) string {
 	}
 	return u.String()
 }
+
 func GetBlockDeserialized(blob string) block.Block {
 
 	var bl block.Block
@@ -366,6 +368,7 @@ func GracefullyStopAndExit() {
 	gracefullyStop()
 	os.Exit(0)
 }
+
 func areQueuesEmpty() bool {
 	return len(block_processing) != 0 ||
 		len(transaction_processing) != 0 ||
@@ -374,6 +377,16 @@ func areQueuesEmpty() bool {
 		len(scid_db_queue) != 0 ||
 		len(mini_db_queue) != 0 ||
 		len(mini_queue) != 0
+}
+func longestQueue() int {
+	return max(len(block_processing),
+		len(transaction_processing),
+		len(batch_processing),
+		len(scid_processing),
+		len(scid_db_queue),
+		len(mini_db_queue),
+		len(mini_queue),
+	)
 }
 func waitForAllQueues() {
 	for areQueuesEmpty() {
