@@ -909,6 +909,12 @@ func filtering(ctx context.Context) {
 		var sc rpc.GetSC_Result
 		if !slices.Contains(database.Exclusions, scid) {
 
+			h := height
+
+			if fastsync { // because we need the vars at the height of current
+				h = -1
+			}
+
 			params = rpc.GetSC_Params{
 				SCID:       scid,
 				Code:       true,
