@@ -359,6 +359,10 @@ func Start_gnomon_indexer() error {
 			v := kv[k+"height"].(float64)
 			height := int64(v)
 
+			if height < lowest_height {
+				continue
+			}
+
 			// fmt.Println(v, int(v), int64(v), uint(v), uint64(v))
 			importables = append(importables, importable{
 				hash:   k,
