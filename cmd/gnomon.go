@@ -547,8 +547,8 @@ func gnomon_indexer(ctx context.Context) {
 			if m > 0 {
 				time.Sleep(time.Millisecond * time.Duration(m))
 			}
+			task(height)
 
-			go task(height)
 		}
 	}
 	// at least one is required
