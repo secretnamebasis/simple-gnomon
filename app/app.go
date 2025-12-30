@@ -377,10 +377,10 @@ func RenderGUI() {
 			os.Args = append(os.Args, "--api-endpoint="+api_endpoint.Text)
 		}
 		if starting_height.Text != "" {
-			os.Args = append(os.Args, "--starting-height="+starting_height.Text)
+			os.Args = append(os.Args, "--starting-topoheight="+starting_height.Text)
 		}
 		if ending_height.Text != "" {
-			os.Args = append(os.Args, "--ending-height="+ending_height.Text)
+			os.Args = append(os.Args, "--ending-topoheight="+ending_height.Text)
 		}
 		if search_filter.Text != "" {
 			os.Args = append(os.Args, "--search-filter="+search_filter.Text)
