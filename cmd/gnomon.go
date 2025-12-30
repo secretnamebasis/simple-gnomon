@@ -414,6 +414,9 @@ func Start_gnomon_indexer() error {
 				if !RUNNING {
 					return
 				}
+				if areQueuesEmpty() {
+					time.Sleep(time.Millisecond * time.Duration(longestQueue()))
+				}
 				task(importable)
 			}
 		}
@@ -438,6 +441,7 @@ func Start_gnomon_indexer() error {
 			}
 		}
 		close(imports)
+		waitForAllQueues()
 		wg.Wait()
 
 		fmt.Println("fast sync done")
