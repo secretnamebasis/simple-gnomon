@@ -409,10 +409,10 @@ func (bbs *BboltStore) GetAllClasses() []string {
 			c := b.Cursor()
 
 			for k, v := c.First(); k != nil; k, v = c.Next() {
-				if _, ok := unique[string(k)]; ok {
+				if _, ok := unique[string(v)]; ok {
 					continue
 				}
-				unique[string(k)] = true
+				unique[string(v)] = true
 				results = append(results, string(v))
 			}
 		}
