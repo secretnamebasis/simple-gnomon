@@ -556,14 +556,8 @@ func gnomon_indexer(ctx context.Context) {
 	}
 	// at least one is required
 	parallel_blocks = max(parallel_blocks, 1)
-	// result := now - lowest_height
 	wg := sync.WaitGroup{}
 	fmt.Println("starting blocks in parallel", parallel_blocks)
-	height_processing = make(chan int64, now)
-	for range parallel_blocks {
-		wg.Add(1)
-		go work(height_processing, &wg)
-	}
 
 	// simple-daemon
 	for RUNNING {
@@ -571,6 +565,8 @@ func gnomon_indexer(ctx context.Context) {
 		if achieved_current_height != 0 {
 			time.Sleep(time.Second * time.Duration(info.Target))
 		}
+
+		result := now - lowest_height
 
 		if ending_height > 0 {
 			now = min(ending_height, now)
@@ -580,8 +576,12 @@ func gnomon_indexer(ctx context.Context) {
 			lowest_height = starting_height
 		}
 
-		result := now - lowest_height
 		if result != 0 {
+			height_processing := make(chan int64, now)
+			for range parallel_blocks {
+				wg.Add(1)
+				go work(height_processing, &wg)
+			}
 			log.Printf("loading heights into queue %d", result)
 			for height := lowest_height; height < now; height++ {
 				if !RUNNING {
@@ -591,9 +591,9 @@ func gnomon_indexer(ctx context.Context) {
 
 				height_processing <- height
 			}
+			close(height_processing)
+			wg.Wait()
 		}
-		close(height_processing)
-		wg.Wait()
 		if achieved_current_height == 0 {
 			fmt.Println("current height acheived, proceeding to passively index")
 		}
@@ -603,8 +603,6 @@ func gnomon_indexer(ctx context.Context) {
 		lowest_height = min(now, achieved_current_height)
 	}
 }
-
-var height_processing chan int64
 
 type processingStruct struct {
 	// Stage 1
