@@ -957,9 +957,15 @@ func filtering(ctx context.Context) {
 
 			params = rpc.GetSC_Params{
 				SCID:       scid,
-				Code:       true,
 				Variables:  true,
 				TopoHeight: h,
+			}
+
+			switch method {
+			case "install":
+				params.Code = true
+			case "invoke":
+				params.Code = false
 			}
 			// 	tries := 0
 			// try_again:
@@ -992,14 +998,6 @@ func filtering(ctx context.Context) {
 			// if tries > 0 {
 			// 	fmt.Println("recovered", height, tx_related_info, each)
 			// }
-
-			if _, ok := sc.VariableStringKeys["C"]; !ok {
-				// this is an invalid contract
-				if _, err := database.StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
-					fmt.Println(err)
-					return
-				}
-			}
 
 			vars = GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 
