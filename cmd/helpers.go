@@ -372,7 +372,6 @@ func GracefullyStopAndExit() {
 func areQueuesEmpty() bool {
 	return len(block_processing) != 0 ||
 		len(transaction_processing) != 0 ||
-		len(batch_processing) != 0 ||
 		len(scid_processing) != 0 ||
 		len(scid_db_queue) != 0 ||
 		len(mini_db_queue) != 0 ||
@@ -381,7 +380,6 @@ func areQueuesEmpty() bool {
 func longestQueue() int {
 	return max(len(block_processing),
 		len(transaction_processing),
-		len(batch_processing),
 		len(scid_processing),
 		len(scid_db_queue),
 		len(mini_db_queue),
@@ -396,7 +394,6 @@ func waitForAllQueues() {
 			len(block_processing),
 			len(mini_queue),
 			len(transaction_processing),
-			len(batch_processing),
 			len(scid_processing),
 			len(scid_db_queue),
 			len(mini_db_queue),

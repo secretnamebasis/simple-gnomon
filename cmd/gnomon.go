@@ -710,7 +710,7 @@ func indexing(ctx context.Context) {
 }
 
 var transaction_processing = make(chan *processingStruct, 100_000)
-var batch_processing = make(chan rpc.GetTransaction_Result, 100_000)
+
 
 var holding_queue struct {
 	registration atomic.Int64
@@ -799,7 +799,7 @@ func tx_handling(ctx context.Context) {
 		}
 	}
 
-	task := func() {
+	task := func(batch_processing chan rpc.GetTransaction_Result) {
 		// because order doesn't really matter here... just grab the first one
 		for result := range batch_processing {
 			handle(result)
@@ -809,7 +809,7 @@ func tx_handling(ctx context.Context) {
 	// this might be a good size...
 	batch_size := 100
 
-	batching := func(batch, batch_count int, hashes []string, wg *sync.WaitGroup) {
+	batching := func(batch, batch_count int, hashes []string, batch_processing chan rpc.GetTransaction_Result, wg *sync.WaitGroup) {
 		defer wg.Done()
 
 		end := batch_size * batch
@@ -828,19 +828,20 @@ func tx_handling(ctx context.Context) {
 		batch_count := int(math.Ceil(float64(tx_count) / float64(batch_size)))
 
 		// turn on the listener
-		go task()
+		batch_processing := make(chan rpc.GetTransaction_Result, batch_count)
+		go task(batch_processing)
 
 		batchgroup := sync.WaitGroup{}
-
 		// because the order of transactions processed doesn't matter..
 		for batch := range batch_count {
 
 			batchgroup.Add(1)
 			// schedule each batch of transfers
-			go batching(batch, batch_count, staged.Tx_Hashes, &batchgroup)
+			go batching(batch, batch_count, staged.Tx_Hashes, batch_processing, &batchgroup)
 		}
 		// wait for all the results to come in
 		batchgroup.Wait()
+		close(batch_processing)
 	}
 
 	work := func(transaction_processing chan *processingStruct) {
