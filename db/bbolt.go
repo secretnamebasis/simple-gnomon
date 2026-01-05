@@ -67,41 +67,31 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 
 	bbs.Writing = true
 
-	// By returning valid variables of a given Scid (GetSC --> parse vars), we can conclude it is a valid SCID. Otherwise, skip adding to validated scids
-	if len(scidstoadd.ScVars) != 0 {
+	// store the contract vars at install and each interaction
+	changed, err := bbs.StoreSCIDVariableDetails(scidstoadd.Scid, scidstoadd.ScVars, scidstoadd.Height)
+	if err != nil {
+		return err
+	}
 
-		height := scidstoadd.Height
+	if !changed {
+		return errors.New("did not store scid/vars")
+	}
 
-		// we'll just always keep the same topo height to prevent massive data bloat
-		if !slices.Contains(bbs.Exclusions, scidstoadd.Scid) {
-			height = -1
-		}
-
-		changed, err := bbs.StoreSCIDVariableDetails(scidstoadd.Scid, scidstoadd.ScVars, height)
-		if err != nil {
-			return err
-		}
-
-		if !changed {
-			return errors.New("did not store scid/vars")
-		}
-
-		changed, err = bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags)
+	switch scidstoadd.Method {
+	case "install": // when the scid is first seen
+		changed, err := bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags)
 		if err != nil {
 			return err
 		}
 		if !changed {
 			return errors.New("did not store scid/owner")
 		}
-
-	} else {
-
+	case "invoke": // everything after that is an interaction
 		changed, err := bbs.StoreInvokeDetails(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Entrypoint, scidstoadd.Height, &scidstoadd.SCTXParse)
 		if err != nil {
 			return err
 		}
 
-		// multiple interactions are possible
 		if !changed {
 			return nil
 		}
@@ -115,7 +105,6 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 		if !changed {
 			return nil
 		}
-
 	}
 
 	return nil
@@ -459,6 +448,28 @@ func (bbs *BboltStore) GetAllTags() []string {
 		}
 
 		slices.Sort(results)
+
+		return
+	})
+
+	return results
+}
+
+// Returns all SCIDs and their Class
+func (bbs *BboltStore) GetAllSCIDsWithClass() map[string]string {
+	results := make(map[string]string)
+
+	bName := "class"
+
+	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
+		b := tx.Bucket([]byte(bName))
+		if b != nil {
+			c := b.Cursor()
+
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				results[string(k)] = string(v)
+			}
+		}
 
 		return
 	})
