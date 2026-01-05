@@ -702,10 +702,6 @@ func indexing(ctx context.Context) {
 
 		count := staged.Result.Block_Header.TXCount
 
-		if count > 400 {
-			fmt.Printf("large transacion count detected: %d height:%d\n", count, staged.Result.Block_Header.TopoHeight)
-		}
-
 		if len(bl.Tx_hashes) == 0 || count == 0 { // paranoia...
 			return
 		}
