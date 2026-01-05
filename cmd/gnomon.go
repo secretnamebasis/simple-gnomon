@@ -492,51 +492,49 @@ func gnomon_indexer(ctx context.Context) {
 	}()
 
 	task := func(height int64) {
-		if progress {
-			var a []any
-			var format string
-			if len(error_channel) > 0 {
-				err := <-error_channel
-				format = "\nerror: %s\n"
-				a = append(a, []any{err.Error()}...)
-			} else {
+		var a []any
+		var format string
+		if len(error_channel) > 0 {
+			err := <-error_channel
+			format = "\nerror: %s\n"
+			a = append(a, []any{err.Error()}...)
+		} else {
 
-				format = "\rHEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d "
+			format = "\rHEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d "
 
-				a = []any{
-					height,
-					connections.DOWNLOADS.Load(),
-					runtime.NumGoroutine(),
-					len(block_processing),
-					len(transaction_processing),
-					len(scid_processing),
-					len(scid_db_queue),
-				}
+			a = []any{
+				height,
+				connections.DOWNLOADS.Load(),
+				runtime.NumGoroutine(),
+				len(block_processing),
+				len(transaction_processing),
+				len(scid_processing),
+				len(scid_db_queue),
+			}
 
-				if len(staged_for_writing) > 0 {
-					staged := <-staged_for_writing
-					format += "last staged txid %s sender %s | %s | scid: %s %05d / %05d %s %d class:%s tags:%s "
-					a = append(a, []any{
-						staged.Txid,
-						staged.Sender[:4] + "..." + staged.Sender[len(staged.Sender)-4:],
-						staged.Method,
-						staged.Scid,
-						staged.Height,
-						now,
-						staged.Headers,
-						len(staged.ScVars),
-						staged.Class,
-						staged.Tags,
-					}...)
-
-				}
-
-				// format += ""
+			if len(staged_for_writing) > 0 {
+				staged := <-staged_for_writing
+				format += "last staged txid %s sender %s | %s | scid: %s %05d / %05d %s %d class:%s tags:%s "
+				a = append(a, []any{
+					staged.Txid,
+					staged.Sender[:4] + "..." + staged.Sender[len(staged.Sender)-4:],
+					staged.Method,
+					staged.Scid,
+					staged.Height,
+					now,
+					staged.Headers,
+					len(staged.ScVars),
+					staged.Class,
+					staged.Tags,
+				}...)
 
 			}
-			fmt.Printf(format, a...)
+
+			// format += ""
 
 		}
+		fmt.Printf(format, a...)
+
 		// wg.Add(1)
 		// go func(height int64, wg *sync.WaitGroup) {
 		// 	defer wg.Done()
