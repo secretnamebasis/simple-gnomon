@@ -737,7 +737,6 @@ func indexing(ctx context.Context) {
 
 var transaction_processing = make(chan *processingStruct, 100_000)
 
-
 var holding_queue struct {
 	registration atomic.Int64
 	burn         atomic.Int64
@@ -1182,27 +1181,12 @@ func mini_db_writer(ctx context.Context) {
 }
 
 var scid_db_queue = make(chan *structures.SCIDToIndexStage, 100_000)
+var staged_for_writing = make(chan structures.SCIDToIndexStage, 100_000)
 
 func scid_db_writer(ctx context.Context) {
 	work := func(staged *structures.SCIDToIndexStage) {
-		if progress {
-			format := "staged txid %s sender %s | %s | scid: %s %d / %d %s %d class:%s tags:%s\n"
-			a := []any{
-				staged.Txid,
-				staged.Sender,
-				staged.Method,
-				staged.Scid,
-				staged.Height,
-				now,
-				staged.Headers,
-				len(staged.ScVars),
-				staged.Class,
-				staged.Tags,
-			}
 
-			fmt.Printf(format, a...)
-		}
-
+		staged_for_writing <- *staged
 		// store scid by tag
 		if err := database.AddSCIDToIndex(*staged); err != nil {
 			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
