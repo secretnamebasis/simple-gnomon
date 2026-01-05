@@ -883,6 +883,7 @@ func filtering(ctx context.Context) {
 			class      string
 			headers    string
 			params     = rpc.GetSC_Params{}
+			vars       []*structures.SCIDVariable
 			tags       = []string{"all"} // catch all
 		)
 
@@ -917,7 +918,7 @@ func filtering(ctx context.Context) {
 		var sc rpc.GetSC_Result
 		if !slices.Contains(database.Exclusions, scid) {
 
-			h := height
+			h := height // note here
 
 			if fastsync { // because we need the vars at the height of current
 				h = -1
@@ -952,6 +953,8 @@ func filtering(ctx context.Context) {
 					return
 				}
 			}
+
+			vars = GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 
 			// currently not storing ScCode...
 			code = sc.Code
@@ -1068,7 +1071,7 @@ func filtering(ctx context.Context) {
 				Fees:       each.Fees(),
 			},
 			Headers: headers,
-			ScVars:  GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys),
+			ScVars:  vars,
 			ScCode:  code,
 			Class:   class,
 			// store as a single string
