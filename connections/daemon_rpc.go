@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -69,14 +69,14 @@ const deadline = time.Second * 300 // some content is just bigger
 // simple way to identify gnomon
 //const gnomonSC = `a05395bb0cf77adc850928b0db00eb5ca7a9ccbafd9a38d021c8d299ad5ce1a4`
 
-func callRPC[t any](method string, params any, validator func(t) bool) t {
+func callRPC[t any](method string, params any, validator func(t) bool) (t, error) {
 	tries := 0
 try_again:
 	result, err := handleResult[t](method, params)
 	if err != nil {
 		//	log.Fatal(err)
 		var zero t
-		return zero
+		return zero, err
 	}
 	if !validator(result) {
 		if tries <= 3 {
@@ -84,15 +84,14 @@ try_again:
 			time.Sleep(time.Millisecond * 20)
 			goto try_again
 		}
-		log.Println(errors.New("failed validation, attempts:"+strconv.Itoa(tries)), method, params, result)
 		var zero t
-		return zero
+		return zero, errors.New("failed validation, attempts: " + fmt.Sprint(tries, " ", method, params, result))
 	}
 	if tries > 0 {
 		log.Println("succeeded", tries, method, params, result)
 	}
 
-	return result
+	return result, nil
 }
 
 var RpcClient jsonrpc.RPCClient
@@ -125,46 +124,43 @@ func handleResult[T any](method string, params any) (T, error) {
 
 	return result, nil
 }
-func Get_TopoHeight() int64 {
+func Get_TopoHeight() (int64, error) {
 	validator := func(r rpc.GetInfo_Result) bool {
 		return r.TopoHeight != 0
 	}
-	result := callRPC("DERO.GetInfo", nil, validator)
-	return result.TopoHeight
+	result, err := callRPC("DERO.GetInfo", nil, validator)
+	return result.TopoHeight, err
 }
-func GetTransaction(params rpc.GetTransaction_Params) rpc.GetTransaction_Result {
+func GetTransaction(params rpc.GetTransaction_Params) (rpc.GetTransaction_Result, error) {
 	validator := func(r rpc.GetTransaction_Result) bool {
 		return r.Status != ""
 	}
-	result := callRPC("DERO.GetTransaction", params, validator)
-	return result
+	return callRPC("DERO.GetTransaction", params, validator)
 }
 
-func GetBlockInfo(params rpc.GetBlock_Params) rpc.GetBlock_Result {
+func GetBlockInfo(params rpc.GetBlock_Params) (rpc.GetBlock_Result, error) {
 	validator := func(r rpc.GetBlock_Result) bool {
 		return r.Block_Header.Depth != 0
 	}
-	result := callRPC("DERO.GetBlock", params, validator)
-	return result
+
+	return callRPC("DERO.GetBlock", params, validator)
 }
 
-func GetTxPool() rpc.GetTxPool_Result {
+func GetTxPool() (rpc.GetTxPool_Result, error) {
 	validator := func(r rpc.GetTxPool_Result) bool {
 		return r.Status != ""
 	}
-	result := callRPC("DERO.GetTxPool", nil, validator)
-	return result
+	return callRPC("DERO.GetTxPool", nil, validator)
 }
 
-func GetDaemonInfo() rpc.GetInfo_Result {
+func GetDaemonInfo() (rpc.GetInfo_Result, error) {
 	validator := func(r rpc.GetInfo_Result) bool {
 		return r.TopoHeight != 0
 	}
-	result := callRPC("DERO.GetInfo", nil, validator)
-	return result
+	return callRPC("DERO.GetInfo", nil, validator)
 }
 
-func GetSC(scParam rpc.GetSC_Params) rpc.GetSC_Result {
+func GetSC(scParam rpc.GetSC_Params) (rpc.GetSC_Result, error) {
 	validator := func(r rpc.GetSC_Result) bool {
 		if scParam.Code && scParam.Variables {
 			return r.Code != "" && len(r.VariableStringKeys) != 0
@@ -177,11 +173,10 @@ func GetSC(scParam rpc.GetSC_Params) rpc.GetSC_Result {
 		}
 		return true
 	}
-	result := callRPC("DERO.GetSC", scParam, validator)
-	return result
+	return callRPC("DERO.GetSC", scParam, validator)
 }
 
-func GetSCCode(scid string) rpc.GetSC_Result {
+func GetSCCode(scid string) (rpc.GetSC_Result, error) {
 	return GetSC(rpc.GetSC_Params{
 		SCID:       scid,
 		Code:       true,
@@ -190,7 +185,7 @@ func GetSCCode(scid string) rpc.GetSC_Result {
 	})
 }
 
-func GetSCValues(scid string) rpc.GetSC_Result {
+func GetSCValues(scid string) (rpc.GetSC_Result, error) {
 	return GetSC(rpc.GetSC_Params{
 		SCID:       scid,
 		Code:       false,

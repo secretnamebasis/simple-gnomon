@@ -188,14 +188,16 @@ func Start_gnomon_indexer() error {
 	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
 
 	// if you are getting a zero... yeah, you are not connected
-	if connections.Get_TopoHeight() == 0 {
+
+	if result, _ := connections.Get_TopoHeight(); result == 0 {
 		return errors.New("please connect through rpc")
 	}
+	info, _ := connections.GetDaemonInfo()
 
-	day_of_blocks = ((60 * 60 * 24) / int64(connections.GetDaemonInfo().Target))
+	day_of_blocks = ((60 * 60 * 24) / int64(info.Target))
 
 	// we are going to use this as an upper bound
-	lowest_height = connections.Get_TopoHeight()
+	lowest_height, _ = connections.Get_TopoHeight()
 
 	// build separate databases for each index, for portability
 	fmt.Println("opening dbs")
@@ -277,7 +279,7 @@ func Start_gnomon_indexer() error {
 		TopoHeight: -1,
 	}
 
-	sc := connections.GetSC(params)
+	sc, _ := connections.GetSC(params)
 
 	staged := &structures.SCIDToIndexStage{
 		SCTXParse: structures.SCTXParse{
@@ -297,7 +299,7 @@ func Start_gnomon_indexer() error {
 	}
 
 	fmt.Println("lowest_height ", fmt.Sprint(lowest_height))
-	now = connections.Get_TopoHeight()
+	now, _ = connections.Get_TopoHeight()
 	// and in the event that the user wants to fast sync
 	if fastsync && now-lowest_height > (day_of_blocks/4) {
 		fmt.Println("fastsync activated")
@@ -309,7 +311,7 @@ func Start_gnomon_indexer() error {
 			TopoHeight: -1,
 		}
 
-		sc = connections.GetSC(params)
+		sc, _ = connections.GetSC(params)
 		fmt.Println("gnomonSC collected")
 		kv := sc.VariableStringKeys
 
@@ -384,7 +386,8 @@ func Start_gnomon_indexer() error {
 				return
 			}
 
-			tx := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{important.hash}})
+			tx, _ := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: []string{important.hash}})
+			// retry
 			var transact transaction.Transaction
 			b, err := hex.DecodeString(tx.Txs_as_hex[0])
 			if err != nil {
@@ -451,7 +454,7 @@ func Start_gnomon_indexer() error {
 		fmt.Println("fast sync done")
 		fmt.Println("setting lowest height current block")
 
-		lowest_height = connections.Get_TopoHeight()
+		lowest_height, _ = connections.Get_TopoHeight()
 	}
 
 	// default here... could be adjusted
@@ -467,52 +470,79 @@ func Start_gnomon_indexer() error {
 // height processing point
 func gnomon_indexer(ctx context.Context) {
 
-	now = connections.Get_TopoHeight()
+	now, _ = connections.Get_TopoHeight()
 
 	fmt.Println("starting to index ", now)
 
 	// gather initial results
-	info := connections.GetDaemonInfo()
+	info, _ := connections.GetDaemonInfo()
 	database.StoreGetInfoDetails(&info)
 
 	last := now
 	go func() { // Set up a listener for get info
 		for RUNNING {
-			now = connections.Get_TopoHeight()
+			now, _ = connections.Get_TopoHeight()
 			time.Sleep(time.Second * 1)
 			if last < now {
 				last = now
-				info = connections.GetDaemonInfo()
+				info, _ = connections.GetDaemonInfo()
 				database.StoreGetInfoDetails(&info)
 			}
 		}
 	}()
 
 	task := func(height int64) {
-
 		if progress {
-			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %d BLOCKS %d TRANSACTIONS %d SCIDS %d SCIDDB %d "
+			var a []any
+			var format string
+			if len(error_channel) > 0 {
+				err := <-error_channel
+				format = "\nerror: %s\n"
+				a = append(a, []any{err.Error()}...)
+			} else {
 
-			a := []any{
-				height,
-				connections.DOWNLOADS.Load(),
-				runtime.NumGoroutine(),
-				len(block_processing),
-				len(transaction_processing),
-				len(scid_processing),
-				len(scid_db_queue),
+				format = "\rHEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d "
+
+				a = []any{
+					height,
+					connections.DOWNLOADS.Load(),
+					runtime.NumGoroutine(),
+					len(block_processing),
+					len(transaction_processing),
+					len(scid_processing),
+					len(scid_db_queue),
+				}
+
+				if len(staged_for_writing) > 0 {
+					staged := <-staged_for_writing
+					format += "last staged txid %s sender %s | %s | scid: %s %05d / %05d %s %d class:%s tags:%s "
+					a = append(a, []any{
+						staged.Txid,
+						staged.Sender[:4] + "..." + staged.Sender[len(staged.Sender)-4:],
+						staged.Method,
+						staged.Scid,
+						staged.Height,
+						now,
+						staged.Headers,
+						len(staged.ScVars),
+						staged.Class,
+						staged.Tags,
+					}...)
+
+				}
+
+				// format += ""
+
 			}
-
-			format += "\n"
-
 			fmt.Printf(format, a...)
-		}
 
+		}
 		// wg.Add(1)
 		// go func(height int64, wg *sync.WaitGroup) {
 		// 	defer wg.Done()
+		result, _ := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
 		block_processing <- &processingStruct{Height: height,
-			Result: connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)}),
+			Result: result,
 		}
 	}
 
@@ -598,7 +628,7 @@ func gnomon_indexer(ctx context.Context) {
 			fmt.Println("current height acheived, proceeding to passively index")
 		}
 		// height achieved
-		achieved_current_height = connections.Get_TopoHeight()
+		achieved_current_height, _ = connections.Get_TopoHeight()
 
 		lowest_height = min(now, achieved_current_height)
 	}
@@ -818,7 +848,9 @@ func tx_handling(ctx context.Context) {
 		}
 
 		// and dump them into the listener channel
-		batch_processing <- connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
+		result, _ := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
+		// retry?
+		batch_processing <- result
 	}
 
 	operation := func(staged *processingStruct) {
@@ -865,6 +897,7 @@ func tx_handling(ctx context.Context) {
 }
 
 var scid_processing = make(chan *processingStruct, 100_000)
+var error_channel = make(chan error, 1)
 
 func filtering(ctx context.Context) {
 
@@ -917,6 +950,7 @@ func filtering(ctx context.Context) {
 		}
 
 		var sc rpc.GetSC_Result
+		var err error
 		if !slices.Contains(database.Exclusions, scid) {
 
 			h := height // note here
@@ -933,7 +967,23 @@ func filtering(ctx context.Context) {
 			}
 			// 	tries := 0
 			// try_again:
-			sc = connections.GetSC(params)
+			sc, err = connections.GetSC(params)
+			if err != nil {
+				if params.Code {
+					// this is an invalid contract
+					if _, err := database.StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
+						fmt.Println(err)
+						return
+					}
+				}
+
+				if len(sc.VariableStringKeys) == 0 {
+					// there are no vars?
+					return
+				}
+				error_channel <- err
+			}
+			// error checking is the big thing here: failed validation, attempts:4 DERO.GetSC
 
 			// if sc.Code == "" && len(sc.VariableStringKeys) == 0 {
 			// 	tries++
