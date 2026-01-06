@@ -528,7 +528,6 @@ func gnomon_indexer(ctx context.Context) {
 				fmt.Println()
 			}
 		}
-		moveUp(count)
 		fmt.Println("last staged install:{")
 		fmt.Printf("\theight   %07d\n", staged.Height)
 		fmt.Printf("\tnow      %07d\n", now)
@@ -539,6 +538,8 @@ func gnomon_indexer(ctx context.Context) {
 		fmt.Printf("\theaders  %s\n", safeString(strings.Split(staged.Headers, ";")[0]))
 		fmt.Printf("\tcode     %s\n", safeString(staged.ScCode))
 		fmt.Print("}")
+		moveUp(count)
+
 	}
 	go func() { // Set up a listener for get info
 		ticker := time.NewTicker(time.Second * 2)
