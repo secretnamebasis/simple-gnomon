@@ -478,33 +478,36 @@ func gnomon_indexer(ctx context.Context) {
 	// gather initial results
 	info, _ := connections.GetDaemonInfo()
 	database.StoreGetInfoDetails(&info)
+	var stagedLines = 7
+	if progress {
+		stagedLines++
+	}
+	moveUp := func(n int) {
+		fmt.Printf("\033[%dA", n)
+	}
 
-	last := now
-	go func() { // Set up a listener for get info
-		for RUNNING {
-			now, _ = connections.Get_TopoHeight()
-			time.Sleep(time.Second * 1)
-			if last < now {
-				last = now
-				info, _ = connections.GetDaemonInfo()
-				database.StoreGetInfoDetails(&info)
-			}
+	clearLine := func() {
+		fmt.Print("\r\033[K")
+	}
+	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
+		// Move back to the top of the block
+		moveUp(stagedLines)
+
+		lines := []string{
+			"last staged:{",
+			fmt.Sprintf("\t\ttxid   %s", staged.Txid),
+			fmt.Sprintf("\t\tsender %s", staged.Sender),
+			fmt.Sprintf("\t\tmethod %s", staged.Method),
+			fmt.Sprintf("\t\tscid   %s", staged.Scid),
+			fmt.Sprintf("\t\theight %07d / now %07d", staged.Height, now),
+			"}",
 		}
-	}()
+		if progress {
+			clearLine()
+			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d\n"
 
-	task := func(height int64) {
-		var a []any
-		var format string
-		if len(error_channel) > 0 {
-			err := <-error_channel
-			format = "\nerror: %s\n"
-			a = append(a, []any{err.Error()}...)
-		} else {
-
-			format = "\rHEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d "
-
-			a = []any{
-				height,
+			a := []any{
+				IN_PROGRESS,
 				connections.DOWNLOADS.Load(),
 				runtime.NumGoroutine(),
 				len(block_processing),
@@ -513,28 +516,35 @@ func gnomon_indexer(ctx context.Context) {
 				len(scid_db_queue),
 			}
 
-			if len(staged_for_writing) > 0 {
-				staged := <-staged_for_writing
-				format += "last staged txid %s sender %s | %s | scid: %s %05d / %05d %s %d class:%s tags:%s "
-				a = append(a, []any{
-					staged.Txid,
-					staged.Sender[:4] + "..." + staged.Sender[len(staged.Sender)-4:],
-					staged.Method,
-					staged.Scid,
-					staged.Height,
-					now,
-					staged.Headers,
-					len(staged.ScVars),
-					staged.Class,
-					staged.Tags,
-				}...)
-
-			}
-
-			// format += ""
-
+			fmt.Printf(format, a...)
 		}
-		fmt.Printf(format, a...)
+
+		for _, line := range lines {
+			clearLine()
+			fmt.Println(line)
+		}
+	}
+	go func() { // Set up a listener for get info
+		ticker := time.NewTicker(time.Second * 2)
+		for RUNNING {
+			select {
+			case <-ticker.C:
+				now, _ = connections.Get_TopoHeight()
+				if last < now {
+					last = now
+					info, _ = connections.GetDaemonInfo()
+					database.StoreGetInfoDetails(&info)
+				}
+			case err := <-error_channel:
+				log.Fatalf("error: %s", err)
+				return
+			case staged := <-staged_for_writing:
+				printLastStaged(staged, now)
+			}
+		}
+	}()
+
+	task := func(height int64) {
 
 		// wg.Add(1)
 		// go func(height int64, wg *sync.WaitGroup) {
@@ -548,9 +558,12 @@ func gnomon_indexer(ctx context.Context) {
 	work := func(height_processing chan int64, wg *sync.WaitGroup) {
 		defer wg.Done()
 		for height := range height_processing {
+			IN_PROGRESS = height
+
 			if !RUNNING {
 				return
 			}
+
 			// a simple backup strategy
 			if achieved_current_height > 0 && !established_backup &&
 				find_lowest_height(backup_database, now) { // if the current height is greater than a day of blocks...
@@ -587,15 +600,20 @@ func gnomon_indexer(ctx context.Context) {
 	parallel_blocks = max(parallel_blocks, 1)
 	wg := sync.WaitGroup{}
 	fmt.Println("starting blocks in parallel", parallel_blocks)
-
+	result := now - lowest_height
+	if starting_height < now && starting_height > 0 {
+		result = now - starting_height
+	}
+	log.Printf("loading heights into queue %d", result)
+	for i := 0; i < stagedLines; i++ {
+		fmt.Println()
+	}
 	// simple-daemon
 	for RUNNING {
 
 		if achieved_current_height != 0 {
 			time.Sleep(time.Second * time.Duration(info.Target))
 		}
-
-		result := now - lowest_height
 
 		if ending_height > 0 {
 			now = min(ending_height, now)
@@ -604,14 +622,14 @@ func gnomon_indexer(ctx context.Context) {
 		if starting_height < now && starting_height > 0 && achieved_current_height == 0 {
 			lowest_height = starting_height
 		}
+		result = now - lowest_height
 
 		if result != 0 {
-			height_processing := make(chan int64, now)
+			height_processing := make(chan int64, result)
 			for range parallel_blocks {
 				wg.Add(1)
 				go work(height_processing, &wg)
 			}
-			log.Printf("loading heights into queue %d", result)
 			for height := lowest_height; height < now; height++ {
 				if !RUNNING {
 					return
@@ -896,7 +914,6 @@ var error_channel = make(chan error, 1)
 func filtering(ctx context.Context) {
 
 	sieve := func(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
-		defer func() { IN_PROGRESS = height }()
 
 		if len(each.SCDATA) == 0 {
 			return
