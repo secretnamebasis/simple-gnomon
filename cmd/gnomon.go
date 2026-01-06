@@ -559,17 +559,16 @@ func gnomon_indexer(ctx context.Context) {
 				moveUp(1)
 				clearLine()
 				log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
-				if len(staged_for_writing) > 0 {
-					printLastStaged(
-						<-staged_for_writing,
-						now,
-					)
-				}
 				if last < now {
 					last = now
 					info, _ = connections.GetDaemonInfo()
 					database.StoreGetInfoDetails(&info)
 				}
+			case staged := <-staged_for_writing:
+				if len(staged_for_writing) > 0 {
+					printLastStaged(staged, now)
+				}
+
 			case err := <-error_channel:
 				log.Fatalf("error: %s", err)
 				return
