@@ -485,7 +485,6 @@ func gnomon_indexer(ctx context.Context) {
 	if progress {
 		stagedLines++
 	}
-	old_count := 0
 
 	moveUp := func(n int) {
 		fmt.Printf("\033[%dA", n)
@@ -522,12 +521,7 @@ func gnomon_indexer(ctx context.Context) {
 
 			fmt.Println(format, a)
 		}
-		if old_count == 0 {
-			old_count = count
-			for range count {
-				fmt.Println()
-			}
-		}
+
 		fmt.Println("last staged install:{")
 		fmt.Printf("\theight   %07d\n", staged.Height)
 		fmt.Printf("\tnow      %07d\n", now)
@@ -549,8 +543,8 @@ func gnomon_indexer(ctx context.Context) {
 				return
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
+				log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
 				moveUp(1)
-				log.Printf("now %d in_progress %d lowest %d loading into queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
 				if len(staged_for_writing) > 0 {
 					printLastStaged(
 						<-staged_for_writing,
