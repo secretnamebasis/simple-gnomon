@@ -485,10 +485,11 @@ func gnomon_indexer(ctx context.Context) {
 	if progress {
 		stagedLines++
 	}
+	old_count := 0
+
 	moveUp := func(n int) {
 		fmt.Printf("\033[%dA", n)
 	}
-	setup := false
 	// clearLine := func() {
 	// 	fmt.Print("\r\033[K")
 	// }
@@ -531,8 +532,8 @@ func gnomon_indexer(ctx context.Context) {
 			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
 		count := len(lines) + len(strings.Split(staged.ScCode, "\n"))
-		if !setup {
-			setup = true
+		if count != old_count {
+			old_count = count
 			for range count {
 				fmt.Println()
 			}
