@@ -482,9 +482,9 @@ func gnomon_indexer(ctx context.Context) {
 	if progress {
 		stagedLines++
 	}
-	moveUp := func(n int) {
-		fmt.Printf("\033[%dA", n)
-	}
+	// moveUp := func(n int) {
+	// 	fmt.Printf("\033[%dA", n)
+	// }
 
 	// clearLine := func() {
 	// 	fmt.Print("\r\033[K")
