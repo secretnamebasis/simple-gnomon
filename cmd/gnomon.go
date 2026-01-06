@@ -472,7 +472,10 @@ func gnomon_indexer(ctx context.Context) {
 
 	now, _ = connections.Get_TopoHeight()
 	last := now
-
+	result := now - lowest_height
+	if starting_height < now && starting_height > 0 {
+		result = now - starting_height
+	}
 	fmt.Println("starting to index ", now)
 
 	// gather initial results
@@ -547,6 +550,8 @@ func gnomon_indexer(ctx context.Context) {
 				return
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
+				moveUp(1)
+				log.Printf("now %d lowest %d loading into queue %d", now, lowest_height, result)
 				if len(staged_for_writing) > 0 {
 					printLastStaged(
 						<-staged_for_writing,
@@ -621,11 +626,9 @@ func gnomon_indexer(ctx context.Context) {
 	parallel_blocks = max(parallel_blocks, 1)
 	wg := sync.WaitGroup{}
 	fmt.Println("starting blocks in parallel", parallel_blocks)
-	result := now - lowest_height
-	if starting_height < now && starting_height > 0 {
-		result = now - starting_height
-	}
+
 	log.Printf("loading heights into queue %d", result)
+	log.Printf("now %d lowest %d loading into queue %d", now, lowest_height, result)
 
 	// simple-daemon
 	for RUNNING {
@@ -643,7 +646,6 @@ func gnomon_indexer(ctx context.Context) {
 		}
 		result = now - lowest_height
 		if result != 0 {
-			log.Printf("now %d lowest %d loading into queue %d", now, lowest_height, result)
 			height_processing := make(chan int64, result)
 			for range parallel_blocks {
 				wg.Add(1)
