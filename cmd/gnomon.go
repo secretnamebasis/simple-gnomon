@@ -482,9 +482,9 @@ func gnomon_indexer(ctx context.Context) {
 	if progress {
 		stagedLines++
 	}
-	moveUp := func(n int) {
-		fmt.Printf("\033[%dA", n)
-	}
+	// moveUp := func(n int) {
+	// 	fmt.Printf("\033[%dA", n)
+	// }
 
 	// clearLine := func() {
 	// 	fmt.Print("\r\033[K")
@@ -509,6 +509,7 @@ func gnomon_indexer(ctx context.Context) {
 			fmt.Sprintf("\tsender   %s", staged.Sender),
 			fmt.Sprintf("\tscid     %s", staged.Scid),
 			fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
+			fmt.Sprintf("\tcode     %s", staged.ScCode),
 			"}",
 		}
 		if progress {
@@ -531,7 +532,6 @@ func gnomon_indexer(ctx context.Context) {
 			for _, line := range lines {
 				fmt.Println(line)
 			}
-			moveUp(len(lines))
 		} else {
 			fmt.Println(lines)
 		}
@@ -636,7 +636,6 @@ func gnomon_indexer(ctx context.Context) {
 		}
 		result = now - lowest_height
 		if result != 0 {
-			moveUp(1)
 			log.Printf("now %d lowest %d loading into queue %d", now, lowest_height, result)
 			height_processing := make(chan int64, result)
 			for range parallel_blocks {
