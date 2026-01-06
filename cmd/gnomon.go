@@ -528,7 +528,7 @@ func gnomon_indexer(ctx context.Context) {
 			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
 		count := len(lines) + len(strings.Split(staged.ScCode, "\n"))
-		if setup {
+		if !setup {
 			setup = true
 			for range count {
 				fmt.Println()
