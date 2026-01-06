@@ -494,14 +494,16 @@ func gnomon_indexer(ctx context.Context) {
 	// }
 	safeString := func(s string) string {
 		if strings.Contains(s, "\n") {
-			return strings.Split(s, "\n")[0][:64]
+			s = strings.Split(s, "\n")[0]
+			if len(s) > 64 {
+				s = s[:64]
+			}
 		} else if len(s) > 64 {
-			return s[:64]
+			s = s[:64]
 		} else if s == "" {
-			return "null"
-		} else {
-			return s
+			s = "null"
 		}
+		return s
 	}
 
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
