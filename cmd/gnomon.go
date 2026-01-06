@@ -420,10 +420,10 @@ func Start_gnomon_indexer() error {
 				if areQueuesEmpty() {
 					time.Sleep(time.Millisecond * time.Duration(longestQueue()))
 				}
-				completion := float64(importable.height) / float64(now)
-				rate := completion * 100
-				to_int := int64(rate)
-				fmt.Printf("\rcompleted %d %%", to_int)
+				// completion := float64(importable.height) / float64(now)
+				// rate := completion * 100
+				// to_int := int64(rate)
+				// fmt.Printf("completed %d %%", to_int)
 				task(importable)
 			}
 		}
