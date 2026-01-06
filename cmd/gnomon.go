@@ -478,7 +478,7 @@ func gnomon_indexer(ctx context.Context) {
 	// gather initial results
 	info, _ := connections.GetDaemonInfo()
 	database.StoreGetInfoDetails(&info)
-	var stagedLines = 7
+	var stagedLines = 9
 	if progress {
 		stagedLines++
 	}
@@ -489,17 +489,27 @@ func gnomon_indexer(ctx context.Context) {
 	clearLine := func() {
 		fmt.Print("\r\033[K")
 	}
+	safeString := func(s string) string {
+		if len(s) > 64 {
+			return s[:64]
+		} else if s == "" {
+			return "null"
+		}
+		return s
+	}
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
 		// Move back to the top of the block
 		moveUp(stagedLines)
 
 		lines := []string{
 			"last staged:{",
-			fmt.Sprintf("\t\ttxid   %s", staged.Txid),
-			fmt.Sprintf("\t\tsender %s", staged.Sender),
-			fmt.Sprintf("\t\tmethod %s", staged.Method),
-			fmt.Sprintf("\t\tscid   %s", staged.Scid),
-			fmt.Sprintf("\t\theight %07d / now %07d", staged.Height, now),
+			fmt.Sprintf("\theight   %07d", staged.Height),
+			fmt.Sprintf("\tnow      %07d", now),
+			fmt.Sprintf("\ttxid     %s", staged.Txid),
+			fmt.Sprintf("\tmethod   %s", staged.Method),
+			fmt.Sprintf("\tsender   %s", staged.Sender),
+			fmt.Sprintf("\tscid     %s", staged.Scid),
+			fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
 			"}",
 		}
 		if progress {
