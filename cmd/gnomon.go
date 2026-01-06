@@ -493,12 +493,14 @@ func gnomon_indexer(ctx context.Context) {
 	// 	fmt.Print("\r\033[K")
 	// }
 	safeString := func(s string) string {
-		if len(s) > 64 {
+		if strings.Contains(s, "\n") {
+			return strings.Split(s, "\n")[0][:64]
+		} else if len(s) > 64 {
 			return s[:64]
 		} else if s == "" {
 			return "null"
 		} else {
-			return strings.Split(s, "\n")[0]
+			return s
 		}
 	}
 
