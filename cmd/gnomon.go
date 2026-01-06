@@ -504,10 +504,10 @@ func gnomon_indexer(ctx context.Context) {
 
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
 		// Move back to the top of the block
-		count := 9
+		count := 10
 
 		if progress {
-			count = 10
+			count = 11
 			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d\n"
 			a := []any{
 				IN_PROGRESS,
@@ -531,7 +531,7 @@ func gnomon_indexer(ctx context.Context) {
 		fmt.Printf("\tscid     %s\n", staged.Scid)
 		fmt.Printf("\theaders  %s\n", safeString(strings.Split(staged.Headers, ";")[0]))
 		fmt.Printf("\tcode     %s\n", safeString(staged.ScCode))
-		fmt.Print("}")
+		fmt.Println("}")
 		moveUp(count)
 
 	}
