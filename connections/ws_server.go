@@ -186,72 +186,48 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 
 		return err
 	}
-
+	var message = &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil}
 	switch req.Method {
 	case "GetAllOwnersAndSCIDs":
-		result := wss.database.GetAllOwnersAndSCIDs()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllOwnersAndSCIDs()
 	case "GetAllSCIDs":
-		result := wss.database.GetAllSCIDs()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDs()
 	case "GetAllOwners":
-		result := wss.database.GetAllOwners()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllOwners()
 	case "GetAllClasses":
-		result := wss.database.GetAllClasses()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllClasses()
 	case "GetAllTags":
-		result := wss.database.GetAllTags()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllTags()
 	case "GetAllHeaders":
-		result := wss.database.GetAllHeaders()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllHeaders()
 	case "GetAllSCIDsAndHeaders":
-		result := wss.database.GetAllSCIDsAndHeaders()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDsAndHeaders()
 	case "GetAllSCIDsByClass":
 		var params *structures.GnomonClassQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		result := wss.database.GetAllSCIDsByClass(params.Class)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDsByClass(params.Class)
 	case "GetAllSCIDsByTag":
 		var params *structures.GnomonTagQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		result := wss.database.GetAllSCIDsByTag(params.Tag)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDsByTag(params.Tag)
 	case "GetLastIndexHeight":
 		result, err := wss.database.GetLastIndexHeight()
 		if err != nil {
-			fmt.Printf("err geting last indexed height: err: %v\n", err)
-
-			fmt.Printf("server disconnect request\n")
-			return errDisconnected
+			message.Error = errDisconnected
+			break
 		}
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = result
 	case "GetTxCount":
 		var params *structures.GnomonTxCountQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
 		var result int64
 		switch params.Tx_Type {
@@ -260,221 +236,164 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		case "scids":
 			result = int64(len(wss.database.GetAllOwnersAndSCIDs()))
 		}
-
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = result
 	case "GetOwner":
 		var params *structures.GnomonSCIDQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		owner := wss.database.GetOwner(params.SCID)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: owner}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetOwner(params.SCID)
 	case "GetAllNormalTxWithSCIDByAddr":
 		var params *structures.GnomonAddressQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		txs := wss.database.GetAllNormalTxWithSCIDByAddr(params.Address)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllNormalTxWithSCIDByAddr(params.Address)
 	case "GetAllNormalTxWithSCIDBySCID":
 		var params *structures.GnomonSCIDQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		txs := wss.database.GetAllNormalTxWithSCIDBySCID(params.SCID)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllNormalTxWithSCIDBySCID(params.SCID)
 	case "GetAllSCIDInvokeDetails":
 		var params *structures.GnomonSCIDQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		txs := wss.database.GetAllSCIDInvokeDetails(params.SCID)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDInvokeDetails(params.SCID)
 	case "GetAllSCIDInvokeDetailsByEntrypoint":
 		var params *structures.GnomonAllSCIDInvokeDetailsByEntrypoint
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		txs := wss.database.GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
 	case "GetAllSCIDInvokeDetailsBySigner":
 		var params *structures.GnomonAllSCIDInvokeDetailsBySigner
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		txs := wss.database.GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: txs}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
 	case "GetGetInfoDetails":
-		info := wss.database.GetGetInfoDetails()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: info}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetGetInfoDetails()
 	case "GetSCIDVariableDetailsAtTopoheight":
 		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		vars := wss.database.GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
 	case "GetAllSCIDVariableDetails":
 		var params *structures.GnomonSCIDQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
 		vars := wss.database.GetAllSCIDVariableDetails(params.SCID)
 		if vars == nil {
-			err = fmt.Errorf("vars are nil")
-			message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: err, Result: nil}
-			return handleMashalError(wsjson.Write(ctx, c, message))
+			message.Error = fmt.Errorf("vars are nil")
+			break
 		}
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: vars}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = vars
 	case "GetSCIDKeysByValue":
 		var params *structures.GnomonSCIDKeysByValue
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
 		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, params.Height, params.Max)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = result
 	case "GetSCIDValuesByKey":
 		var params *structures.GnomonSCIDKeysByKey
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
 		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, params.Height, params.Max)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = result
 	case "GetLiveSCIDKeysByValue":
 		var params *structures.GnomonSCIDKeysByValue
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
 		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, 0, params.Max)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = result
 	case "GetLiveSCIDValuesByKey":
 		var params *structures.GnomonSCIDKeysByKey
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
 		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, 0, params.Max)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = result
 	case "GetSCIDInteractionByAddr":
 		var params *structures.GnomonAddressQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		interactions := wss.database.GetSCIDInteractionByAddr(params.Address)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetSCIDInteractionByAddr(params.Address)
 	case "GetSCIDInteractionHeight":
 		var params *structures.GnomonSCIDQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		interactions := wss.database.GetSCIDInteractionHeight(params.SCID)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: interactions}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetSCIDInteractionHeight(params.SCID)
 	case "GetInteractionIndex":
 		var params *structures.GnomonInteractionIndex
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		height := wss.database.GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: height}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
 	case "GetInvalidSCIDDeploys":
 		var params *structures.GnomonInteractionIndex
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		result := wss.database.GetInvalidSCIDDeploys()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetInvalidSCIDDeploys()
 	case "GetAllMiniblockDetails":
 		var params *structures.GnomonInteractionIndex
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		result := wss.database.GetAllMiniblockDetails()
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetAllMiniblockDetails()
 	case "GetMiniblockDetailsByHash":
 		var params *structures.GnomonMiniblockDetailsByHash
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		result := wss.database.GetMiniblockDetailsByHash(params.BLID)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetMiniblockDetailsByHash(params.BLID)
 	case "GetMiniblockCountByAddress":
 		var params *structures.GnomonAddressQuery
-		err = json.Unmarshal(*req.Params, &params)
-		if err != nil {
-			fmt.Printf("Unable to parse params\n")
-			return err
+		if err := json.Unmarshal(*req.Params, &params); err != nil {
+			message.Error = err
+			break
 		}
-		result := wss.database.GetMiniblockCountByAddress(params.Address)
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: result}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = wss.database.GetMiniblockCountByAddress(params.Address)
 	case "test":
-		message := &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil, Result: "test"}
-		return handleMashalError(wsjson.Write(ctx, c, message))
+		message.Result = "test"
 	default:
 		fmt.Printf("Not login or submit method\n")
-
 		fmt.Printf("server disconnect request\n")
 		return errDisconnected
 	}
+
+	return handleMashalError(wsjson.Write(ctx, c, message))
 
 	// return err
 }
