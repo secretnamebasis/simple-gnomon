@@ -540,6 +540,12 @@ func gnomon_indexer(ctx context.Context) {
 				return
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
+				if len(staged_for_writing) > 0 {
+					printLastStaged(
+						<-staged_for_writing,
+						now,
+					)
+				}
 				if last < now {
 					last = now
 					info, _ = connections.GetDaemonInfo()
@@ -548,8 +554,6 @@ func gnomon_indexer(ctx context.Context) {
 			case err := <-error_channel:
 				log.Fatalf("error: %s", err)
 				return
-			case staged := <-staged_for_writing:
-				printLastStaged(staged, now)
 			}
 		}
 	}()
