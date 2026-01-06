@@ -502,7 +502,7 @@ func gnomon_indexer(ctx context.Context) {
 		// Move back to the top of the block
 
 		lines := []string{
-			"last staged:{",
+			"last staged install:{",
 			fmt.Sprintf("\theight   %07d", staged.Height),
 			fmt.Sprintf("\tnow      %07d", now),
 			fmt.Sprintf("\ttxid     %s", staged.Txid),
@@ -1221,7 +1221,9 @@ var staged_for_writing = make(chan structures.SCIDToIndexStage, 100_000)
 func scid_db_writer(ctx context.Context) {
 	work := func(staged *structures.SCIDToIndexStage) {
 
-		staged_for_writing <- *staged
+		if staged.Method == "install" {
+			staged_for_writing <- *staged
+		}
 		// store scid by tag
 		if err := database.AddSCIDToIndex(*staged); err != nil {
 			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
