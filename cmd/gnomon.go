@@ -528,13 +528,8 @@ func gnomon_indexer(ctx context.Context) {
 
 			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
-		if achieved_current_height == 0 {
-			for _, line := range lines {
-				fmt.Println(line)
-			}
-			moveUp(len(lines) + len(strings.Split(staged.ScCode, "\n")))
-		} else {
-			fmt.Println(lines)
+		for _, line := range lines {
+			fmt.Println(line)
 		}
 	}
 	go func() { // Set up a listener for get info
