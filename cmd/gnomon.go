@@ -519,7 +519,7 @@ func gnomon_indexer(ctx context.Context) {
 				len(scid_db_queue),
 			}
 
-			fmt.Printf(format, a)
+			fmt.Printf(format, a...)
 		}
 
 		fmt.Println("last staged install:{")
