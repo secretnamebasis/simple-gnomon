@@ -505,21 +505,11 @@ func gnomon_indexer(ctx context.Context) {
 
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
 		// Move back to the top of the block
+		count := 10
 
-		lines := []string{
-			"last staged install:{",
-			fmt.Sprintf("\theight   %07d", staged.Height),
-			fmt.Sprintf("\tnow      %07d", now),
-			fmt.Sprintf("\ttxid     %s", staged.Txid),
-			fmt.Sprintf("\tmethod   %s", staged.Method),
-			fmt.Sprintf("\tsender   %s", staged.Sender),
-			fmt.Sprintf("\tscid     %s", staged.Scid),
-			fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
-			fmt.Sprintf("\tcode     %s", safeString(staged.ScCode)),
-			"}",
-		}
 		if progress {
-			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d"
+			count = 11
+			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d\n"
 			a := []any{
 				IN_PROGRESS,
 				connections.DOWNLOADS.Load(),
@@ -530,9 +520,8 @@ func gnomon_indexer(ctx context.Context) {
 				len(scid_db_queue),
 			}
 
-			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
+			fmt.Println(format, a)
 		}
-		count := len(lines)
 		if old_count == 0 {
 			old_count = count
 			for range count {
@@ -540,9 +529,16 @@ func gnomon_indexer(ctx context.Context) {
 			}
 		}
 		moveUp(count)
-		for _, line := range lines {
-			fmt.Println(line)
-		}
+		fmt.Println("last staged install:{")
+		fmt.Printf("\theight   %07d\n", staged.Height)
+		fmt.Printf("\tnow      %07d\n", now)
+		fmt.Printf("\ttxid     %s\n", staged.Txid)
+		fmt.Printf("\tmethod   %s\n", staged.Method)
+		fmt.Printf("\tsender   %s\n", staged.Sender)
+		fmt.Printf("\tscid     %s\n", staged.Scid)
+		fmt.Printf("\theaders  %s\n", safeString(strings.Split(staged.Headers, ";")[0]))
+		fmt.Printf("\tcode     %s\n", safeString(staged.ScCode))
+		fmt.Print("}")
 	}
 	go func() { // Set up a listener for get info
 		ticker := time.NewTicker(time.Second * 2)
