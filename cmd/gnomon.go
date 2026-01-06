@@ -514,7 +514,7 @@ func gnomon_indexer(ctx context.Context) {
 			fmt.Sprintf("\tsender   %s", staged.Sender),
 			fmt.Sprintf("\tscid     %s", staged.Scid),
 			fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
-			fmt.Sprintf("\tcode     %s", staged.ScCode),
+			fmt.Sprintf("\tcode     %s", safeString(staged.ScCode)),
 			"}",
 		}
 		if progress {
@@ -531,8 +531,8 @@ func gnomon_indexer(ctx context.Context) {
 
 			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
-		count := len(lines) + len(strings.Split(staged.ScCode, "\n"))
-		if count != old_count {
+		count := len(lines)
+		if old_count == 0 {
 			old_count = count
 			for range count {
 				fmt.Println()
