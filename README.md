@@ -1,5 +1,5 @@
 # simple-gnomon
-_this fork has been optimized for [simple-wallet](github.com/secretnamebasis/simple-wallet)_
+_this fork has been optimized for [simple-wallet](https://github.com/secretnamebasis/simple-wallet)_
 ## Decentralized Search Engine
 Gnomon is an DERO blockchain indexer. It parses each block of DEROHE's blockchain, and aggregates results into various indexes for ease of use. The indexes of primary focus are SCID installs and SCID invocations; however, many other useful indexes are available ~~(see below)~~.
 
