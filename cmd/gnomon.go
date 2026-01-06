@@ -528,6 +528,8 @@ func gnomon_indexer(ctx context.Context) {
 		ticker := time.NewTicker(time.Second * 2)
 		for RUNNING {
 			select {
+			case <-ctx.Done():
+				return
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
 				if last < now {
