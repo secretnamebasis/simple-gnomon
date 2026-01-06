@@ -42,12 +42,12 @@ As simple-gnomon aims to be quite versitle as a tool, there are three means of s
 > If an enpoint is not provided either in the endpoint entry of the GUI or as a flag (`--daemon-rpc-address=<daemon_ip:port>`), simple-gnomon will attempt to connect to an xswd websocket (`ws://127.0.0.1:44326/xswd`) to get daemon endpoint.
 
 ### GUI
-Simple as it gets, `./simple-gnomon`. 
+Simple as it gets, `./simple-gnomon --gui`. 
 
 The primary dashboard will appear asking for a endpoint to connect to for node queries. 
 
 ### NO-GUI
-Minimal set up is required: `./simple-gnomon --no-gui --daemon-rpc-address=127.0.0.1:10102`, and the indexer will begin. 
+Minimal set up is required: `./simple-gnomon --daemon-rpc-address=127.0.0.1:10102`, and the indexer will begin. 
 
 > N.B. There some useful options when running simple-gnomon, just call on `--help` to see more.
 
