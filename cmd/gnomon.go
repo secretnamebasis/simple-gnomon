@@ -543,8 +543,8 @@ func gnomon_indexer(ctx context.Context) {
 				return
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
-				log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
 				moveUp(1)
+				log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
 				if len(staged_for_writing) > 0 {
 					printLastStaged(
 						<-staged_for_writing,
