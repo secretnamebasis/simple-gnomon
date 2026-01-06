@@ -471,6 +471,7 @@ func Start_gnomon_indexer() error {
 func gnomon_indexer(ctx context.Context) {
 
 	now, _ = connections.Get_TopoHeight()
+	last := now
 
 	fmt.Println("starting to index ", now)
 
