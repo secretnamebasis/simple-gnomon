@@ -489,9 +489,9 @@ func gnomon_indexer(ctx context.Context) {
 	moveUp := func(n int) {
 		fmt.Printf("\033[%dA", n)
 	}
-	// clearLine := func() {
-	// 	fmt.Print("\r\033[K")
-	// }
+	clearLine := func() {
+		fmt.Print("\r\033[K")
+	}
 	safeString := func(s string) string {
 		if strings.Contains(s, "\n") {
 			s = strings.Split(s, "\n")[0]
@@ -525,16 +525,25 @@ func gnomon_indexer(ctx context.Context) {
 
 			fmt.Printf(format, a...)
 		}
-
+		clearLine()
 		fmt.Println("last staged install:{")
+		clearLine()
 		fmt.Printf("\theight   %07d\n", staged.Height)
+		clearLine()
 		fmt.Printf("\tnow      %07d\n", now)
+		clearLine()
 		fmt.Printf("\ttxid     %s\n", staged.Txid)
+		clearLine()
 		fmt.Printf("\tmethod   %s\n", staged.Method)
+		clearLine()
 		fmt.Printf("\tsender   %s\n", staged.Sender)
+		clearLine()
 		fmt.Printf("\tscid     %s\n", staged.Scid)
+		clearLine()
 		fmt.Printf("\theaders  %s\n", safeString(strings.Split(staged.Headers, ";")[0]))
+		clearLine()
 		fmt.Printf("\tcode     %s\n", safeString(staged.ScCode))
+		clearLine()
 		fmt.Println("}")
 		moveUp(count)
 
@@ -548,6 +557,7 @@ func gnomon_indexer(ctx context.Context) {
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
 				moveUp(1)
+				clearLine()
 				log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
 				if len(staged_for_writing) > 0 {
 					printLastStaged(
