@@ -528,10 +528,13 @@ func gnomon_indexer(ctx context.Context) {
 
 			fmt.Printf(format, a...)
 		}
-
-		for _, line := range lines {
-			clearLine()
-			fmt.Println(line)
+		if achieved_current_height == 0 {
+			for _, line := range lines {
+				clearLine()
+				fmt.Println(line)
+			}
+		} else {
+			fmt.Println(lines)
 		}
 	}
 	go func() { // Set up a listener for get info
@@ -635,8 +638,8 @@ func gnomon_indexer(ctx context.Context) {
 			lowest_height = starting_height
 		}
 		result = now - lowest_height
-
 		if result != 0 {
+			log.Printf("now %d lowest %d loading into queue %d", now, lowest_height, result)
 			height_processing := make(chan int64, result)
 			for range parallel_blocks {
 				wg.Add(1)
