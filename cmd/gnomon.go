@@ -513,7 +513,7 @@ func gnomon_indexer(ctx context.Context) {
 			"}",
 		}
 		if progress {
-			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d\n"
+			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d"
 
 			a := []any{
 				IN_PROGRESS,
