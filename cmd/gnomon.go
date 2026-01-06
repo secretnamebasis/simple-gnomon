@@ -486,9 +486,9 @@ func gnomon_indexer(ctx context.Context) {
 		fmt.Printf("\033[%dA", n)
 	}
 
-	clearLine := func() {
-		fmt.Print("\r\033[K")
-	}
+	// clearLine := func() {
+	// 	fmt.Print("\r\033[K")
+	// }
 	safeString := func(s string) string {
 		if len(s) > 64 {
 			return s[:64]
@@ -499,7 +499,6 @@ func gnomon_indexer(ctx context.Context) {
 	}
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
 		// Move back to the top of the block
-		moveUp(stagedLines)
 
 		lines := []string{
 			"last staged:{",
@@ -513,7 +512,6 @@ func gnomon_indexer(ctx context.Context) {
 			"}",
 		}
 		if progress {
-			clearLine()
 			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d\n"
 
 			a := []any{
@@ -526,13 +524,14 @@ func gnomon_indexer(ctx context.Context) {
 				len(scid_db_queue),
 			}
 
-			fmt.Printf(format, a...)
+			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
+
 		if achieved_current_height == 0 {
 			for _, line := range lines {
-				clearLine()
 				fmt.Println(line)
 			}
+			moveUp(len(lines))
 		} else {
 			fmt.Println(lines)
 		}
@@ -620,9 +619,7 @@ func gnomon_indexer(ctx context.Context) {
 		result = now - starting_height
 	}
 	log.Printf("loading heights into queue %d", result)
-	for i := 0; i < stagedLines; i++ {
-		fmt.Println()
-	}
+
 	// simple-daemon
 	for RUNNING {
 
@@ -639,6 +636,7 @@ func gnomon_indexer(ctx context.Context) {
 		}
 		result = now - lowest_height
 		if result != 0 {
+			moveUp(1)
 			log.Printf("now %d lowest %d loading into queue %d", now, lowest_height, result)
 			height_processing := make(chan int64, result)
 			for range parallel_blocks {
