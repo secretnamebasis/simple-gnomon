@@ -482,9 +482,9 @@ func gnomon_indexer(ctx context.Context) {
 	if progress {
 		stagedLines++
 	}
-	// moveUp := func(n int) {
-	// 	fmt.Printf("\033[%dA", n)
-	// }
+	moveUp := func(n int) {
+		fmt.Printf("\033[%dA", n)
+	}
 
 	// clearLine := func() {
 	// 	fmt.Print("\r\033[K")
@@ -497,6 +497,7 @@ func gnomon_indexer(ctx context.Context) {
 		}
 		return s
 	}
+
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
 		// Move back to the top of the block
 
@@ -527,7 +528,7 @@ func gnomon_indexer(ctx context.Context) {
 
 			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
-
+		moveUp(len(lines) + len(strings.Split(staged.ScCode, "\n")))
 		if achieved_current_height == 0 {
 			for _, line := range lines {
 				fmt.Println(line)
