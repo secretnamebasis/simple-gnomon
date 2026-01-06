@@ -482,9 +482,9 @@ func gnomon_indexer(ctx context.Context) {
 	if progress {
 		stagedLines++
 	}
-	// moveUp := func(n int) {
-	// 	fmt.Printf("\033[%dA", n)
-	// }
+	moveUp := func(n int) {
+		fmt.Printf("\033[%dA", n)
+	}
 
 	// clearLine := func() {
 	// 	fmt.Print("\r\033[K")
@@ -515,7 +515,6 @@ func gnomon_indexer(ctx context.Context) {
 		}
 		if progress {
 			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d"
-
 			a := []any{
 				IN_PROGRESS,
 				connections.DOWNLOADS.Load(),
@@ -528,6 +527,7 @@ func gnomon_indexer(ctx context.Context) {
 
 			lines = append([]string{fmt.Sprintf(format, a...)}, lines...)
 		}
+		moveUp(len(lines) + len(strings.Split(staged.ScCode, "\n")))
 		for _, line := range lines {
 			fmt.Println(line)
 		}
