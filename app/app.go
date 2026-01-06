@@ -168,6 +168,7 @@ func RenderGUI() {
 		drop_down.Show()
 		connection.Show()
 	}
+
 	updateTable := func() {
 		result, err := getTxCount(getTxCountParams{"normal"})
 		if err != nil {
@@ -302,15 +303,18 @@ func RenderGUI() {
 		}
 
 		last = cmd.TOPO
-		now = connections.GetDaemonInfo().TopoHeight
+		info, _ := connections.GetDaemonInfo()
+		now = info.TopoHeight
 
 		return height1
 	}
+
 	start_gnomon := func(ctx context.Context) {
 		set_connection()
 		if indexer_connection != nil {
 			defer indexer_connection.Close()
 		}
+
 		height1 = obtain_initial_height()
 		updateTable()
 		action()
@@ -326,10 +330,9 @@ func RenderGUI() {
 				if !cmd.RUNNING {
 					return
 				}
-				now = connections.GetDaemonInfo().TopoHeight
+				info, _ := connections.GetDaemonInfo()
+				now = info.TopoHeight
 				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
-
-				updateTable()
 
 				switch now {
 				case cmd.TOPO + 1:
@@ -337,6 +340,8 @@ func RenderGUI() {
 				default:
 					action()
 				}
+
+				updateTable()
 
 				fyne.Do(func() {
 					table.Refresh()
