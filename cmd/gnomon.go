@@ -565,9 +565,7 @@ func gnomon_indexer(ctx context.Context) {
 					database.StoreGetInfoDetails(&info)
 				}
 			case staged := <-staged_for_writing:
-				if len(staged_for_writing) > 0 {
-					printLastStaged(staged, now)
-				}
+				printLastStaged(staged, now)
 
 			case err := <-error_channel:
 				log.Fatalf("error: %s", err)
