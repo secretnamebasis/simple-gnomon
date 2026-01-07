@@ -255,15 +255,20 @@ func start_printer(ctx context.Context, last int64) { // Set up a listener for g
 }
 
 func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
+	var lines []string
+	line := fmt.Sprintf("scinstall:{"+
+		"height:%07d,"+
+		"sender:%s"+
+		"scid:%s"+
+		"headers:%s"+
+		"}", []any{
+		staged.Height,
+		staged.Sender,
+		staged.Scid,
+		safeString(strings.Split(staged.Headers, ";")[0]),
+	}...)
 
-	lines := []string{
-		"scinstall:{",
-		fmt.Sprintf("\theight   %07d", staged.Height),
-		fmt.Sprintf("\tsender   %s", staged.Sender),
-		fmt.Sprintf("\tscid     %s", staged.Scid),
-		fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
-		"}",
-	}
+	lines = append(lines, line)
 
 	if progress { // used to monitor queues
 		format := "HEIGHT %07d" +
