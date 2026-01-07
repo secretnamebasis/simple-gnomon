@@ -279,7 +279,7 @@ func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
 			" SCIDDB_QUEUE %03d"
 
 		a := []any{
-			IN_PROGRESS,
+			IN_PROGRESS.Load(),
 			connections.DOWNLOADS.Load(),
 			runtime.NumGoroutine(),
 			len(block_processing),
