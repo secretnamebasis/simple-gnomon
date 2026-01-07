@@ -257,15 +257,12 @@ func start_printer(ctx context.Context, last int64) { // Set up a listener for g
 func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
 
 	lines := []string{
-		"last staged install:{",
+		"scinstall:{",
 		fmt.Sprintf("\theight   %07d", staged.Height),
-		fmt.Sprintf("\tnow      %07d", now),
 		fmt.Sprintf("\ttxid     %s", staged.Txid),
-		fmt.Sprintf("\tmethod   %s", staged.Method),
 		fmt.Sprintf("\tsender   %s", staged.Sender),
 		fmt.Sprintf("\tscid     %s", staged.Scid),
 		fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
-		fmt.Sprintf("\tcode     %s", safeString(staged.ScCode)),
 		"}",
 	}
 
