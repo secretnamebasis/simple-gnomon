@@ -21,6 +21,7 @@ func height_handling(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
+
 			if !RUNNING {
 				return
 			}
@@ -36,7 +37,9 @@ func height_handling(ctx context.Context) {
 				lowest_height = starting_height
 			}
 
-			result := now - lowest_height
+			n := now
+
+			result := n - lowest_height
 
 			if result != 0 {
 				wg := sync.WaitGroup{}
@@ -45,7 +48,7 @@ func height_handling(ctx context.Context) {
 					wg.Add(1)
 					go work_on_heights(ctx, height_processing, &wg)
 				}
-				for height := lowest_height; height < now; height++ {
+				for height := lowest_height; height < n; height++ {
 					if !RUNNING {
 						return
 					}
