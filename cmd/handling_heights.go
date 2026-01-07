@@ -74,48 +74,43 @@ func height_handling(ctx context.Context) {
 func work_on_heights(ctx context.Context, height_processing chan int64, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	for {
-		select {
-		case <-ctx.Done():
+	for height := range height_processing {
+
+		if !RUNNING {
 			return
-		case height := <-height_processing:
-			if !RUNNING {
-				return
-			}
-
-			// a simple backup strategy
-			if achieved_current_height > 0 && !established_backup &&
-				// if the current height is greater than a day of blocks...
-				find_lowest_height(backup_database, now) {
-
-				waitForAllQueues()
-
-				backup(height)
-			}
-
-			handle_height_task(height)
-		default:
-			measurements := []int{
-				int(connections.DOWNLOADS.Load()),
-				len(block_processing),
-				len(transaction_processing),
-				len(scid_processing),
-				len(scid_db_queue),
-			}
-
-			if store_minis {
-				measurements = append(measurements, len(mini_queue), len(mini_db_queue))
-			}
-			var m int
-			for _, each := range measurements {
-				m = max(m, each)
-			}
-
-			if m > 0 {
-				time.Sleep(time.Millisecond * time.Duration(m))
-			}
-			//
 		}
+
+		// a simple backup strategy
+		if achieved_current_height > 0 && !established_backup &&
+			// if the current height is greater than a day of blocks...
+			find_lowest_height(backup_database, now) {
+
+			waitForAllQueues()
+
+			backup(height)
+		}
+
+		measurements := []int{
+			int(connections.DOWNLOADS.Load()),
+			len(block_processing),
+			len(transaction_processing),
+			len(scid_processing),
+			len(scid_db_queue),
+		}
+
+		if store_minis {
+			measurements = append(measurements, len(mini_queue), len(mini_db_queue))
+		}
+		var m int
+		for _, each := range measurements {
+			m = max(m, each)
+		}
+
+		if m > 0 {
+			time.Sleep(time.Millisecond * time.Duration(m))
+		}
+		//
+		handle_height_task(height)
 	}
 }
 
