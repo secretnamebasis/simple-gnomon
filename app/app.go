@@ -332,7 +332,7 @@ func RenderGUI() {
 				}
 				info, _ := connections.GetDaemonInfo()
 				now = info.TopoHeight
-				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS))
+				in_progress = strconv.Itoa(int(cmd.IN_PROGRESS.Load()))
 
 				switch now {
 				case cmd.TOPO + 1:

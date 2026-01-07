@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/deroproject/derohe/config"
@@ -34,9 +35,10 @@ var (
 
 	// we are going to use these for later
 	TOPO        int64
-	IN_PROGRESS int64
-	EXIT        = make(chan os.Signal, 1)
-	RUNNING     bool
+	IN_PROGRESS atomic.Int64
+
+	EXIT    = make(chan os.Signal, 1)
+	RUNNING bool
 	// ctx         context.Context
 	// cancel      context.CancelFunc
 )
@@ -232,11 +234,11 @@ func start_printer(ctx context.Context, last int64) { // Set up a listener for g
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			percent := IN_PROGRESS * 100 / now
+			percent := IN_PROGRESS.Load() * 100 / now
 			now, _ = connections.Get_TopoHeight()
 			if last < now {
 				log.Printf("now %d in_progress %d complete %d%%",
-					now, IN_PROGRESS, percent,
+					now, IN_PROGRESS.Load(), percent,
 				)
 				last = now
 				info, _ = connections.GetDaemonInfo()

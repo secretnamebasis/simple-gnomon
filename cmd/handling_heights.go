@@ -76,7 +76,6 @@ func work_on_heights(ctx context.Context, height_processing chan int64, wg *sync
 		case <-ctx.Done():
 			return
 		case height := <-height_processing:
-			IN_PROGRESS = height
 			if !RUNNING {
 				return
 			}
@@ -118,7 +117,7 @@ func work_on_heights(ctx context.Context, height_processing chan int64, wg *sync
 }
 
 func handle_height_task(height int64) {
-
+	IN_PROGRESS.Swap(height)
 	result, _ := connections.GetBlockInfo(rpc.GetBlock_Params{Height: uint64(height)})
 	block_processing <- &processingStruct{Height: height, Result: result}
 }
