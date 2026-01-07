@@ -30,15 +30,15 @@ var (
 	achieved_current_height int64
 	lowest_height           int64
 	day_of_blocks           int64
+	now                     int64
 
 	// we are going to use these for later
-	now         int64
 	TOPO        int64
 	IN_PROGRESS int64
 	EXIT        = make(chan os.Signal, 1)
 	RUNNING     bool
-	ctx         context.Context
-	cancel      context.CancelFunc
+	// ctx         context.Context
+	// cancel      context.CancelFunc
 )
 
 var error_channel = make(chan error, 1)
@@ -108,7 +108,7 @@ func Start_gnomon_indexer() error {
 	lowest_height = min(lowest_height, height)
 
 	fmt.Println("setting up queue processors")
-	ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
 		signal.Notify(EXIT, os.Interrupt)
@@ -116,7 +116,7 @@ func Start_gnomon_indexer() error {
 			select {
 			case <-EXIT:
 				RUNNING = false
-				GracefullyStopAndExit()
+				GracefullyStopAndExit(cancel)
 				return
 			case <-ctx.Done():
 			}
@@ -194,7 +194,7 @@ func Start_gnomon_indexer() error {
 	now, _ = connections.Get_TopoHeight()
 	// and in the event that the user wants to fast sync
 	if fastsync && now-lowest_height > (day_of_blocks/4) {
-		if err := fastsync_handling(); err != nil {
+		if err := fastsync_handling(ctx); err != nil {
 			return err
 		}
 	}

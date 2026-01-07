@@ -81,13 +81,13 @@ func RenderGUI() {
 	w := a.NewWindow("simple-gnomon")
 	w.Resize(fyne.NewSize(400, 600))
 	w.SetCloseIntercept(func() {
-		cancel()
 		closing = true
 		if cmd.RUNNING {
 			cmd.RUNNING = false
 			cmd.EXIT <- os.Interrupt
-			cmd.GracefullyStopAndExit()
+			cmd.GracefullyStopAndExit(cancel)
 		}
+		cancel()
 		w.Close()
 	})
 	data_dir = filepath.Base(globals.GetDataDirectory())

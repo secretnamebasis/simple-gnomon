@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,7 +19,7 @@ import (
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 )
 
-func fastsync_handling() error {
+func fastsync_handling(ctx context.Context) error {
 	fmt.Println("fastsync activated")
 	start := time.Now()
 	params := rpc.GetSC_Params{

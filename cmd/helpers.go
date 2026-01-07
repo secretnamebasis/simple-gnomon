@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -357,7 +358,7 @@ func ValidateSCSignature(code string, key string) (validated bool, signer string
 	return
 }
 
-func gracefullyStop() {
+func gracefullyStop(cancel context.CancelFunc) {
 	cancel()
 	for database.Writing {
 		fmt.Printf("waiting for dbs writer to stop\r")
@@ -366,8 +367,8 @@ func gracefullyStop() {
 	fmt.Println()
 	fmt.Println("gracefully stopped")
 }
-func GracefullyStopAndExit() {
-	gracefullyStop()
+func GracefullyStopAndExit(cancel context.CancelFunc) {
+	gracefullyStop(cancel)
 	os.Exit(0)
 }
 
