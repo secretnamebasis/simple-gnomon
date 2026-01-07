@@ -16,6 +16,7 @@ import (
 	"github.com/deroproject/derohe/cryptography/bn256"
 	"github.com/deroproject/derohe/cryptography/crypto"
 	"github.com/deroproject/derohe/rpc"
+	"github.com/secretnamebasis/simple-gnomon/db"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 )
 
@@ -362,6 +363,7 @@ func gracefullyStop() {
 		fmt.Printf("waiting for dbs writer to stop\r")
 		time.Sleep(time.Millisecond * 200)
 	}
+	fmt.Println()
 	fmt.Println("gracefully stopped")
 }
 func GracefullyStopAndExit() {
@@ -404,4 +406,29 @@ func waitForAllQueues() {
 		fmt.Printf(format, a...)
 		time.Sleep(time.Millisecond * 200)
 	}
+}
+
+func find_lowest_height(backup *db.BboltStore, now int64) bool {
+	lowest := now
+	height, err := backup.GetLastIndexHeight()
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	lowest = min(lowest, height)
+	return (achieved_current_height - day_of_blocks) > lowest
+}
+
+func safeString(s string) string {
+	if strings.Contains(s, "\n") {
+		s = strings.Split(s, "\n")[0]
+		if len(s) > 64 {
+			s = s[:64]
+		}
+	} else if len(s) > 64 {
+		s = s[:64]
+	} else if s == "" {
+		s = "null"
+	}
+	return s
 }
