@@ -303,7 +303,7 @@ func Start_gnomon_indexer() error {
 	// and in the event that the user wants to fast sync
 	if fastsync && now-lowest_height > (day_of_blocks/4) {
 		fmt.Println("fastsync activated")
-
+		start := time.Now()
 		params = rpc.GetSC_Params{
 			SCID:       globals.MAINNET_GNOMON_SCID,
 			Code:       true,
@@ -411,6 +411,9 @@ func Start_gnomon_indexer() error {
 			}
 
 		}
+		var completed atomic.Int64
+		total := int64(len(importables))
+		unique := sync.Map{}
 		work := func(imports chan importable, wg *sync.WaitGroup) {
 			defer wg.Done()
 			for importable := range imports {
@@ -420,11 +423,13 @@ func Start_gnomon_indexer() error {
 				if areQueuesEmpty() {
 					time.Sleep(time.Millisecond * time.Duration(longestQueue()))
 				}
-				// completion := float64(importable.height) / float64(now)
-				// rate := completion * 100
-				// to_int := int64(rate)
-				// fmt.Printf("completed %d %%", to_int)
 				task(importable)
+				done := completed.Add(1)
+				percent := done * 100 / total
+				if _, ok := unique.Load(percent); !ok {
+					fmt.Printf("completed %d %%\n", percent)
+					unique.Store(percent, struct{}{})
+				}
 			}
 		}
 
@@ -451,7 +456,7 @@ func Start_gnomon_indexer() error {
 		waitForAllQueues()
 		wg.Wait()
 
-		fmt.Println("fast sync done")
+		fmt.Println("fast sync done", time.Since(start))
 		fmt.Println("setting lowest height current block")
 
 		lowest_height, _ = connections.Get_TopoHeight()
@@ -486,12 +491,6 @@ func gnomon_indexer(ctx context.Context) {
 		stagedLines++
 	}
 
-	moveUp := func(n int) {
-		fmt.Printf("\033[%dA", n)
-	}
-	clearLine := func() {
-		fmt.Print("\r\033[K")
-	}
 	safeString := func(s string) string {
 		if strings.Contains(s, "\n") {
 			s = strings.Split(s, "\n")[0]
@@ -508,10 +507,8 @@ func gnomon_indexer(ctx context.Context) {
 
 	printLastStaged := func(staged structures.SCIDToIndexStage, now int64) {
 		// Move back to the top of the block
-		count := 10
 
 		if progress {
-			count = 11
 			format := "HEIGHT %07d DOWNLOADS %05d GOROUTINES: %05d BLOCKS %05d TXS_QUEUE %05d SCIDS_QUEUE %05d SCIDDB_QUEUE %03d\n"
 			a := []any{
 				IN_PROGRESS,
@@ -525,27 +522,21 @@ func gnomon_indexer(ctx context.Context) {
 
 			fmt.Printf(format, a...)
 		}
-		clearLine()
-		fmt.Println("last staged install:{")
-		clearLine()
-		fmt.Printf("\theight   %07d\n", staged.Height)
-		clearLine()
-		fmt.Printf("\tnow      %07d\n", now)
-		clearLine()
-		fmt.Printf("\ttxid     %s\n", staged.Txid)
-		clearLine()
-		fmt.Printf("\tmethod   %s\n", staged.Method)
-		clearLine()
-		fmt.Printf("\tsender   %s\n", staged.Sender)
-		clearLine()
-		fmt.Printf("\tscid     %s\n", staged.Scid)
-		clearLine()
-		fmt.Printf("\theaders  %s\n", safeString(strings.Split(staged.Headers, ";")[0]))
-		clearLine()
-		fmt.Printf("\tcode     %s\n", safeString(staged.ScCode))
-		clearLine()
-		fmt.Println("}")
-		moveUp(count)
+		lines := []string{
+			"last staged install:{",
+			fmt.Sprintf("\theight   %07d", staged.Height),
+			fmt.Sprintf("\tnow      %07d", now),
+			fmt.Sprintf("\ttxid     %s", staged.Txid),
+			fmt.Sprintf("\tmethod   %s", staged.Method),
+			fmt.Sprintf("\tsender   %s", staged.Sender),
+			fmt.Sprintf("\tscid     %s", staged.Scid),
+			fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
+			fmt.Sprintf("\tcode     %s", safeString(staged.ScCode)),
+			"}",
+		}
+		for _, each := range lines {
+			fmt.Println(each)
+		}
 
 	}
 	go func() { // Set up a listener for get info
@@ -556,10 +547,8 @@ func gnomon_indexer(ctx context.Context) {
 				return
 			case <-ticker.C:
 				now, _ = connections.Get_TopoHeight()
-				moveUp(1)
-				clearLine()
-				log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-IN_PROGRESS)
 				if last < now {
+					log.Printf("now %d in_progress %d lowest %d in queue %d", now, IN_PROGRESS, lowest_height, now-lowest_height)
 					last = now
 					info, _ = connections.GetDaemonInfo()
 					database.StoreGetInfoDetails(&info)
