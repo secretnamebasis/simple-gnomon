@@ -259,7 +259,6 @@ func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
 	lines := []string{
 		"scinstall:{",
 		fmt.Sprintf("\theight   %07d", staged.Height),
-		fmt.Sprintf("\ttxid     %s", staged.Txid),
 		fmt.Sprintf("\tsender   %s", staged.Sender),
 		fmt.Sprintf("\tscid     %s", staged.Scid),
 		fmt.Sprintf("\theaders  %s", safeString(strings.Split(staged.Headers, ";")[0])),
