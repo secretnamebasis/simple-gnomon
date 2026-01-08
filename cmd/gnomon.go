@@ -258,8 +258,8 @@ func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
 	var lines []string
 	line := fmt.Sprintf("scinstall:{"+
 		"height:%07d,"+
-		"sender:%s"+
-		"scid:%s"+
+		"sender:%s,"+
+		"scid:%s,"+
 		"headers:%s"+
 		"}", []any{
 		staged.Height,
