@@ -48,7 +48,7 @@ var error_channel = make(chan error, 1)
 // Starts gnomon indexer
 func Start_gnomon_indexer() error {
 	runtime.GC() // let's clean things up before beginning
-	parseFalgs()
+	parseFlags()
 
 	if endpoint == "" {
 		// call on the wallet ws for authorizations

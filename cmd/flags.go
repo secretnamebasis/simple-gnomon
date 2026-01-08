@@ -41,7 +41,7 @@ Options:
 )
 
 // a simple flag-parser
-func parseFalgs() error {
+func parseFlags() error {
 	launch_args := os.Args[1:] // we'll skip the first one
 
 	// launch help when present
