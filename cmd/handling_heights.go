@@ -46,7 +46,6 @@ func height_handling(ctx context.Context) {
 					wg.Add(1)
 					go work_on_heights(ctx, height_processing, &wg)
 				}
-				fmt.Println("lowest", lowest_height)
 				for height := lowest_height; height < now; height++ {
 					if !RUNNING {
 						return
