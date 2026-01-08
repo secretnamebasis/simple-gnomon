@@ -7,7 +7,6 @@ Gnomon is an DERO blockchain indexer. It parses each block of DEROHE's blockchai
 - Fast & Memory-Efficient Indexing
 - SCID Queries: invocations & variables at height
 - WS & HTTP query support (emphasis on WS for TELA dapps)
-- GUI & GUI-less modes
 
 ## Contributing
 Post an issue whenever; or fork the code and do what you want (see MIT LICENSE). Most importantly, have fun learning. 
@@ -37,19 +36,13 @@ simple-gnomon
 ```
 
 ## Run 
-As simple-gnomon aims to be quite versitle as a tool, there are three means of starting simple-gnomon: gui, no-gui, or as a package
+> N.B. There some useful options when running simple-gnomon, just call on `--help` to see more.
 
-> If an enpoint is not provided either in the endpoint entry of the GUI or as a flag (`--daemon-rpc-address=<daemon_ip:port>`), simple-gnomon will attempt to connect to an xswd websocket (`ws://127.0.0.1:44326/xswd`) to get daemon endpoint.
+### DAEMON
+> If an endpoint is not provided as a flag (`--daemon-rpc-address=<daemon_ip:port>`), simple-gnomon will attempt to connect to an xswd websocket (`ws://127.0.0.1:44326/xswd`) to get daemon endpoint.
 
-### GUI
-Simple as it gets, `./simple-gnomon --gui`. 
-
-The primary dashboard will appear asking for a endpoint to connect to for node queries. 
-
-### NO-GUI
 Minimal set up is required: `./simple-gnomon --daemon-rpc-address=127.0.0.1:10102`, and the indexer will begin. 
 
-> N.B. There some useful options when running simple-gnomon, just call on `--help` to see more.
 
 ### PACKAGE
 To use simple gnomon in a go application; 
@@ -57,8 +50,6 @@ To use simple gnomon in a go application;
 // include import in program
 import 	"github.com/secretnamebasis/simple-gnomon/cmd"
 
-// example blocker
-var exit chan struct{}
 
 // somewhere in the code...
 func foobar(){
@@ -78,7 +69,7 @@ func foobar(){
         return
     }
 
-    <-exit // block to prevent gnomon_indexer go routine closure
+    select{} // block to prevent gnomon_indexer go routine closure
 }
 ```
 
