@@ -234,15 +234,28 @@ func start_printer(ctx context.Context, last int64) { // Set up a listener for g
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			percent := IN_PROGRESS.Load() * 100 / now
+
 			now, _ = connections.Get_TopoHeight()
+
 			if last < now {
-				log.Printf("now %d in_progress %d complete %d%%",
-					now, IN_PROGRESS.Load(), percent,
-				)
+
+				format := "now %d in_progress %d"
+				a := []any{now, IN_PROGRESS.Load()}
+
+				if achieved_current_height == 0 {
+					percent := IN_PROGRESS.Load() * 100 / now
+					format += " complete %d%%"
+					a = append(a, percent)
+				} else {
+					format += " passive scan"
+				}
+				log.Printf(format, a...)
+
 				last = now
+
 				info, _ = connections.GetDaemonInfo()
 				database.StoreGetInfoDetails(&info)
+
 			}
 		case staged := <-staged_for_writing:
 			printLastStaged(staged, now)
