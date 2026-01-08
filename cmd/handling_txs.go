@@ -77,6 +77,20 @@ func operate_on_staged_tx(staged *processingStruct) {
 	close(batch_processing)
 }
 
+func batching(batch, batch_count int, hashes []string, batch_processing chan rpc.GetTransaction_Result, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	end := batch_size * batch
+	if batch == batch_count-1 {
+		end = len(hashes)
+	}
+
+	// and dump them into the listener channel
+	result, _ := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
+	// retry?
+	batch_processing <- result
+}
+
 func handle_tx_task(batch_processing chan rpc.GetTransaction_Result) {
 	// because order doesn't really matter here... just grab the first one
 	for result := range batch_processing {
@@ -146,18 +160,4 @@ func ringmember_callback(i, j int, height int64, result rpc.GetTransaction_Resul
 		// fmt.Println("normal with scid", ring, normTxWithSCID)
 		database.StoreNormalTxWithSCIDByAddr(ring, normTxWithSCID)
 	}
-}
-
-func batching(batch, batch_count int, hashes []string, batch_processing chan rpc.GetTransaction_Result, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	end := batch_size * batch
-	if batch == batch_count-1 {
-		end = len(hashes)
-	}
-
-	// and dump them into the listener channel
-	result, _ := connections.GetTransaction(rpc.GetTransaction_Params{Tx_Hashes: hashes[batch_size*batch : end]})
-	// retry?
-	batch_processing <- result
 }

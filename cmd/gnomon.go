@@ -124,16 +124,18 @@ func Start_gnomon_indexer() error {
 			}
 		}
 	}()
+
 	if store_minis {
 		fmt.Println("STORING MINIBLOCKS")
 		go mini_db_writer(ctx)
 	}
+
 	go scid_db_writer(ctx)
 	go scid_handling(ctx)
 	go tx_handling(ctx)
 	go block_handling(ctx)
-	// now that the backend is set up, start WS
 
+	// now that the backend is set up, start WS
 	fmt.Println("setting up websocket")
 	address := "127.0.0.1:9190"
 	if ws_endpoint != "" {
@@ -163,7 +165,7 @@ func Start_gnomon_indexer() error {
 	fmt.Println("Pulling Latest Copy of NameService Contract")
 	// there are two contracts that need to be processed with special consideration:
 	// - nameservice: pull this one first, as it has no height
-	// - gnomonSC: skip this one
+	// - gnomonSC: handle separately, eg fastsync
 
 	// let's go get the name service contract
 	params := rpc.GetSC_Params{
@@ -225,14 +227,24 @@ func Start_gnomon_indexer() error {
 	return nil
 }
 
-func start_printer(ctx context.Context, last int64) { // Set up a listener for get info
+// Set up a listener for get info
+func start_printer(ctx context.Context, last int64) {
 	ticker := time.NewTicker(time.Second * 2)
 	defer ticker.Stop()
 
 	for RUNNING {
 		select {
+
 		case <-ctx.Done():
 			return
+
+		case staged := <-staged_for_writing:
+			printLastStaged(staged, now)
+
+		case err := <-error_channel:
+			log.Fatalf("error: %s", err)
+			return
+
 		case <-ticker.C:
 
 			now, _ = connections.Get_TopoHeight()
@@ -257,12 +269,6 @@ func start_printer(ctx context.Context, last int64) { // Set up a listener for g
 				database.StoreGetInfoDetails(&info)
 
 			}
-		case staged := <-staged_for_writing:
-			printLastStaged(staged, now)
-
-		case err := <-error_channel:
-			log.Fatalf("error: %s", err)
-			return
 		}
 	}
 }

@@ -23,24 +23,24 @@ func scid_handling(ctx context.Context) {
 		case <-ctx.Done():
 			for areQueuesEmpty() {
 				for staged := range scid_processing {
-					work_on_scids(int64(staged.Height), staged.Tx, staged.Transaction)
+					work_on_scids(int64(staged.Height), staged.Tx.Signer, staged.Transaction)
 				}
 			}
 			return
 		case staged := <-scid_processing:
 			// sift transactions over the sieve
-			work_on_scids(int64(staged.Height), staged.Tx, staged.Transaction)
+			work_on_scids(int64(staged.Height), staged.Tx.Signer, staged.Transaction)
 		}
 	}
 }
 
-func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each transaction.Transaction) {
+func work_on_scids(height int64, signer string, tx transaction.Transaction) {
 
-	if len(each.SCDATA) == 0 {
+	if len(tx.SCDATA) == 0 {
 		return
 	}
 
-	// we go pull the contract anyway to determine that it installed
+	// pull the contract anyway to determine that it installed
 	var (
 		scid       string
 		method     string
@@ -55,22 +55,22 @@ func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each trans
 
 	// contract installs
 	// https://github.com/deroproject/derohe/blob/e9df1205b6603c62f0651d0e18e5e77a2584b15e/walletapi/rpcserver/rpc_transfer.go#L64
-	if each.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) && !each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-		scid = each.GetHash().String()
+	if tx.SCDATA.HasValue(rpc.SCCODE, rpc.DataString) && !tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+		scid = tx.GetHash().String()
 		method = "install"
 	}
 
 	// contract interactions
 	// https://github.com/deroproject/derohe/blob/e9df1205b6603c62f0651d0e18e5e77a2584b15e/walletapi/rpcserver/rpc_transfer.go#L69
-	if each.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
-		value, ok := each.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
+	if tx.SCDATA.HasValue(rpc.SCID, rpc.DataHash) {
+		value, ok := tx.SCDATA.Value(rpc.SCID, rpc.DataHash).(crypto.Hash)
 		if !ok { // paranoia
 			return
 		}
 		if value.String() == "" || value.IsZero() {
 			return
 		}
-		entrypoint, ok = each.SCDATA.Value("entrypoint", rpc.DataString).(string)
+		entrypoint, ok = tx.SCDATA.Value("entrypoint", rpc.DataString).(string)
 		if !ok {
 			return
 		}
@@ -85,9 +85,11 @@ func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each trans
 	var err error
 	if !slices.Contains(database.Exclusions, scid) {
 
-		h := height // note here
+		h := height
 
-		if fastsync { // because we need the vars at the height of current
+		// note here on why block height & get_sc_params height
+		// are different: on account of the fast sync process...
+		if fastsync { // only collect vars at current height
 			h = -1
 		}
 
@@ -103,13 +105,14 @@ func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each trans
 		case "invoke":
 			params.Code = false
 		}
-		// 	tries := 0
-		// try_again:
+
+		// error checking is the big thing here:
+		// failed validation, attempts:4 DERO.GetSC
 		sc, err = connections.GetSC(params)
 		if err != nil {
 			if params.Code {
 				// this is an invalid contract
-				if _, err := database.StoreInvalidSCIDDeploys(params.SCID, each.Fees()); err != nil {
+				if _, err := database.StoreInvalidSCIDDeploys(params.SCID, tx.Fees()); err != nil {
 					fmt.Println(err)
 					return
 				}
@@ -121,19 +124,6 @@ func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each trans
 			}
 			error_channel <- err
 		}
-		// error checking is the big thing here: failed validation, attempts:4 DERO.GetSC
-
-		// if sc.Code == "" && len(sc.VariableStringKeys) == 0 {
-		// 	tries++
-		// 	if tries <= 3 {
-		// 		goto try_again
-		// 	}
-		// 	fmt.Println("failed")
-		// 	return
-		// }
-		// if tries > 0 {
-		// 	fmt.Println("recovered", height, tx_related_info, each)
-		// }
 
 		vars = GetSCVariables(sc.VariableStringKeys, sc.VariableUint64Keys)
 
@@ -214,7 +204,6 @@ func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each trans
 	// lexicographical order
 	slices.Sort(tags)
 
-	signer := tx_related_info.Signer
 	if signer == "" { // when ringsize is greater than 2...
 		signer = "null" // maybe empty is better?
 	}
@@ -242,14 +231,14 @@ func work_on_scids(height int64, tx_related_info rpc.Tx_Related_Info, each trans
 	scid_db_queue <- &structures.SCIDToIndexStage{
 		SCTXParse: structures.SCTXParse{
 			Height:     height,
-			Txid:       each.GetHash().String(),
+			Txid:       tx.GetHash().String(),
 			Scid:       scid,
 			Entrypoint: entrypoint,
 			Method:     method,
-			Sc_args:    each.SCDATA,
+			Sc_args:    tx.SCDATA,
 			Sender:     signer,
-			Payloads:   each.Payloads,
-			Fees:       each.Fees(),
+			Payloads:   tx.Payloads,
+			Fees:       tx.Fees(),
 		},
 		Headers: headers,
 		ScVars:  vars,

@@ -122,12 +122,16 @@ func fastsync_handling(ctx context.Context) error {
 		if progress {
 			fmt.Printf("fast syncing %s %d \n", important.hash, important.height)
 		}
+
+		//goes down the shoot
 		scid_processing <- &processingStruct{
-			Height:      tx.Txs[0].Block_Height,
-			Tx:          tx.Txs[0],
+			// only way to make sure it is the right height
+			Height: tx.Txs[0].Block_Height,
+			// only way to make sure it contains the right info
+			Tx: tx.Txs[0],
+			// only way to have all the details
 			Transaction: transact,
 		}
-
 	}
 
 	completed := atomic.Int64{}
