@@ -63,7 +63,8 @@ func height_handling(ctx context.Context) {
 				fmt.Println("current height acheived, proceeding to passively index")
 			}
 			// height achieved
-			achieved_current_height = info.TopoHeight
+			height, _ := connections.Get_TopoHeight()
+			achieved_current_height = height
 
 			lowest_height = min(now, achieved_current_height)
 		}
