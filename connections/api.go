@@ -189,6 +189,7 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 	reply := make(map[string]interface{})
 
 	apiServer.setStats(reply)
+	reply["indexedscs"] = apiServer.Stats.Load().(map[string]any)["indexedscs"]
 
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
