@@ -943,9 +943,7 @@ func (bbs *BboltStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheigh
 					switch cval := vs.Value.(type) {
 					case float64:
 						vs2k[uint64(ckey)] = uint64(cval)
-					case uint64:
-						vs2k[uint64(ckey)] = cval
-					case string:
+					case uint64, string:
 						vs2k[uint64(ckey)] = cval
 					default:
 						if cval != nil {
@@ -954,28 +952,11 @@ func (bbs *BboltStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheigh
 							vs2k[uint64(ckey)] = cval
 						}
 					}
-				case uint64:
+				case uint64, string:
 					switch cval := vs.Value.(type) {
 					case float64:
 						vs2k[ckey] = uint64(cval)
-					case uint64:
-						vs2k[ckey] = cval
-					case string:
-						vs2k[ckey] = cval
-					default:
-						if cval != nil {
-							fmt.Printf("[GetSCIDVariableDetailsAtTopoheight] Value '%v' does not match string, uint64 or float64.\n", cval)
-						} else {
-							vs2k[ckey] = cval
-						}
-					}
-				case string:
-					switch cval := vs.Value.(type) {
-					case float64:
-						vs2k[ckey] = uint64(cval)
-					case uint64:
-						vs2k[ckey] = cval
-					case string:
+					case uint64, string:
 						vs2k[ckey] = cval
 					default:
 						if cval != nil {
@@ -1006,40 +987,19 @@ func (bbs *BboltStore) GetSCIDVariableDetailsAtTopoheight(scid string, topoheigh
 				case float64:
 					co.Key = uint64(ckey)
 					co.Value = uint64(cval)
-				case uint64:
-					co.Key = uint64(ckey)
-					co.Value = cval
-				case string:
+				case uint64, string:
 					co.Key = uint64(ckey)
 					co.Value = cval
 				default:
 					fmt.Printf("[GetSCIDVariableDetailsAtTopoheight] Value '%v' or Key '%v' does not match string, uint64 or float64.\n", fmt.Sprintf("%v", cval), fmt.Sprintf("%v", uint64(ckey)))
 					continue
 				}
-			case uint64:
+			case uint64, string:
 				switch cval := v.(type) {
 				case float64:
 					co.Key = ckey
 					co.Value = uint64(cval)
-				case uint64:
-					co.Key = ckey
-					co.Value = cval
-				case string:
-					co.Key = ckey
-					co.Value = cval
-				default:
-					fmt.Printf("[GetSCIDVariableDetailsAtTopoheight] Value '%v' or Key '%v' does not match string, uint64 or float64.\n", fmt.Sprintf("%v", cval), fmt.Sprintf("%v", ckey))
-					continue
-				}
-			case string:
-				switch cval := v.(type) {
-				case float64:
-					co.Key = ckey
-					co.Value = uint64(cval)
-				case uint64:
-					co.Key = ckey
-					co.Value = cval
-				case string:
+				case uint64, string:
 					co.Key = ckey
 					co.Value = cval
 				default:
@@ -1094,9 +1054,7 @@ func (bbs *BboltStore) GetAllSCIDVariableDetails(scid string) (hVars []*structur
 					switch cval := vs.Value.(type) {
 					case float64:
 						vs2k[uint64(ckey)] = uint64(cval)
-					case uint64:
-						vs2k[uint64(ckey)] = cval
-					case string:
+					case uint64, string:
 						vs2k[uint64(ckey)] = cval
 					default:
 						if cval != nil {
@@ -1105,28 +1063,11 @@ func (bbs *BboltStore) GetAllSCIDVariableDetails(scid string) (hVars []*structur
 							vs2k[uint64(ckey)] = cval
 						}
 					}
-				case uint64:
+				case uint64, string:
 					switch cval := vs.Value.(type) {
 					case float64:
 						vs2k[ckey] = uint64(cval)
-					case uint64:
-						vs2k[ckey] = cval
-					case string:
-						vs2k[ckey] = cval
-					default:
-						if cval != nil {
-							fmt.Printf("[GetAllSCIDVariableDetails] Value '%v' does not match string, uint64 or float64.\n", cval)
-						} else {
-							vs2k[ckey] = cval
-						}
-					}
-				case string:
-					switch cval := vs.Value.(type) {
-					case float64:
-						vs2k[ckey] = uint64(cval)
-					case uint64:
-						vs2k[ckey] = cval
-					case string:
+					case uint64, string:
 						vs2k[ckey] = cval
 					default:
 						if cval != nil {
@@ -1157,40 +1098,19 @@ func (bbs *BboltStore) GetAllSCIDVariableDetails(scid string) (hVars []*structur
 				case float64:
 					co.Key = uint64(ckey)
 					co.Value = uint64(cval)
-				case uint64:
-					co.Key = uint64(ckey)
-					co.Value = cval
-				case string:
+				case uint64, string:
 					co.Key = uint64(ckey)
 					co.Value = cval
 				default:
 					fmt.Printf("[GetAllSCIDVariableDetails] Value '%v' or Key '%v' is does not match string, uint64 or float64.\n", fmt.Sprintf("%v", cval), fmt.Sprintf("%v", uint64(ckey)))
 					continue
 				}
-			case uint64:
+			case uint64, string:
 				switch cval := v.(type) {
 				case float64:
 					co.Key = ckey
 					co.Value = uint64(cval)
-				case uint64:
-					co.Key = ckey
-					co.Value = cval
-				case string:
-					co.Key = ckey
-					co.Value = cval
-				default:
-					fmt.Printf("[GetAllSCIDVariableDetails] Value '%v' or Key '%v' does not match string, uint64 or float64.\n", fmt.Sprintf("%v", cval), fmt.Sprintf("%v", ckey))
-					continue
-				}
-			case string:
-				switch cval := v.(type) {
-				case float64:
-					co.Key = ckey
-					co.Value = uint64(cval)
-				case uint64:
-					co.Key = ckey
-					co.Value = cval
-				case string:
+				case uint64, string:
 					co.Key = ckey
 					co.Value = cval
 				default:
