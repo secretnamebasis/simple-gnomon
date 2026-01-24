@@ -303,9 +303,9 @@ func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags strin
 	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		for _, each := range []string{"owner", "headers", "class", "tags"} {
 			b, err := tx.CreateBucketIfNotExists([]byte(each))
-		if err != nil {
-			return fmt.Errorf("bucket: %s", err)
-		}
+			if err != nil {
+				return fmt.Errorf("bucket: %s", err)
+			}
 			var key, value = []byte(scid), []byte("")
 			switch each {
 			case "owner":
@@ -316,12 +316,12 @@ func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags strin
 				value = []byte(class)
 			case "tags":
 				value = []byte(tags)
-		}
+			}
 			err = b.Put(key, value)
-		if err != nil {
-			return err
-		}
-		changes = true
+			if err != nil {
+				return err
+			}
+			changes = true
 		}
 		return
 	})
@@ -1135,37 +1135,31 @@ func (bbs *BboltStore) GetSCIDKeysByValue(scid string, val interface{}, height i
 	// TODO: If there's no interaction height, do we go get scvars against daemon and store? Or do we just ignore and return nil
 	variables := bbs.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
 
+	callback := func(k any) {
+		switch ckey := k.(type) {
+		case float64:
+			keysuint64 = append(keysuint64, uint64(ckey))
+		case uint64:
+			keysuint64 = append(keysuint64, ckey)
+		default:
+			// default just store as string. Keys should only ever be strings or uint64, however, but assume default to string
+			keysstring = append(keysstring, k.(string))
+		}
+	}
 	// Switch against the value passed. If it's a uint64 or string
 	switch inpvar := val.(type) {
+
 	case uint64:
 		for _, v := range variables {
 			switch cval := v.Value.(type) {
 			case float64:
 				if inpvar == uint64(cval) {
-					switch ckey := v.Key.(type) {
-					case float64:
-						keysuint64 = append(keysuint64, uint64(ckey))
-					case uint64:
-						keysuint64 = append(keysuint64, ckey)
-					default:
-						// default just store as string. Keys should only ever be strings or uint64, however, but assume default to string
-						keysstring = append(keysstring, v.Key.(string))
-					}
+					callback(v.Key)
 				}
 			case uint64:
 				if inpvar == cval {
-					switch ckey := v.Key.(type) {
-					case float64:
-						keysuint64 = append(keysuint64, uint64(ckey))
-					case uint64:
-						keysuint64 = append(keysuint64, ckey)
-					default:
-						// default just store as string. Keys should only ever be strings or uint64, however, but assume default to string
-						keysstring = append(keysstring, v.Key.(string))
-					}
+					callback(v.Key)
 				}
-			default:
-				// Nothing - expect only string/uint64 for value types
 			}
 		}
 	case string:
@@ -1173,22 +1167,10 @@ func (bbs *BboltStore) GetSCIDKeysByValue(scid string, val interface{}, height i
 			switch cval := v.Value.(type) {
 			case string:
 				if inpvar == cval {
-					switch ckey := v.Key.(type) {
-					case float64:
-						keysuint64 = append(keysuint64, uint64(ckey))
-					case uint64:
-						keysuint64 = append(keysuint64, ckey)
-					default:
-						// default just store as string. Keys should only ever be strings or uint64, however, but assume default to string
-						keysstring = append(keysstring, v.Key.(string))
-					}
+					callback(v.Key)
 				}
-			default:
-				// Nothing - expect only string/uint64 for value types
 			}
 		}
-	default:
-		// Nothing - expect only string/uint64 for value types
 	}
 
 	return keysstring, keysuint64
@@ -1202,7 +1184,17 @@ func (bbs *BboltStore) GetSCIDValuesByKey(scid string, key interface{}, height i
 
 	// TODO: If there's no interaction height, do we go get scvars against daemon and store? Or do we just ignore and return nil
 	variables := bbs.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
-
+	callback := func(v any) {
+		switch cval := v.(type) {
+		case float64:
+			valuesuint64 = append(valuesuint64, uint64(cval))
+		case uint64:
+			valuesuint64 = append(valuesuint64, cval)
+		default:
+			// default just store as string. Values should only ever be strings or uint64, however, but assume default to string
+			valuesstring = append(valuesstring, v.(string))
+		}
+	}
 	// Switch against the value passed. If it's a uint64 or string
 	switch inpvar := key.(type) {
 	case uint64:
@@ -1210,30 +1202,12 @@ func (bbs *BboltStore) GetSCIDValuesByKey(scid string, key interface{}, height i
 			switch ckey := v.Key.(type) {
 			case float64:
 				if inpvar == uint64(ckey) {
-					switch cval := v.Value.(type) {
-					case float64:
-						valuesuint64 = append(valuesuint64, uint64(cval))
-					case uint64:
-						valuesuint64 = append(valuesuint64, cval)
-					default:
-						// default just store as string. Keys should only ever be strings or uint64, however, but assume default to string
-						valuesstring = append(valuesstring, v.Value.(string))
-					}
+					callback(v.Value)
 				}
 			case uint64:
 				if inpvar == ckey {
-					switch cval := v.Value.(type) {
-					case float64:
-						valuesuint64 = append(valuesuint64, uint64(cval))
-					case uint64:
-						valuesuint64 = append(valuesuint64, cval)
-					default:
-						// default just store as string. Keys should only ever be strings or uint64, however, but assume default to string
-						valuesstring = append(valuesstring, v.Value.(string))
-					}
+					callback(v.Value)
 				}
-			default:
-				// Nothing - expect only string/uint64 for value types
 			}
 		}
 	case string:
@@ -1241,18 +1215,8 @@ func (bbs *BboltStore) GetSCIDValuesByKey(scid string, key interface{}, height i
 			switch ckey := v.Key.(type) {
 			case string:
 				if inpvar == ckey {
-					switch cval := v.Value.(type) {
-					case float64:
-						valuesuint64 = append(valuesuint64, uint64(cval))
-					case uint64:
-						valuesuint64 = append(valuesuint64, cval)
-					default:
-						// default just store as string. Values should only ever be strings or uint64, however, but assume default to string
-						valuesstring = append(valuesstring, v.Value.(string))
-					}
+					callback(v.Value)
 				}
-			default:
-				// Nothing - expect only string/uint64 for value types
 			}
 		}
 	default:
