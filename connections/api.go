@@ -188,17 +188,7 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-		reply["indexedscs"] = stats["indexedscs"]
-	} else {
-		// Default reply - for testing etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
@@ -211,16 +201,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	// Query for SCID
 	scidkeys, ok := r.URL.Query()["scid"]
@@ -330,16 +311,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing, initials etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	// Query for SCID
 	scidkeys, ok := r.URL.Query()["scid"]
@@ -452,16 +424,7 @@ func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing, initials etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	// Query for SCID
 	scidkeys, ok := r.URL.Query()["scid"]
@@ -549,16 +512,7 @@ func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing, initials etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	// Query for SCID
 	blidkeys, ok := r.URL.Query()["blid"]
@@ -603,16 +557,7 @@ func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing, initials etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	// Query for SCID
 	addrkeys, ok := r.URL.Query()["address"]
@@ -645,16 +590,7 @@ func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Req
 
 	reply := make(map[string]interface{})
 
-	stats := apiServer.getStats()
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing, initials etc.
-		reply["hello"] = "world"
-	}
+	apiServer.setStats(reply)
 
 	allMiniBlocks := apiServer.Database.GetAllMiniblockDetails()
 
@@ -693,10 +629,15 @@ func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request)
 	}
 }
 
-func (apiServer *ApiServer) getStats() map[string]interface{} {
-	stats := apiServer.Stats.Load()
+func (apiServer *ApiServer) setStats(reply map[string]any) {
+	stats := apiServer.Stats.Load().(map[string]any)
 	if stats != nil {
-		return stats.(map[string]interface{})
+		reply["countSCs"] = stats["countSCs"]
+		reply["countRegTX"] = stats["countRegTX"]
+		reply["countBurnTX"] = stats["countBurnTX"]
+		reply["countNormTX"] = stats["countNormTX"]
+	} else {
+		// Default reply - for testing, initials etc.
+		reply["hello"] = "world"
 	}
-	return nil
 }
