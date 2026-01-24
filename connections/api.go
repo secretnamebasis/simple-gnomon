@@ -73,8 +73,7 @@ func (apiServer *ApiServer) Start(ctx context.Context) {
 	// If SSL is configured, due to nature of listenandserve, put HTTP in go routine then call SSL afterwards so they can run in parallel. Otherwise, run http as normal
 	if apiServer.Config.SSL {
 		go apiServer.listen(ctx)
-		go apiServer.listenSSL(ctx)
-		apiServer.getInfoListenSSL()
+		apiServer.listenSSL(ctx)
 	} else {
 		apiServer.listen(ctx)
 	}
@@ -148,19 +147,6 @@ func (apiServer *ApiServer) listenSSL(ctx context.Context) {
 
 	log.Println("api server stopped cleanly")
 
-}
-
-// Sets up a separate getinfo SSL listener. Use cases is for things like benchmark.dero.network and others that may want to consume a https endpoint of derod getinfo or other future command output
-func (apiServer *ApiServer) getInfoListenSSL() {
-	fmt.Printf("[API] Starting GetInfo SSL API on %v\n", apiServer.Config.GetInfoSSLListen)
-	routerSSL := mux.NewRouter()
-	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
-	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
-
-	err := http.ListenAndServeTLS(apiServer.Config.GetInfoSSLListen, apiServer.Config.GetInfoCertFile, apiServer.Config.GetInfoKeyFile, routerSSL)
-	if err != nil {
-		log.Fatalf("[API] Failed to start GetInfo SSL API: %v\n", err)
-	}
 }
 
 // Default 404 not found response if api entry wasn't caught
