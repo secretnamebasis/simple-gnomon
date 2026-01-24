@@ -837,7 +837,7 @@ func (bbs *BboltStore) StoreGetInfoDetails(getinfo *rpc.GetInfo_Result) (changes
 
 	bName := "getinfo"
 
-	key := "getinfo"
+	key := bName
 
 	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
 		b, err := tx.CreateBucketIfNotExists([]byte(bName))
