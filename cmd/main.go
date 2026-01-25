@@ -3,15 +3,13 @@ package main
 import (
 	"fmt"
 
-	"github.com/secretnamebasis/simple-gnomon/cmd"
+	"github.com/secretnamebasis/simple-gnomon/pkg"
 )
 
 func main() {
 
-	fmt.Println("Clear is better than clever. \n- Robert Pike")
-
 	// start the indexer
-	if err := cmd.Start_gnomon_indexer(); err != nil {
+	if err := pkg.Start_gnomon_indexer(); err != nil {
 		fmt.Println(err)
 		return
 	}

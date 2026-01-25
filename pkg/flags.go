@@ -1,4 +1,4 @@
-package cmd
+package pkg
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/secretnamebasis/simple-gnomon/globals"
 )
 
 var (
@@ -21,6 +23,7 @@ var (
 	fastsync           bool  //= flag.Bool("fastsync", false, "-fastsync")
 	store_minis        bool  //= flag.Bool("store-minis", false, "-store-minis")
 	progress           bool  //= flag.Bool("progress", false, "-progress")
+	version            bool
 
 	help_msg = `Usage: simple-gnomon [options]
 A simple indexer for the DERO blockchain.
@@ -37,6 +40,7 @@ Options:
   --enable-miniblock-lookup                   Store miniblock details within index
   --num-parallel-blocks=<N>                   Concurrently process blocks
   --progress                                  Show download progress stats.
+  --version, -v                               Show version.
   --help, -h                                  Show this help message.`
 )
 
@@ -47,7 +51,12 @@ func parseFlags() error {
 	// launch help when present
 	if slices.Contains(launch_args, "--help") || slices.Contains(launch_args, "-h") {
 		fmt.Println(help_msg)
-		return nil
+		os.Exit(0)
+	}
+
+	if slices.Contains(launch_args, "--version") || slices.Contains(launch_args, "-v") {
+		fmt.Println(globals.Version.String())
+		os.Exit(0)
 	}
 
 	for _, each := range launch_args {

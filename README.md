@@ -48,7 +48,7 @@ Minimal set up is required: `./simple-gnomon --daemon-rpc-address=127.0.0.1:1010
 To use simple gnomon in a go application; 
 ```go 
 // include import in program
-import 	"github.com/secretnamebasis/simple-gnomon/cmd"
+import 	"github.com/secretnamebasis/simple-gnomon/pkg"
 
 
 // somewhere in the code...
@@ -64,7 +64,7 @@ func foobar(){
     os.Args = append(os.Args, endpoint_flag)
 
     // start the indexer
-    if err := cmd.Start_gnomon_indexer(); err != nil {
+    if err := pkg.Start_gnomon_indexer(); err != nil {
         fmt.Println(err)
         return
     }

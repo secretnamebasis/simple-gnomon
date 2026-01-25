@@ -1,4 +1,4 @@
-package cmd
+package pkg
 
 import (
 	"context"
@@ -49,6 +49,7 @@ var error_channel = make(chan error, 1)
 func Start_gnomon_indexer() error {
 	runtime.GC() // let's clean things up before beginning
 	parseFlags()
+	fmt.Println("Clear is better than clever. \n- Robert Pike")
 
 	if endpoint == "" {
 		// call on the wallet ws for authorizations
