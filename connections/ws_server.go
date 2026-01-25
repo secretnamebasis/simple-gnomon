@@ -306,7 +306,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			message.Error = err
 			break
 		}
-		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, params.Height, params.Max)
+		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, params.Height)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
 		message.Result = result
 	case "GetSCIDValuesByKey":
@@ -315,7 +315,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			message.Error = err
 			break
 		}
-		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, params.Height, params.Max)
+		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, params.Height)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
 		message.Result = result
 	case "GetLiveSCIDKeysByValue":
@@ -324,7 +324,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			message.Error = err
 			break
 		}
-		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, 0, params.Max)
+		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, 0)
 		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
 		message.Result = result
 	case "GetLiveSCIDValuesByKey":
@@ -333,7 +333,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			message.Error = err
 			break
 		}
-		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, 0, params.Max)
+		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, 0)
 		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
 		message.Result = result
 	case "GetSCIDInteractionByAddr":
@@ -356,7 +356,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 			message.Error = err
 			break
 		}
-		message.Result = wss.database.GetInteractionIndex(params.TopoHeight, params.Heights, params.Max)
+		message.Result = wss.database.GetInteractionIndex(params.TopoHeight, params.Heights)
 	case "GetInvalidSCIDDeploys":
 		var params *structures.GnomonInteractionIndex
 		if err := json.Unmarshal(*req.Params, &params); err != nil {

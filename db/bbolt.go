@@ -1127,10 +1127,10 @@ func (bbs *BboltStore) GetAllSCIDVariableDetails(scid string) (hVars []*structur
 }
 
 // Gets SC variable keys at given topoheight who's value equates to a given interface{} (string/uint64)
-func (bbs *BboltStore) GetSCIDKeysByValue(scid string, val interface{}, height int64, rmax bool) (keysstring []string, keysuint64 []uint64) {
+func (bbs *BboltStore) GetSCIDKeysByValue(scid string, val interface{}, height int64) (keysstring []string, keysuint64 []uint64) {
 	scidInteractionHeights := bbs.GetSCIDInteractionHeight(scid)
 
-	interactionHeight := bbs.GetInteractionIndex(height, scidInteractionHeights, rmax)
+	interactionHeight := bbs.GetInteractionIndex(height, scidInteractionHeights)
 
 	// TODO: If there's no interaction height, do we go get scvars against daemon and store? Or do we just ignore and return nil
 	variables := bbs.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
@@ -1177,10 +1177,10 @@ func (bbs *BboltStore) GetSCIDKeysByValue(scid string, val interface{}, height i
 }
 
 // Gets SC values by key at given topoheight who's key equates to a given interface{} (string/uint64)
-func (bbs *BboltStore) GetSCIDValuesByKey(scid string, key interface{}, height int64, rmax bool) (valuesstring []string, valuesuint64 []uint64) {
+func (bbs *BboltStore) GetSCIDValuesByKey(scid string, key interface{}, height int64) (valuesstring []string, valuesuint64 []uint64) {
 	scidInteractionHeights := bbs.GetSCIDInteractionHeight(scid)
 
-	interactionHeight := bbs.GetInteractionIndex(height, scidInteractionHeights, rmax)
+	interactionHeight := bbs.GetInteractionIndex(height, scidInteractionHeights)
 
 	// TODO: If there's no interaction height, do we go get scvars against daemon and store? Or do we just ignore and return nil
 	variables := bbs.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
@@ -1332,29 +1332,29 @@ func (bbs *BboltStore) GetSCIDInteractionHeight(scid string) (scidinteractions [
 	return
 }
 
-func (bbs *BboltStore) GetInteractionIndex(topoheight int64, heights []int64, rmax bool) (height int64) {
+func (bbs *BboltStore) GetInteractionIndex(topoheight int64, heights []int64) (height int64) {
 	if len(heights) <= 0 {
-		return height
+		return
 	}
 
-	// Sort heights so most recent is index 0 [if preferred reverse, just swap > with <]
 	sort.SliceStable(heights, func(i, j int) bool {
 		return heights[i] > heights[j]
 	})
 
-	if topoheight > heights[0] || rmax {
+	if topoheight > heights[0] || // if the height provided is higher than highest;
+		topoheight < 0 { // or, if the height provided is like -1...
 		return heights[0]
 	}
 
-	for i := 1; i < len(heights); i++ {
-		if heights[i] < topoheight {
-			return heights[i]
-		} else if heights[i] == topoheight {
-			return heights[i]
+	// if we don't have a height yet...
+	// itereate through each of the heights provided
+	for _, h := range heights {
+		if h <= topoheight {
+			height = h
 		}
 	}
 
-	return height
+	return
 }
 
 // Stores any SCIDs that were attempted to be deployed but not correct - log scid/fees burnt attempting it.

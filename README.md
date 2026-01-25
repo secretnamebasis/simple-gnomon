@@ -15,7 +15,7 @@ Post an issue whenever; or fork the code and do what you want (see MIT LICENSE).
 More to come in the future. Pls wait, or just go read the code. 
 
 ## RELEASE
-Once development has reached "simpatico", releases will be included in the repo. 
+Once development has reached "simpatico", [releases](https://github.com/secretnamebasis/simple-gnomon/releases/latest) will be included in the repo. 
 
 ## Install 
 Installation is easy:
@@ -80,7 +80,7 @@ func foobar(){
 This endpoint, if not set by the `--api-address=<ip:port>` flag, defaults to `http://127.0.0.1:8082`
 
 ```html
-/api/indexedscs => {"indexdetails":null,"indexedscs": [scid,scid,scid], "numscs":49573}
+/api/indexedscs 
 /api/indexbyscid ? scid="" & address=""
 /api/scvarsbyheight ? scid="" & height=""
 /api/invalidscids
@@ -91,7 +91,7 @@ This endpoint, if not set by the `--api-address=<ip:port>` flag, defaults to `ht
 ```
 
 ### `ws`
-This endpoint defaults to `ws://127.0.0.1:9190/ws`. However, by using the `--ws-address=<ip:port>` flag, one cane set it to what is desired. 
+This endpoint defaults to `ws://127.0.0.1:9190/ws`. However, by using the `--ws-address=<ip:port>` flag, one can set it to what is desired. 
 
 ## FILTERS
 In addition to a catch all search filter, simple-gnomon contains 3 filters found in `config/search.json`: "g45", "nfa", "tela" ; these named searches are applied to indexed scids in a comma separated format, eg `tags`. The `--search-filter="<F;F>;;;<F;F>"` flag allows users do override the `search.json` file with multiple searches (using the `;;;` separator), with multiple search terms (using the `;` separator), eg `one-term;with a second term;;;another search;with another term`.

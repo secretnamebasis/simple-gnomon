@@ -51,13 +51,10 @@ func NewApiServer(cfg *APIConfig, database *db.BboltStore) *ApiServer {
 
 // Starts the api server
 func (apiServer *ApiServer) Start(ctx context.Context) {
-
 	apiServer.StatsIntv, _ = time.ParseDuration(apiServer.Config.StatsCollectInterval)
 	statsTimer := time.NewTimer(apiServer.StatsIntv)
-	fmt.Printf("[API] Set stats collect interval to %v\n", apiServer.StatsIntv)
-
+	fmt.Printf("Set stats collect interval to %v\n", apiServer.StatsIntv)
 	apiServer.collectStats()
-
 	go func() {
 		for {
 			select {
@@ -69,7 +66,6 @@ func (apiServer *ApiServer) Start(ctx context.Context) {
 			}
 		}
 	}()
-
 	// If SSL is configured, due to nature of listenandserve, put HTTP in go routine then call SSL afterwards so they can run in parallel. Otherwise, run http as normal
 	if apiServer.Config.SSL {
 		go apiServer.listen(ctx)
@@ -79,25 +75,38 @@ func (apiServer *ApiServer) Start(ctx context.Context) {
 	}
 }
 
+type route struct {
+	route string
+	fn    func(http.ResponseWriter, *http.Request)
+}
+
+func (apiServer *ApiServer) newRouter() *mux.Router {
+	r := mux.NewRouter()
+	routes := []route{
+		{"/api/getinfo", apiServer.GetInfo},
+		{"/api/indexedscs", apiServer.StatsIndex},
+		{"/api/indexbyscid", apiServer.InvokeIndexBySCID},
+		{"/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight},
+		{"/api/invalidscids", apiServer.InvalidSCIDStats},
+		{"/api/scidprivtx", apiServer.NormalTxWithSCID},
+	}
+	if apiServer.Config.MBLLookup {
+		routes = append(routes,
+			route{"/api/getmbladdrsbyhash", apiServer.MBLLookupByHash},
+			route{"/api/getmblcountbyaddr", apiServer.MBLLookupByAddr},
+		)
+	}
+	for _, each := range routes {
+		r.HandleFunc(each.route, each.fn)
+	}
+	r.NotFoundHandler = http.HandlerFunc(notFound)
+	return r
+}
+
 // Sets up the non-SSL API listener
 func (apiServer *ApiServer) listen(ctx context.Context) {
-	fmt.Printf("[API] Starting API on %v\n", apiServer.Config.Listen)
-	router := mux.NewRouter()
-	router.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
-	router.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
-	router.HandleFunc("/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight)
-	router.HandleFunc("/api/invalidscids", apiServer.InvalidSCIDStats)
-	router.HandleFunc("/api/scidprivtx", apiServer.NormalTxWithSCID)
-	if apiServer.Config.MBLLookup {
-		router.HandleFunc("/api/getmbladdrsbyhash", apiServer.MBLLookupByHash)
-		router.HandleFunc("/api/getmblcountbyaddr", apiServer.MBLLookupByAddr)
-	}
-	router.HandleFunc("/api/getinfo", apiServer.GetInfo)
-	router.NotFoundHandler = http.HandlerFunc(notFound)
-	srv := &http.Server{
-		Addr:    apiServer.Config.Listen,
-		Handler: router,
-	}
+	fmt.Printf("Starting API on %v\n", apiServer.Config.Listen)
+	srv := &http.Server{Addr: apiServer.Config.Listen, Handler: apiServer.newRouter()}
 	go func() {
 		<-ctx.Done()
 		if err := srv.Shutdown(ctx); err != nil {
@@ -107,32 +116,15 @@ func (apiServer *ApiServer) listen(ctx context.Context) {
 	}()
 	err := srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatalf("[API] Failed to start api: %v", err)
+		log.Fatalf("Failed to start api: %v", err)
 	}
-
 	log.Println("api server stopped cleanly")
 }
 
 // Sets up the SSL API listener
 func (apiServer *ApiServer) listenSSL(ctx context.Context) {
-
-	fmt.Printf("[API] Starting SSL API on %v\n", apiServer.Config.SSLListen)
-	routerSSL := mux.NewRouter()
-	routerSSL.HandleFunc("/api/indexedscs", apiServer.StatsIndex)
-	routerSSL.HandleFunc("/api/indexbyscid", apiServer.InvokeIndexBySCID)
-	routerSSL.HandleFunc("/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight)
-	routerSSL.HandleFunc("/api/invalidscids", apiServer.InvalidSCIDStats)
-	routerSSL.HandleFunc("/api/scidprivtx", apiServer.NormalTxWithSCID)
-	if apiServer.Config.MBLLookup {
-		routerSSL.HandleFunc("/api/getmbladdrsbyhash", apiServer.MBLLookupByHash)
-		routerSSL.HandleFunc("/api/getmblcountbyaddr", apiServer.MBLLookupByAddr)
-	}
-	routerSSL.HandleFunc("/api/getinfo", apiServer.GetInfo)
-	routerSSL.NotFoundHandler = http.HandlerFunc(notFound)
-	srv := &http.Server{
-		Addr:    apiServer.Config.SSLListen,
-		Handler: routerSSL,
-	}
+	fmt.Printf("Starting SSL API on %v\n", apiServer.Config.SSLListen)
+	srv := &http.Server{Addr: apiServer.Config.SSLListen, Handler: apiServer.newRouter()}
 	go func() {
 		<-ctx.Done()
 		if err := srv.Shutdown(ctx); err != nil {
@@ -142,11 +134,289 @@ func (apiServer *ApiServer) listenSSL(ctx context.Context) {
 	}()
 	err := srv.ListenAndServeTLS(apiServer.Config.CertFile, apiServer.Config.KeyFile)
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatalf("[API] Failed to start api: %v", err)
+		log.Fatalf("Failed to start api: %v", err)
+	}
+	log.Println("api server stopped cleanly")
+}
+
+// Continuous check on number of validated scs etc. for base stats of service.
+func (apiServer *ApiServer) collectStats() {
+	if apiServer.Database.Closing {
+		return
+	}
+	var (
+		stats  = make(map[string]interface{})
+		sclist = apiServer.Database.GetAllOwnersAndSCIDs()
+	)
+	stats["countSCs"] = len(sclist)
+	stats["countRegTX"] = apiServer.Database.GetTxCount("registration")
+	stats["countBurnTX"] = apiServer.Database.GetTxCount("burn")
+	stats["countNormTX"] = apiServer.Database.GetTxCount("normal")
+	stats["indexedscs"] = sclist
+	apiServer.Stats.Store(stats)
+}
+func (apiServer *ApiServer) setStats(reply map[string]any) {
+	stats := apiServer.Stats.Load().(map[string]any)
+	if stats != nil {
+		reply["countSCs"], reply["countRegTX"], reply["countBurnTX"], reply["countNormTX"] =
+			stats["countSCs"], stats["countRegTX"], stats["countBurnTX"], stats["countNormTX"]
+
+	} else {
+		// Default reply - for testing, initials etc.
+		reply["hello"] = "world"
+	}
+}
+
+func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+	reply := make(map[string]interface{})
+	apiServer.setStats(reply)
+	reply["indexedscs"] = apiServer.Stats.Load().(map[string]any)["indexedscs"]
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+	var (
+		reply   = make(map[string]interface{})
+		scid    = r.URL.Query().Get("scid")
+		address = r.URL.Query().Get("address")
+		sclist  = apiServer.Database.GetAllOwnersAndSCIDs() // Get all scid:owner
+	)
+	apiServer.setStats(reply)
+	switch {
+	case address != "" && scid != "":
+		// Return results that match both address and scid
+		var addrscidinvokes []*structures.SCTXParse
+		if _, ok := sclist[scid]; ok {
+			addrscidinvokes = apiServer.Database.GetAllSCIDInvokeDetailsBySigner(scid, address)
+		}
+		// Case to ignore large variable returns
+		if len(addrscidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
+			fmt.Printf("Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
+			reply["addrscidinvokescount"], reply["addrscidinvokes"] = 0, nil
+			encodeReply(writer, reply)
+			return
+		}
+		reply["addrscidinvokescount"], reply["addrscidinvokes"] = len(addrscidinvokes), addrscidinvokes
+	case address != "" && scid == "":
+		// If address and no scid, return combined results of all instances address is defined (invokes and installs)
+		var addrinvokes [][]*structures.SCTXParse
+		for k := range sclist {
+			currinvokedetails := apiServer.Database.GetAllSCIDInvokeDetailsBySigner(k, address)
+			if currinvokedetails != nil {
+				addrinvokes = append(addrinvokes, currinvokedetails)
+			}
+		}
+		// Case to ignore large variable returns
+		if len(addrinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
+			fmt.Printf("Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
+			reply["addrinvokescount"], reply["addrinvokes"] = 0, nil
+			encodeReply(writer, reply)
+			return
+		}
+		reply["addrinvokescount"], reply["addrinvokes"] = len(addrinvokes), addrinvokes
+	case address == "" && scid != "":
+		// If no address and scid only, return invokes of scid
+		scidinvokes := apiServer.Database.GetAllSCIDInvokeDetails(scid)
+		// Case to ignore large variable returns
+		if len(scidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
+			fmt.Printf("Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
+			reply["scidinvokescount"], reply["scidinvokes"] = 0, nil
+			encodeReply(writer, reply)
+			return
+		}
+		reply["scidinvokescount"], reply["scidinvokes"] = len(scidinvokes), scidinvokes
+	}
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+	var (
+		reply  = make(map[string]interface{})
+		scid   = r.URL.Query().Get("scid")
+		height = r.URL.Query().Get("height")
+	)
+	apiServer.setStats(reply)
+	if scid == "" {
+		log.Printf("URL Param 'scid' is missing. Debugging only.")
+		reply["variables"] = nil
+		encodeReply(writer, reply)
+		return
+	}
+	if height != "" {
+		var (
+			// TODO: If there's no interaction height, do we go get scvars against daemon and store?
+			topoheight, err        = strconv.ParseInt(height, 10, 64)
+			scidInteractionHeights = apiServer.Database.GetSCIDInteractionHeight(scid)
+			interactionHeight      = apiServer.Database.GetInteractionIndex(topoheight, scidInteractionHeights)
+			variables              = apiServer.Database.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
+			throttle               = len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle
+		)
+		if err != nil {
+			fmt.Printf("Err coverting '%v' to int64 - %v\n", height, err)
+			encodeReply(writer, reply)
+		}
+		// Case to ignore large variable returns
+		if throttle {
+			fmt.Printf("Tried to return more than %d sc vars for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
+			reply["variables"] = nil
+			encodeReply(writer, reply)
+			return
+		}
+		reply["variables"], reply["scidinteractionheight"] = variables, interactionHeight
+	} else {
+		var (
+			variables              = apiServer.Database.GetAllSCIDVariableDetails(scid)
+			scidInteractionHeights = apiServer.Database.GetSCIDInteractionHeight(scid)
+			// Case to ignore all variable instance returns for builtin registration tx - large amount of data.
+			ignorables = scid == globals.NAMESERVICE || scid == globals.MAINNET_GNOMON_SCID || scid == globals.TESTNET_GNOMON_SCID
+			throttle   = len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle
+		)
+		if ignorables && apiServer.Config.ApiThrottle {
+			fmt.Printf("Tried to return all the sc vars of everything at registration builtin... DENIED! Too much data...\n")
+			reply["variables"] = nil
+			encodeReply(writer, reply)
+			return
+		}
+		// Case to ignore large variable returns
+		if throttle {
+			fmt.Printf("Tried to return more than %d sc vars for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
+			reply["variables"] = nil
+			encodeReply(writer, reply)
+			return
+		}
+		reply["variables"], reply["scidinteractionheights"] = variables, scidInteractionHeights
+	}
+	encodeReply(writer, reply)
+}
+func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+	var (
+		reply                   = make(map[string]interface{})
+		scid, address           = r.URL.Query().Get("scid"), r.URL.Query().Get("address")
+		allNormTxWithSCIDByAddr = apiServer.Database.GetAllNormalTxWithSCIDByAddr(address)
+		allNormTxWithSCIDBySCID = apiServer.Database.GetAllNormalTxWithSCIDBySCID(scid)
+		tooBig                  = (len(allNormTxWithSCIDByAddr) > globals.MAX_API_VAR_RETURN || len(allNormTxWithSCIDBySCID) > globals.MAX_API_VAR_RETURN)
+	)
+	apiServer.setStats(reply)
+	if address == "" && scid == "" {
+		reply["variables"] = nil
+		encodeReply(writer, reply)
+		return
+	}
+	// Case to ignore large variable returns
+	if tooBig && apiServer.Config.ApiThrottle {
+		fmt.Printf("Tried to return more than %d... DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["normtxwithscidbyaddr"], reply["normtxwithscidbyaddrcount"] = nil, 0
+		reply["normtxwithscidbyscid"], reply["normtxwithscidbyscidcount"] = nil, 0
+		encodeReply(writer, reply)
+		return
+	}
+	reply["normtxwithscidbyaddr"], reply["normtxwithscidbyaddrcount"] = allNormTxWithSCIDByAddr, len(allNormTxWithSCIDByAddr)
+	reply["normtxwithscidbyscid"], reply["normtxwithscidbyscidcount"] = allNormTxWithSCIDBySCID, len(allNormTxWithSCIDBySCID)
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+	var (
+		reply        = make(map[string]interface{})
+		invalidscids = apiServer.Database.GetInvalidSCIDDeploys()
+		tooBig       = len(invalidscids) > globals.MAX_API_VAR_RETURN
+	)
+	// Case to ignore large variable returns
+	if tooBig && apiServer.Config.ApiThrottle {
+		fmt.Printf("Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["invalidscids"] = nil
+		encodeReply(writer, reply)
+		return
+	}
+	reply["invalidscids"] = invalidscids
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+	var (
+		reply               = make(map[string]interface{})
+		blid                = r.URL.Query().Get("blid")
+		allMiniBlocksByBlid = apiServer.Database.GetMiniblockDetailsByHash(blid)
+		tooBig              = len(allMiniBlocksByBlid) > globals.MAX_API_VAR_RETURN
+	)
+	apiServer.setStats(reply)
+	if blid == "" {
+		fmt.Println("URL Param 'blid' is missing. Debugging only.")
+		reply["mbl"] = nil
+		encodeReply(writer, reply)
+		return
+	}
+	// Case to ignore large variable returns
+	if tooBig && apiServer.Config.ApiThrottle {
+		fmt.Printf("Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["mbl"] = nil
+		encodeReply(writer, reply)
+		return
+	}
+	reply["mbl"] = allMiniBlocksByBlid
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+	var (
+		reply               = make(map[string]interface{})
+		addr                = r.URL.Query().Get("address")
+		allMiniBlocksByAddr = apiServer.Database.GetMiniblockCountByAddress(addr)
+	)
+	apiServer.setStats(reply)
+	if addr == "" {
+		fmt.Println("URL Param 'address' is missing. Debugging only.")
+		reply["mbl"] = nil
+		encodeReply(writer, reply)
+		return
+	}
+	reply["mbl"] = allMiniBlocksByAddr
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+
+	var (
+		reply         = make(map[string]interface{})
+		allMiniBlocks = apiServer.Database.GetAllMiniblockDetails()
+		tooBig        = len(allMiniBlocks) > globals.MAX_API_VAR_RETURN
+	)
+
+	apiServer.setStats(reply)
+
+	// Case to ignore large variable returns
+	if tooBig && apiServer.Config.ApiThrottle {
+		fmt.Printf("Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
+		reply["mbl"] = nil
+
+		encodeReply(writer, reply)
+		return
 	}
 
-	log.Println("api server stopped cleanly")
+	reply["mbl"] = allMiniBlocks
 
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+
+	var (
+		reply = make(map[string]interface{})
+		info  = apiServer.Database.GetGetInfoDetails()
+	)
+
+	reply["getinfo"] = info
+
+	encodeReply(writer, reply)
 }
 
 // Default 404 not found response if api entry wasn't caught
@@ -157,488 +427,17 @@ func notFound(writer http.ResponseWriter, _ *http.Request) {
 	writer.WriteHeader(http.StatusNotFound)
 }
 
-// Continuous check on number of validated scs etc. for base stats of service.
-func (apiServer *ApiServer) collectStats() {
-
-	if apiServer.Database.Closing {
-		return
-	}
-
-	stats := make(map[string]interface{})
-	sclist := apiServer.Database.GetAllOwnersAndSCIDs()
-
-	stats["countSCs"] = len(sclist)
-	stats["countRegTX"] = apiServer.Database.GetTxCount("registration")
-	stats["countBurnTX"] = apiServer.Database.GetTxCount("burn")
-	stats["countNormTX"] = apiServer.Database.GetTxCount("normal")
-
-	stats["indexedscs"] = sclist
-
-	apiServer.Stats.Store(stats)
-}
-func set_headers(writer http.ResponseWriter) {
+func setHeaders(writer http.ResponseWriter) {
 	writer.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	writer.Header().Set("Access-Control-Allow-Origin", "*")
 	writer.Header().Set("Cache-Control", "no-cache")
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-	reply["indexedscs"] = apiServer.Stats.Load().(map[string]any)["indexedscs"]
-
+func encodeReply(writer http.ResponseWriter, reply map[string]interface{}) {
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
+		fmt.Printf("Error serializing API response: %v\n", err)
 	}
-}
-
-func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-
-	// Query for SCID
-	scidkeys, ok := r.URL.Query()["scid"]
-	var scid string
-	var address string
-
-	if ok && len(scidkeys[0]) > 0 {
-		scid = scidkeys[0]
-	}
-
-	// Query for address
-	addresskeys, ok := r.URL.Query()["address"]
-
-	if ok && len(addresskeys[0]) > 0 {
-		address = addresskeys[0]
-	}
-
-	// Get all scid:owner
-
-	sclist := apiServer.Database.GetAllOwnersAndSCIDs()
-
-	if address != "" && scid != "" {
-		// Return results that match both address and scid
-		var addrscidinvokes []*structures.SCTXParse
-
-		for k := range sclist {
-
-			if k != scid {
-				continue
-			}
-
-			addrscidinvokes = apiServer.Database.GetAllSCIDInvokeDetailsBySigner(scid, address)
-		}
-
-		// Case to ignore large variable returns
-		if len(addrscidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
-			reply["addrscidinvokescount"] = 0
-			reply["addrscidinvokes"] = nil
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-			return
-		}
-		reply["addrscidinvokescount"] = len(addrscidinvokes)
-		reply["addrscidinvokes"] = addrscidinvokes
-	} else if address != "" && scid == "" {
-		// If address and no scid, return combined results of all instances address is defined (invokes and installs)
-		var addrinvokes [][]*structures.SCTXParse
-
-		for k := range sclist {
-
-			currinvokedetails := apiServer.Database.GetAllSCIDInvokeDetailsBySigner(k, address)
-
-			if currinvokedetails != nil {
-				addrinvokes = append(addrinvokes, currinvokedetails)
-			}
-		}
-
-		// Case to ignore large variable returns
-		if len(addrinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
-			reply["addrinvokescount"] = 0
-			reply["addrinvokes"] = nil
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-			return
-		}
-
-		reply["addrinvokescount"] = len(addrinvokes)
-		reply["addrinvokes"] = addrinvokes
-	} else if address == "" && scid != "" {
-		// If no address and scid only, return invokes of scid
-
-		scidinvokes := apiServer.Database.GetAllSCIDInvokeDetails(scid)
-
-		// Case to ignore large variable returns
-		if len(scidinvokes) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeIndexBySCID] Tried to return more than %d sc indexes for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
-			reply["scidinvokescount"] = 0
-			reply["scidinvokes"] = nil
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-			return
-		}
-
-		reply["scidinvokescount"] = len(scidinvokes)
-		reply["scidinvokes"] = scidinvokes
-	}
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-
-	// Query for SCID
-	scidkeys, ok := r.URL.Query()["scid"]
-	var scid string
-	var height string
-
-	if !ok || len(scidkeys[0]) < 1 {
-		log.Printf("[API] URL Param 'scid' is missing. Debugging only.")
-		reply["variables"] = nil
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	} else {
-		scid = scidkeys[0]
-	}
-
-	// Query for address
-	heightkey, ok := r.URL.Query()["height"]
-
-	if ok && len(heightkey[0]) > 0 {
-		height = heightkey[0]
-	}
-
-	if height != "" {
-		var variables []*structures.SCIDVariable
-		var scidInteractionHeights []int64
-		var interactionHeight int64
-
-		var err error
-
-		var topoheight int64
-		topoheight, err = strconv.ParseInt(height, 10, 64)
-		if err != nil {
-			fmt.Printf("[API] Err converting '%v' to int64 - %v\n", height, err)
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-		}
-
-		scidInteractionHeights = apiServer.Database.GetSCIDInteractionHeight(scid)
-
-		interactionHeight = apiServer.Database.GetInteractionIndex(topoheight, scidInteractionHeights, false)
-
-		// TODO: If there's no interaction height, do we go get scvars against daemon and store?
-		variables = apiServer.Database.GetSCIDVariableDetailsAtTopoheight(scid, interactionHeight)
-
-		// Case to ignore large variable returns
-		if len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return more than %d sc vars for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
-			reply["variables"] = nil
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-			return
-		}
-
-		reply["variables"] = variables
-		reply["scidinteractionheight"] = interactionHeight
-	} else {
-		// TODO: Do we need this case? Should we always require a height to be defined so as not to slow the api return due to large dataset? Do we keep but put a limit on return amount?
-
-		var variables []*structures.SCIDVariable
-		var scidInteractionHeights []int64
-
-		// Case to ignore all variable instance returns for builtin registration tx - large amount of data.
-		if (scid == globals.NAMESERVICE || scid == globals.MAINNET_GNOMON_SCID || scid == globals.TESTNET_GNOMON_SCID) && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return all the sc vars of everything at registration builtin... DENIED! Too much data...\n")
-			reply["variables"] = nil
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-			return
-		}
-
-		scidInteractionHeights = apiServer.Database.GetSCIDInteractionHeight(scid)
-		variables = apiServer.Database.GetAllSCIDVariableDetails(scid)
-
-		// Case to ignore large variable returns
-		if len(variables) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-			fmt.Printf("[API-InvokeSCVarsByHeight] Tried to return more than %d sc vars for %s... DENIED! Too much data...\n", globals.MAX_API_VAR_RETURN, scid)
-			reply["variables"] = nil
-
-			err := json.NewEncoder(writer).Encode(reply)
-			if err != nil {
-				fmt.Printf("[API] Error serializing API response: %v\n", err)
-			}
-			return
-		}
-
-		reply["variables"] = variables
-		reply["scidinteractionheights"] = scidInteractionHeights
-	}
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-
-	// Query for SCID
-	scidkeys, ok := r.URL.Query()["scid"]
-	var scid string
-	var address string
-
-	if ok && len(scidkeys[0]) > 0 {
-		scid = scidkeys[0]
-	}
-
-	// Query for address
-	addresskeys, ok := r.URL.Query()["address"]
-
-	if ok && len(addresskeys[0]) > 0 {
-		address = addresskeys[0]
-	}
-
-	if address == "" && scid == "" {
-		reply["variables"] = nil
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	}
-
-	allNormTxWithSCIDByAddr := apiServer.Database.GetAllNormalTxWithSCIDByAddr(address)
-	allNormTxWithSCIDBySCID := apiServer.Database.GetAllNormalTxWithSCIDBySCID(scid)
-
-	// Case to ignore large variable returns
-	if (len(allNormTxWithSCIDByAddr) > globals.MAX_API_VAR_RETURN || len(allNormTxWithSCIDBySCID) > globals.MAX_API_VAR_RETURN) && apiServer.Config.ApiThrottle {
-		fmt.Printf("[API-NormalTxWithSCID] Tried to return more than %d... DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
-		reply["normtxwithscidbyaddr"] = nil
-		reply["normtxwithscidbyaddrcount"] = 0
-		reply["normtxwithscidbyscid"] = nil
-		reply["normtxwithscidbyscidcount"] = 0
-
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	}
-
-	reply["normtxwithscidbyaddr"] = allNormTxWithSCIDByAddr
-	reply["normtxwithscidbyaddrcount"] = len(allNormTxWithSCIDByAddr)
-	reply["normtxwithscidbyscid"] = allNormTxWithSCIDBySCID
-	reply["normtxwithscidbyscidcount"] = len(allNormTxWithSCIDBySCID)
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	invalidscids := apiServer.Database.GetInvalidSCIDDeploys()
-
-	// Case to ignore large variable returns
-	if len(invalidscids) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-		fmt.Printf("[API-InvalidSCIDStats] Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
-		reply["invalidscids"] = nil
-
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	}
-
-	reply["invalidscids"] = invalidscids
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-
-	// Query for SCID
-	blidkeys, ok := r.URL.Query()["blid"]
-	var blid string
-
-	if !ok || len(blidkeys[0]) < 1 {
-		fmt.Println("[API] URL Param 'blid' is missing. Debugging only.")
-		reply["mbl"] = nil
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	} else {
-		blid = blidkeys[0]
-	}
-
-	allMiniBlocksByBlid := apiServer.Database.GetMiniblockDetailsByHash(blid)
-
-	// Case to ignore large variable returns
-	if len(allMiniBlocksByBlid) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-		fmt.Printf("[API-MBLLookupByHash] Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
-		reply["mbl"] = nil
-
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	}
-
-	reply["mbl"] = allMiniBlocksByBlid
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-
-	// Query for SCID
-	addrkeys, ok := r.URL.Query()["address"]
-	var addr string
-
-	if !ok || len(addrkeys[0]) < 1 {
-		fmt.Println("[API] URL Param 'address' is missing. Debugging only.")
-		reply["mbl"] = nil
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	} else {
-		addr = addrkeys[0]
-	}
-
-	allMiniBlocksByAddr := apiServer.Database.GetMiniblockCountByAddress(addr)
-
-	reply["mbl"] = allMiniBlocksByAddr
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	apiServer.setStats(reply)
-
-	allMiniBlocks := apiServer.Database.GetAllMiniblockDetails()
-
-	// Case to ignore large variable returns
-	if len(allMiniBlocks) > globals.MAX_API_VAR_RETURN && apiServer.Config.ApiThrottle {
-		fmt.Printf("[API-MBLLookupAll] Tried to return more than %d.. DENIED! Too much data...", globals.MAX_API_VAR_RETURN)
-		reply["mbl"] = nil
-
-		err := json.NewEncoder(writer).Encode(reply)
-		if err != nil {
-			fmt.Printf("[API] Error serializing API response: %v\n", err)
-		}
-		return
-	}
-
-	reply["mbl"] = allMiniBlocks
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request) {
-	set_headers(writer)
-
-	reply := make(map[string]interface{})
-
-	info := apiServer.Database.GetGetInfoDetails()
-
-	reply["getinfo"] = info
-
-	err := json.NewEncoder(writer).Encode(reply)
-	if err != nil {
-		fmt.Printf("[API] Error serializing API response: %v\n", err)
-	}
-}
-
-func (apiServer *ApiServer) setStats(reply map[string]any) {
-	stats := apiServer.Stats.Load().(map[string]any)
-	if stats != nil {
-		reply["countSCs"] = stats["countSCs"]
-		reply["countRegTX"] = stats["countRegTX"]
-		reply["countBurnTX"] = stats["countBurnTX"]
-		reply["countNormTX"] = stats["countNormTX"]
-	} else {
-		// Default reply - for testing, initials etc.
-		reply["hello"] = "world"
-	}
+	return
 }
