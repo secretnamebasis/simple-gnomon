@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/deroproject/derohe/config"
+	dero "github.com/deroproject/derohe/globals"
 	"github.com/deroproject/derohe/rpc"
 	"github.com/secretnamebasis/simple-gnomon/connections"
 	"github.com/secretnamebasis/simple-gnomon/db"
@@ -88,6 +89,8 @@ func Start_gnomon_indexer() error {
 		return errors.New("please connect through rpc")
 	}
 	info, _ := connections.GetDaemonInfo()
+
+	dero.Initialize()
 
 	day_of_blocks = ((60 * 60 * 24) / int64(info.Target))
 

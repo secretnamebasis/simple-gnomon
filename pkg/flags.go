@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	dero "github.com/deroproject/derohe/globals"
 	"github.com/secretnamebasis/simple-gnomon/globals"
 )
 
@@ -103,6 +104,10 @@ func parseFlags() error {
 		} else {
 
 			switch each {
+			case `--simulator`:
+				dero.Arguments[`--simulator`] = true
+			case `--testnet`:
+				dero.Arguments[`--testnet`] = true
 			case `--fastsync`:
 				fastsync = true
 			case `--enable-miniblock-lookup`:
