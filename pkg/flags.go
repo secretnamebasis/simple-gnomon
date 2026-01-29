@@ -41,6 +41,8 @@ Options:
   --enable-miniblock-lookup                   Store miniblock details within index
   --num-parallel-blocks=<N>                   Concurrently process blocks
   --progress                                  Show download progress stats.
+  --testnet                                   Start in testnet mode.
+  --simulator                                 Start in simulation mode.
   --version, -v                               Show version.
   --help, -h                                  Show this help message.`
 )
