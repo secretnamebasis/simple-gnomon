@@ -417,7 +417,12 @@ func find_lowest_height(backup *db.BboltStore, now int64) bool {
 		return false
 	}
 	lowest = min(lowest, height)
-	return (achieved_current_height - day_of_blocks) > lowest
+	condition := (achieved_current_height - day_of_blocks)
+
+	if condition < 0 {
+		condition = 1
+	}
+	return condition > lowest
 }
 
 func safeString(s string) string {
