@@ -66,6 +66,16 @@ func height_handling(ctx context.Context) {
 			achieved_current_height = height
 
 			lowest_height = min(now, achieved_current_height)
+
+			// a simple backup strategy
+			if achieved_current_height > 0 && !established_backup &&
+				// if the current height is greater than a day of blocks...
+				find_lowest_height(backup_database, now) {
+
+				waitForAllQueues()
+
+				backup(height)
+			}
 		}
 	}
 }
@@ -77,16 +87,6 @@ func work_on_heights(ctx context.Context, height_processing chan int64, wg *sync
 
 		if !RUNNING {
 			return
-		}
-
-		// a simple backup strategy
-		if achieved_current_height > 0 && !established_backup &&
-			// if the current height is greater than a day of blocks...
-			find_lowest_height(backup_database, now) {
-
-			waitForAllQueues()
-
-			backup(height)
 		}
 
 		measurements := []int{
