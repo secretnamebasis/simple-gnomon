@@ -15,7 +15,7 @@ const MAX_API_VAR_RETURN = 1024
 const FORCE_FASTSYNC_DIFF = int64(100)
 
 // Major.Minor.Patch-Iteration
-var Version = semver.MustParse("3.2.1")
+var Version = semver.MustParse("3.2.2")
 
 // Hardcoded Smart Contracts of DERO Network
 // TODO: Possibly in future we can pull this from derohe codebase
