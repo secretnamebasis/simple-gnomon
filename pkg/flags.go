@@ -62,6 +62,10 @@ func parseFlags() error {
 		os.Exit(0)
 	}
 
+	if !slices.Contains(launch_args, "--testnet") {
+		dero.Arguments[`--testnet`] = false
+	}
+
 	for _, each := range launch_args {
 
 		if strings.Contains(each, "=") {
