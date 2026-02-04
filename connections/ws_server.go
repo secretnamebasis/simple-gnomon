@@ -20,7 +20,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/secretnamebasis/simple-gnomon/db"
-	structures "github.com/secretnamebasis/simple-gnomon/structs"
+	sgs "github.com/secretnamebasis/simple-gnomon/structs"
 )
 
 var ioTimeout = flag.Duration("io_timeout", time.Millisecond*100, "i/o operations timeout")
@@ -164,7 +164,7 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 	}()
 	var err error
 
-	var req *structures.JSONRpcReq
+	var req *sgs.JSONRpcReq
 	// log.Printf("Reader")
 	// TODO: If we can't guarantee that it's a json buffer, reader hangs until client-side WS disconnects
 	err = wsjson.Read(ctx, c, &req)
@@ -186,214 +186,216 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 
 		return err
 	}
-	var message = &structures.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil}
+	m := &sgs.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil}
+	return handleMashalError(wsjson.Write(ctx, c, reply(wss.database, req, m)))
+}
+
+func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err error) {
 	switch req.Method {
 	case "GetAllOwnersAndSCIDs":
-		message.Result = wss.database.GetAllOwnersAndSCIDs()
+		msg.Result = d.GetAllOwnersAndSCIDs()
 	case "GetAllSCIDs":
-		message.Result = wss.database.GetAllSCIDs()
+		msg.Result = d.GetAllSCIDs()
 	case "GetAllOwners":
-		message.Result = wss.database.GetAllOwners()
+		msg.Result = d.GetAllOwners()
 	case "GetAllClasses":
-		message.Result = wss.database.GetAllClasses()
+		msg.Result = d.GetAllClasses()
 	case "GetAllTags":
-		message.Result = wss.database.GetAllTags()
+		msg.Result = d.GetAllTags()
 	case "GetAllHeaders":
-		message.Result = wss.database.GetAllHeaders()
+		msg.Result = d.GetAllHeaders()
 	case "GetAllSCIDsAndHeaders":
-		message.Result = wss.database.GetAllSCIDsAndHeaders()
+		msg.Result = d.GetAllSCIDsAndHeaders()
 	case "GetAllSCIDsByClass":
-		var params *structures.GnomonClassQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonClassQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllSCIDsByClass(params.Class)
+		msg.Result = d.GetAllSCIDsByClass(params.Class)
 	case "GetAllSCIDsByTag":
-		var params *structures.GnomonTagQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonTagQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllSCIDsByTag(params.Tag)
+		msg.Result = d.GetAllSCIDsByTag(params.Tag)
 	case "GetLastIndexHeight":
-		result, err := wss.database.GetLastIndexHeight()
+		var h int64
+		h, err = d.GetLastIndexHeight()
 		if err != nil {
-			message.Error = errDisconnected
+			msg.Error = errDisconnected
 			break
 		}
-		message.Result = result
+		msg.Result = h
 	case "GetTxCount":
-		var params *structures.GnomonTxCountQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonTxCountQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
 		var result int64
 		switch params.Tx_Type {
 		case "registration", "burn", "normal":
-			result = wss.database.GetTxCount(params.Tx_Type)
+			result = d.GetTxCount(params.Tx_Type)
 		case "scids":
-			result = int64(len(wss.database.GetAllOwnersAndSCIDs()))
+			result = int64(len(d.GetAllOwnersAndSCIDs()))
 		}
-		message.Result = result
+		msg.Result = result
 	case "GetOwner":
-		var params *structures.GnomonSCIDQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetOwner(params.SCID)
+		msg.Result = d.GetOwner(params.SCID)
 	case "GetAllNormalTxWithSCIDByAddr":
-		var params *structures.GnomonAddressQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonAddressQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllNormalTxWithSCIDByAddr(params.Address)
+		msg.Result = d.GetAllNormalTxWithSCIDByAddr(params.Address)
 	case "GetAllNormalTxWithSCIDBySCID":
-		var params *structures.GnomonSCIDQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllNormalTxWithSCIDBySCID(params.SCID)
+		msg.Result = d.GetAllNormalTxWithSCIDBySCID(params.SCID)
 	case "GetAllSCIDInvokeDetails":
-		var params *structures.GnomonSCIDQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllSCIDInvokeDetails(params.SCID)
+		msg.Result = d.GetAllSCIDInvokeDetails(params.SCID)
 	case "GetAllSCIDInvokeDetailsByEntrypoint":
-		var params *structures.GnomonAllSCIDInvokeDetailsByEntrypoint
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonAllSCIDInvokeDetailsByEntrypoint
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
+		msg.Result = d.GetAllSCIDInvokeDetailsByEntrypoint(params.SCID, params.Entrypoint)
 	case "GetAllSCIDInvokeDetailsBySigner":
-		var params *structures.GnomonAllSCIDInvokeDetailsBySigner
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonAllSCIDInvokeDetailsBySigner
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
+		msg.Result = d.GetAllSCIDInvokeDetailsBySigner(params.SCID, params.Signer)
 	case "GetGetInfoDetails":
-		message.Result = wss.database.GetGetInfoDetails()
+		msg.Result = d.GetGetInfoDetails()
 	case "GetSCIDVariableDetailsAtTopoheight":
-		var params *structures.GnomonSCIDVariableDetailsAtTopoheight
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDVariableDetailsAtTopoheight
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
+		msg.Result = d.GetSCIDVariableDetailsAtTopoheight(params.SCID, params.TopoHeight)
 	case "GetAllSCIDVariableDetails":
-		var params *structures.GnomonSCIDQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		vars := wss.database.GetAllSCIDVariableDetails(params.SCID)
+		vars := d.GetAllSCIDVariableDetails(params.SCID)
 		if vars == nil {
-			message.Error = fmt.Errorf("vars are nil")
+			msg.Error = fmt.Errorf("vars are nil")
 			break
 		}
-		message.Result = vars
+		msg.Result = vars
 	case "GetSCIDKeysByValue":
-		var params *structures.GnomonSCIDKeysByValue
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDKeysByValue
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, params.Height)
-		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
-		message.Result = result
+		ks, ku := d.GetSCIDKeysByValue(params.SCID, params.Value, params.Height)
+		result := &sgs.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
+		msg.Result = result
 	case "GetSCIDValuesByKey":
-		var params *structures.GnomonSCIDKeysByKey
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDKeysByKey
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, params.Height)
-		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
-		message.Result = result
+		vs, vu := d.GetSCIDValuesByKey(params.SCID, params.Value, params.Height)
+		result := &sgs.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
+		msg.Result = result
 	case "GetLiveSCIDKeysByValue":
-		var params *structures.GnomonSCIDKeysByValue
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDKeysByValue
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		ks, ku := wss.database.GetSCIDKeysByValue(params.SCID, params.Value, 0)
-		result := &structures.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
-		message.Result = result
+		ks, ku := d.GetSCIDKeysByValue(params.SCID, params.Value, 0)
+		result := &sgs.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
+		msg.Result = result
 	case "GetLiveSCIDValuesByKey":
-		var params *structures.GnomonSCIDKeysByKey
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDKeysByKey
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		vs, vu := wss.database.GetSCIDValuesByKey(params.SCID, params.Value, 0)
-		result := &structures.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
-		message.Result = result
+		vs, vu := d.GetSCIDValuesByKey(params.SCID, params.Value, 0)
+		result := &sgs.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
+		msg.Result = result
 	case "GetSCIDInteractionByAddr":
-		var params *structures.GnomonAddressQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonAddressQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetSCIDInteractionByAddr(params.Address)
+		msg.Result = d.GetSCIDInteractionByAddr(params.Address)
 	case "GetSCIDInteractionHeight":
-		var params *structures.GnomonSCIDQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonSCIDQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetSCIDInteractionHeight(params.SCID)
+		msg.Result = d.GetSCIDInteractionHeight(params.SCID)
 	case "GetInteractionIndex":
-		var params *structures.GnomonInteractionIndex
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonInteractionIndex
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetInteractionIndex(params.TopoHeight, params.Heights)
+		msg.Result = d.GetInteractionIndex(params.TopoHeight, params.Heights)
 	case "GetInvalidSCIDDeploys":
-		var params *structures.GnomonInteractionIndex
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonInteractionIndex
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetInvalidSCIDDeploys()
+		msg.Result = d.GetInvalidSCIDDeploys()
 	case "GetAllMiniblockDetails":
-		var params *structures.GnomonInteractionIndex
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonInteractionIndex
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetAllMiniblockDetails()
+		msg.Result = d.GetAllMiniblockDetails()
 	case "GetMiniblockDetailsByHash":
-		var params *structures.GnomonMiniblockDetailsByHash
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonMiniblockDetailsByHash
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetMiniblockDetailsByHash(params.BLID)
+		msg.Result = d.GetMiniblockDetailsByHash(params.BLID)
 	case "GetMiniblockCountByAddress":
-		var params *structures.GnomonAddressQuery
-		if err := json.Unmarshal(*req.Params, &params); err != nil {
-			message.Error = err
+		var params *sgs.GnomonAddressQuery
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			msg.Error = err
 			break
 		}
-		message.Result = wss.database.GetMiniblockCountByAddress(params.Address)
+		msg.Result = d.GetMiniblockCountByAddress(params.Address)
 	case "test":
-		message.Result = "test"
+		msg.Result = "test"
 	default:
 		fmt.Printf("Not login or submit method\n")
 		fmt.Printf("server disconnect request\n")
 		return errDisconnected
 	}
-
-	return handleMashalError(wsjson.Write(ctx, c, message))
-
-	// return err
+	return nil
 }
