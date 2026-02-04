@@ -191,6 +191,40 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 }
 
 func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err error) {
+	// ws_methods := []string{
+	// 	"GetAllOwnersAndSCIDs",                // map[scid]owner IMO, func/method name is backwards
+	// 	"GetAllSCIDs",                         // []scid
+	// 	"GetAllOwners",                        // []owner
+	// 	"GetAllClasses",                       // []class
+	// 	"GetAllTags",                          // []tag
+	// 	"GetAllHeaders",                       // []header
+	// 	"GetAllSCIDsAndHeaders",               // map[scid]header
+	// 	"GetAllSCIDsByClass",                  // map[scid]class
+	// 	"GetAllSCIDsByTag",                    // map[scid]tag
+	// 	"GetLastIndexHeight",                  // height
+	// 	"GetTxCount",                          // count
+	// 	"GetOwner",                            // owner
+	// 	"GetAllNormalTxWithSCIDByAddr",        // map[addr]txs
+	// 	"GetAllNormalTxWithSCIDBySCID",        // map[scid]txs
+	// 	"GetAllSCIDInvokeDetails",             // []SCTXParse
+	// 	"GetAllSCIDInvokeDetailsByEntrypoint", // []SCTXParse
+	// 	"GetAllSCIDInvokeDetailsBySigner",     // []SCTXParse
+	// 	"GetGetInfoDetails",                   // info
+	// 	"GetSCIDVariableDetailsAtTopoheight",  // []SCIDVariable
+	// 	"GetAllSCIDVariableDetails",           // []SCIDVariable
+	// 	"GetSCIDKeysByValue",                  // GnomonSCIDVarsResult
+	// 	"GetSCIDValuesByKey",                  // GnomonSCIDVarsResult
+	// 	"GetLiveSCIDKeysByValue",              // GnomonSCIDVarsResult
+	// 	"GetLiveSCIDValuesByKey",              // GnomonSCIDVarsResult
+	// 	"GetSCIDInteractionByAddr",            // []scid
+	// 	"GetSCIDInteractionHeight",            // []scid
+	// 	"GetInteractionIndex",                 // height
+	// 	"GetInvalidSCIDDeploys",               // map[scid]height
+	// 	"GetAllMiniblockDetails",              // map[addr][]MBLInfo
+	// 	"GetMiniblockDetailsByHash",           // []MBLInfo
+	// 	"GetMiniblockCountByAddress",          // count
+	// 	"test",
+	// }
 	switch req.Method {
 	case "GetAllOwnersAndSCIDs":
 		msg.Result = d.GetAllOwnersAndSCIDs()
@@ -306,40 +340,50 @@ func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err err
 		}
 		msg.Result = vars
 	case "GetSCIDKeysByValue":
-		var params *sgs.GnomonSCIDKeysByValue
+		var params *sgs.GnomonSCIDVarsParams
 		if err = json.Unmarshal(*req.Params, &params); err != nil {
 			msg.Error = err
 			break
 		}
 		ks, ku := d.GetSCIDKeysByValue(params.SCID, params.Value, params.Height)
-		result := &sgs.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
+		result := &sgs.GnomonSCIDVarsResult{KeysString: ks, KeysUint64: ku}
 		msg.Result = result
 	case "GetSCIDValuesByKey":
-		var params *sgs.GnomonSCIDKeysByKey
+		var params *sgs.GnomonSCIDVarsParams
 		if err = json.Unmarshal(*req.Params, &params); err != nil {
 			msg.Error = err
 			break
 		}
 		vs, vu := d.GetSCIDValuesByKey(params.SCID, params.Value, params.Height)
-		result := &sgs.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
+		result := &sgs.GnomonSCIDVarsResult{KeysString: vs, KeysUint64: vu}
 		msg.Result = result
 	case "GetLiveSCIDKeysByValue":
-		var params *sgs.GnomonSCIDKeysByValue
+		var params *sgs.GnomonSCIDVarsParams
 		if err = json.Unmarshal(*req.Params, &params); err != nil {
 			msg.Error = err
 			break
 		}
-		ks, ku := d.GetSCIDKeysByValue(params.SCID, params.Value, 0)
-		result := &sgs.GnomonSCIDKeysByValueResult{KeysString: ks, KeysUint64: ku}
+		height, err := Get_TopoHeight()
+		if err != nil {
+			msg.Error = err
+			break
+		}
+		ks, ku := d.GetSCIDKeysByValue(params.SCID, params.Value, height)
+		result := &sgs.GnomonSCIDVarsResult{KeysString: ks, KeysUint64: ku}
 		msg.Result = result
 	case "GetLiveSCIDValuesByKey":
-		var params *sgs.GnomonSCIDKeysByKey
+		var params *sgs.GnomonSCIDVarsParams
 		if err = json.Unmarshal(*req.Params, &params); err != nil {
 			msg.Error = err
 			break
 		}
-		vs, vu := d.GetSCIDValuesByKey(params.SCID, params.Value, 0)
-		result := &sgs.GnomonSCIDKeysByKeyResult{KeysString: vs, KeysUint64: vu}
+		height, err := Get_TopoHeight()
+		if err != nil {
+			msg.Error = err
+			break
+		}
+		vs, vu := d.GetSCIDValuesByKey(params.SCID, params.Value, height)
+		result := &sgs.GnomonSCIDVarsResult{KeysString: vs, KeysUint64: vu}
 		msg.Result = result
 	case "GetSCIDInteractionByAddr":
 		var params *sgs.GnomonAddressQuery

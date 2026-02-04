@@ -50,26 +50,14 @@ type (
 		Value any
 	}
 
-	GnomonSCIDKeysByKey struct {
+	GnomonSCIDVarsParams struct {
 		SCID   string
 		Value  any
 		Height int64
 		Max    bool
 	}
 
-	GnomonSCIDKeysByKeyResult struct {
-		KeysString []string
-		KeysUint64 []uint64
-	}
-
-	GnomonSCIDKeysByValue struct {
-		SCID   string
-		Value  any
-		Height int64
-		Max    bool
-	}
-
-	GnomonSCIDKeysByValueResult struct {
+	GnomonSCIDVarsResult struct {
 		KeysString []string
 		KeysUint64 []uint64
 	}
