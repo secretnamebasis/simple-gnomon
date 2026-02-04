@@ -204,8 +204,8 @@ func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err err
 	// 	"GetLastIndexHeight",                  // height
 	// 	"GetTxCount",                          // count
 	// 	"GetOwner",                            // owner
-	// 	"GetAllNormalTxWithSCIDByAddr",        // map[addr]txs
-	// 	"GetAllNormalTxWithSCIDBySCID",        // map[scid]txs
+	// 	"GetAllNormalTxWithSCIDByAddr",        // map[addr]NormalTXWithSCIDParse
+	// 	"GetAllNormalTxWithSCIDBySCID",        // map[scid]NormalTXWithSCIDParse
 	// 	"GetAllSCIDInvokeDetails",             // []SCTXParse
 	// 	"GetAllSCIDInvokeDetailsByEntrypoint", // []SCTXParse
 	// 	"GetAllSCIDInvokeDetailsBySigner",     // []SCTXParse
