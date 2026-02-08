@@ -187,7 +187,10 @@ func (wss *WSServer) wsHandleClient(ctx context.Context, c *websocket.Conn, requ
 		return err
 	}
 	m := &sgs.JSONRpcResp{Id: req.Id, Version: "2.0", Error: nil}
-	return handleMashalError(wsjson.Write(ctx, c, reply(wss.database, req, m)))
+	if err := reply(wss.database, req, m); err != nil {
+		return err
+	}
+	return handleMashalError(wsjson.Write(ctx, c, m))
 }
 
 func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err error) {
@@ -225,6 +228,7 @@ func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err err
 	// 	"GetMiniblockCountByAddress",          // count
 	// 	"test",
 	// }
+	fmt.Println(req.Method)
 	switch req.Method {
 	case "GetAllOwnersAndSCIDs":
 		msg.Result = d.GetAllOwnersAndSCIDs()
