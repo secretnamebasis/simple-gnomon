@@ -58,7 +58,7 @@ func height_handling(ctx context.Context) {
 				wg.Wait()
 			}
 
-			if achieved_current_height == 0 {
+			if achieved_current_height == 0 && !silent {
 				fmt.Println("current height acheived, proceeding to passively index")
 			}
 			// height achieved
