@@ -152,14 +152,17 @@ func (apiServer *ApiServer) collectStats() {
 	stats["countRegTX"] = apiServer.Database.GetTxCount("registration")
 	stats["countBurnTX"] = apiServer.Database.GetTxCount("burn")
 	stats["countNormTX"] = apiServer.Database.GetTxCount("normal")
+	height, _ := apiServer.Database.GetLastIndexHeight()
+	stats["indexHeight"] = height
 	stats["indexedscs"] = sclist
 	apiServer.Stats.Store(stats)
 }
+
 func (apiServer *ApiServer) setStats(reply map[string]any) {
 	stats := apiServer.Stats.Load().(map[string]any)
 	if stats != nil {
-		reply["countSCs"], reply["countRegTX"], reply["countBurnTX"], reply["countNormTX"] =
-			stats["countSCs"], stats["countRegTX"], stats["countBurnTX"], stats["countNormTX"]
+		reply["indexHeight"], reply["countSCs"], reply["countRegTX"], reply["countBurnTX"], reply["countNormTX"] =
+			stats["indexHeight"], stats["countSCs"], stats["countRegTX"], stats["countBurnTX"], stats["countNormTX"]
 
 	} else {
 		// Default reply - for testing, initials etc.
@@ -415,6 +418,14 @@ func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request)
 	)
 
 	reply["getinfo"] = info
+
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) GetStats(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+	reply := make(map[string]interface{})
+	apiServer.setStats(reply)
 
 	encodeReply(writer, reply)
 }
