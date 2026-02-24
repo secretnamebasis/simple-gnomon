@@ -243,7 +243,10 @@ func start_printer(ctx context.Context, last int64) {
 			return
 
 		case staged := <-staged_for_writing:
-			printLastStaged(staged, now)
+
+			if !silent {
+				printLastStaged(staged, now)
+			}
 
 		case err := <-error_channel:
 			log.Fatalf("error: %s", err)
@@ -265,7 +268,10 @@ func start_printer(ctx context.Context, last int64) {
 				} else {
 					format += " passive scan"
 				}
-				log.Printf(format, a...)
+
+				if !silent {
+					log.Printf(format, a...)
+				}
 
 				last = now
 

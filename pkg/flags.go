@@ -24,7 +24,7 @@ var (
 	fastsync           bool  //= flag.Bool("fastsync", false, "-fastsync")
 	store_minis        bool  //= flag.Bool("store-minis", false, "-store-minis")
 	progress           bool  //= flag.Bool("progress", false, "-progress")
-	version            bool
+	silent             bool
 
 	help_msg = `Usage: simple-gnomon [options]
 A simple indexer for the DERO blockchain.
@@ -120,6 +120,8 @@ func parseFlags() error {
 				store_minis = true
 			case `--progress`:
 				progress = true
+			case `--silent`:
+				silent = true
 			}
 
 		}
