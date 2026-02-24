@@ -216,7 +216,7 @@ func backup(each int64) {
 
 	// full backup
 	mu.Lock()
-	database.BackUpDatabases()
+	database.BackUpDatabases(silent)
 	mu.Unlock()
 
 	storeHeight(each)

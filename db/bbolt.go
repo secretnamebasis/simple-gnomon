@@ -110,11 +110,14 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 	return nil
 }
 
-func (bbs *BboltStore) BackUpDatabases() {
+func (bbs *BboltStore) BackUpDatabases(silent bool) {
 
-	fmt.Println("backing up database", bbs.DB.Path())
-	// lock this up so we don't break it
-	fmt.Println("Preparing snapshot")
+	if !silent {
+		fmt.Println("backing up database", bbs.DB.Path())
+		// lock this up so we don't break it
+
+		fmt.Println("Preparing snapshot")
+	}
 
 	// capture the db
 	database := bbs.DB
@@ -162,10 +165,11 @@ func (bbs *BboltStore) BackUpDatabases() {
 		fmt.Println(err)
 		return
 	}
+	if !silent {
+		fmt.Println("Snapshot complete")
 
-	fmt.Println("Snapshot complete")
-
-	fmt.Println("Preparing backup")
+		fmt.Println("Preparing backup")
+	}
 
 	// open the snapshot db as read only
 	source, _ := bbolt.Open(dst_name, fs.FileMode(0444), &bbolt.Options{ReadOnly: true})
@@ -199,7 +203,9 @@ func (bbs *BboltStore) BackUpDatabases() {
 		return
 	}
 
-	fmt.Println("database backed up")
+	if !silent {
+		fmt.Println("database backed up")
+	}
 
 }
 
