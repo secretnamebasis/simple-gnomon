@@ -83,6 +83,7 @@ type route struct {
 func (apiServer *ApiServer) newRouter() *mux.Router {
 	r := mux.NewRouter()
 	routes := []route{
+		{"/api/getstats", apiServer.GetStats},
 		{"/api/getinfo", apiServer.GetInfo},
 		{"/api/indexedscs", apiServer.StatsIndex},
 		{"/api/indexbyscid", apiServer.InvokeIndexBySCID},
