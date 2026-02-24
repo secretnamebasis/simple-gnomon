@@ -403,8 +403,9 @@ func waitForAllQueues() {
 		}
 
 		format += "\n"
-
-		fmt.Printf(format, a...)
+		if !silent {
+			fmt.Printf(format, a...)
+		}
 		time.Sleep(time.Millisecond * 200)
 	}
 }
