@@ -252,10 +252,6 @@ func (bbs *BboltStore) GetLastIndexHeight() (topoheight int64, err error) {
 		return
 	})
 
-	if topoheight == 0 {
-		fmt.Printf("[bbs-GetLastIndexHeight] No stored last index height. Starting from 0 or latest if fastsync is enabled\n")
-	}
-
 	return
 }
 
