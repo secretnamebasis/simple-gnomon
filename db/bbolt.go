@@ -524,21 +524,36 @@ func (bbs *BboltStore) GetAllSCIDsByTag(tag string) []string {
 func (bbs *BboltStore) GetAllSCIDs() []string {
 	results := []string{}
 
-	bName := "owner"
+	bName := "height"
+	type proc struct {
+		height int
+		scid   string
+	}
+
+	prc := []proc{}
 
 	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			c := b.Cursor()
 
-			for k, _ := c.First(); k != nil; k, _ = c.Next() {
-				results = append(results, string(k))
+			for k, v := c.First(); k != nil; k, _ = c.Next() {
+				h, err := strconv.Atoi(string(v))
+				if err != nil {
+					return err
+				}
+				prc = append(prc, proc{scid: string(k), height: h})
 			}
 		}
 
 		return
 	})
-
+	sort.Slice(prc, func(i, j int) bool {
+		return prc[i].height > prc[j].height
+	})
+	for _, each := range prc {
+		results = append(results, each.scid)
+	}
 	return results
 }
 
