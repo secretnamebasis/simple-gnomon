@@ -79,7 +79,7 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 
 	switch scidstoadd.Method {
 	case "install": // when the scid is first seen
-		changed, err := bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags)
+		changed, err := bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags, strconv.Itoa(int(scidstoadd.Height)))
 		if err != nil {
 			return err
 		}
@@ -301,9 +301,9 @@ func (bbs *BboltStore) GetTxCount(txType string) (txCount int64) {
 }
 
 // Stores the scid as key to the owner (addr that deployed it) , headers , class , and comma tags
-func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags string) (changes bool, err error) {
+func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags, height string) (changes bool, err error) {
 	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
-		for _, each := range []string{"owner", "headers", "class", "tags"} {
+		for _, each := range []string{"owner", "headers", "class", "tags", "height"} {
 			b, err := tx.CreateBucketIfNotExists([]byte(each))
 			if err != nil {
 				return fmt.Errorf("bucket: %s", err)
@@ -318,6 +318,8 @@ func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags strin
 				value = []byte(class)
 			case "tags":
 				value = []byte(tags)
+			case "height":
+				value = []byte(height)
 			}
 			err = b.Put(key, value)
 			if err != nil {
