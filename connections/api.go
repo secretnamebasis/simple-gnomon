@@ -83,7 +83,11 @@ type route struct {
 func (apiServer *ApiServer) newRouter() *mux.Router {
 	r := mux.NewRouter()
 	routes := []route{
+		// simple api
 		{"/api/getstats", apiServer.GetStats},
+		{"/api/getscids", apiServer.GetSCIDs},
+
+		// og api
 		{"/api/getinfo", apiServer.GetInfo},
 		{"/api/indexedscs", apiServer.StatsIndex},
 		{"/api/indexbyscid", apiServer.InvokeIndexBySCID},
@@ -176,6 +180,14 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 	reply := make(map[string]interface{})
 	apiServer.setStats(reply)
 	reply["indexedscs"] = apiServer.Stats.Load().(map[string]any)["indexedscs"]
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) GetSCIDs(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+	reply := make(map[string]interface{})
+	apiServer.setStats(reply)
+	reply["scids"] = apiServer.Database.GetAllSCIDs()
 	encodeReply(writer, reply)
 }
 

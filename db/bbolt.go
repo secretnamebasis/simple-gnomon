@@ -79,7 +79,7 @@ func (bbs *BboltStore) AddSCIDToIndex(scidstoadd structures.SCIDToIndexStage) (e
 
 	switch scidstoadd.Method {
 	case "install": // when the scid is first seen
-		changed, err := bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags)
+		changed, err := bbs.StoreOwner(scidstoadd.Scid, scidstoadd.Sender, scidstoadd.Headers, scidstoadd.Class, scidstoadd.Tags, strconv.Itoa(int(scidstoadd.Height)))
 		if err != nil {
 			return err
 		}
@@ -301,9 +301,9 @@ func (bbs *BboltStore) GetTxCount(txType string) (txCount int64) {
 }
 
 // Stores the scid as key to the owner (addr that deployed it) , headers , class , and comma tags
-func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags string) (changes bool, err error) {
+func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags, height string) (changes bool, err error) {
 	err = bbs.DB.Update(func(tx *bbolt.Tx) (err error) {
-		for _, each := range []string{"owner", "headers", "class", "tags"} {
+		for _, each := range []string{"owner", "headers", "class", "tags", "height"} {
 			b, err := tx.CreateBucketIfNotExists([]byte(each))
 			if err != nil {
 				return fmt.Errorf("bucket: %s", err)
@@ -318,6 +318,8 @@ func (bbs *BboltStore) StoreOwner(scid string, owner, headers, class, tags strin
 				value = []byte(class)
 			case "tags":
 				value = []byte(tags)
+			case "height":
+				value = []byte(height)
 			}
 			err = b.Put(key, value)
 			if err != nil {
@@ -522,21 +524,36 @@ func (bbs *BboltStore) GetAllSCIDsByTag(tag string) []string {
 func (bbs *BboltStore) GetAllSCIDs() []string {
 	results := []string{}
 
-	bName := "owner"
+	bName := "height"
+	type proc struct {
+		height int
+		scid   string
+	}
+
+	prc := []proc{}
 
 	bbs.DB.View(func(tx *bbolt.Tx) (err error) {
 		b := tx.Bucket([]byte(bName))
 		if b != nil {
 			c := b.Cursor()
 
-			for k, _ := c.First(); k != nil; k, _ = c.Next() {
-				results = append(results, string(k))
+			for k, v := c.First(); k != nil; k, _ = c.Next() {
+				h, err := strconv.Atoi(string(v))
+				if err != nil {
+					return err
+				}
+				prc = append(prc, proc{scid: string(k), height: h})
 			}
 		}
 
 		return
 	})
-
+	sort.Slice(prc, func(i, j int) bool {
+		return prc[i].height > prc[j].height
+	})
+	for _, each := range prc {
+		results = append(results, each.scid)
+	}
 	return results
 }
 
