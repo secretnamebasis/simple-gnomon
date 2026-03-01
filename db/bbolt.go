@@ -537,7 +537,7 @@ func (bbs *BboltStore) GetAllSCIDs() []string {
 		if b != nil {
 			c := b.Cursor()
 
-			for k, v := c.First(); k != nil; k, _ = c.Next() {
+			for k, v := c.First(); k != nil; k, v = c.Next() {
 				h, err := strconv.Atoi(string(v))
 				if err != nil {
 					return err
@@ -549,7 +549,7 @@ func (bbs *BboltStore) GetAllSCIDs() []string {
 		return
 	})
 	sort.Slice(prc, func(i, j int) bool {
-		return prc[i].height > prc[j].height
+		return prc[i].height < prc[j].height
 	})
 	for _, each := range prc {
 		results = append(results, each.scid)
