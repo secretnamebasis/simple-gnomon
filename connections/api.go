@@ -181,6 +181,14 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 	encodeReply(writer, reply)
 }
 
+func (apiServer *ApiServer) GetSCIDs(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+	reply := make(map[string]interface{})
+	apiServer.setStats(reply)
+	reply["scids"] = apiServer.Database.GetAllSCIDs()
+	encodeReply(writer, reply)
+}
+
 func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
 	var (
