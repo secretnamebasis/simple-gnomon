@@ -73,7 +73,10 @@ func Start_gnomon_indexer() error {
 	}
 
 	client := &http.Client{
-		Timeout:   time.Second * 30, // things might take a moment
+		// things might take a moment
+		// without excluding this marketplace...
+		// bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2
+		// Timeout:   time.Second * 600,
 		Transport: transport,
 	}
 
