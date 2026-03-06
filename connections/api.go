@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -197,7 +198,14 @@ func (apiServer *ApiServer) GetSCIDsByClass(writer http.ResponseWriter, r *http.
 	reply := make(map[string]interface{})
 	apiServer.setStats(reply)
 	class := r.URL.Query().Get("class")
-	reply["scids"] = apiServer.Database.GetAllSCIDsByClass(class)
+	scids := apiServer.Database.GetAllSCIDsByClass(class)
+	list := []string{}
+	for _, each := range apiServer.Database.GetAllSCIDs() { // these are in height order
+		if slices.Contains(scids, each) {
+			list = append(list, each)
+		}
+	}
+	reply["scids"] = list
 	encodeReply(writer, reply)
 }
 
