@@ -88,6 +88,7 @@ func (apiServer *ApiServer) newRouter() *mux.Router {
 		{"/api/getstats", apiServer.GetStats},
 		{"/api/getscids", apiServer.GetSCIDs},
 		{"/api/getscidsbyclass", apiServer.GetSCIDsByClass},
+		{"/api/getscidsandheaders", apiServer.GetSCIDsAndHeaders},
 
 		// og api
 		{"/api/getinfo", apiServer.GetInfo},
@@ -190,6 +191,14 @@ func (apiServer *ApiServer) GetSCIDs(writer http.ResponseWriter, _ *http.Request
 	reply := make(map[string]interface{})
 	apiServer.setStats(reply)
 	reply["scids"] = apiServer.Database.GetAllSCIDs()
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) GetSCIDsAndHeaders(writer http.ResponseWriter, _ *http.Request) {
+	setHeaders(writer)
+	reply := make(map[string]interface{})
+	apiServer.setStats(reply)
+	reply["scids"] = apiServer.Database.GetAllSCIDsAndHeaders()
 	encodeReply(writer, reply)
 }
 
