@@ -198,7 +198,7 @@ func (apiServer *ApiServer) GetSCIDsAndHeaders(writer http.ResponseWriter, _ *ht
 	setHeaders(writer)
 	reply := make(map[string]interface{})
 	apiServer.setStats(reply)
-	reply["scids"] = apiServer.Database.GetAllSCIDsAndHeaders()
+	reply["indexedscs"] = apiServer.Database.GetAllSCIDsAndHeaders() // match "indexed" structure scid:value
 	encodeReply(writer, reply)
 }
 
