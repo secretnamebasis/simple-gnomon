@@ -475,5 +475,4 @@ func encodeReply(writer http.ResponseWriter, reply map[string]interface{}) {
 	if err != nil {
 		fmt.Printf("Error serializing API response: %v\n", err)
 	}
-	return
 }
