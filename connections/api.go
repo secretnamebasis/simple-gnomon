@@ -197,7 +197,9 @@ func (apiServer *ApiServer) GetSCIDsByClass(writer http.ResponseWriter, r *http.
 	reply := make(map[string]interface{})
 	apiServer.setStats(reply)
 	class := r.URL.Query().Get("class")
+	fmt.Println(class)
 	reply["scids"] = apiServer.Database.GetAllSCIDsByClass(class)
+	fmt.Println(len(reply["scids"].([]string)))
 	encodeReply(writer, reply)
 }
 
