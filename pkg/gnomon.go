@@ -157,15 +157,15 @@ func Start_gnomon_indexer() error {
 		api = api_endpoint
 	}
 
-	server := connections.NewApiServer(&connections.APIConfig{
+	cfg := &connections.APIConfig{
 		Enabled:              true,
 		Listen:               api,
 		StatsCollectInterval: "5s",
 		MBLLookup:            store_minis, // default is false
-	}, database)
+	}
 
 	// serving api
-	go server.Start(ctx)
+	go connections.NewApiServer(cfg, database).Start(ctx)
 
 	RUNNING = true
 
