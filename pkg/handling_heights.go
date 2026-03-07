@@ -26,7 +26,8 @@ func height_handling(ctx context.Context) {
 				return
 			}
 			if achieved_current_height != 0 {
-				storeHeight(achieved_current_height)
+				storeHeight(database, achieved_current_height)
+				storeHeight(backup_database, achieved_current_height)
 				time.Sleep((time.Second * time.Duration(info.Target)) / 4) // in quarter time
 			}
 			if ending_height > 0 {
@@ -74,7 +75,7 @@ func height_handling(ctx context.Context) {
 
 				waitForAllQueues()
 
-				backup(height)
+				backup()
 			}
 		}
 	}
