@@ -293,12 +293,12 @@ func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
 		"sender:%s,"+
 		"scid:%s,"+
 		"headers:%s"+
-		"}", []any{
+		"}",
 		staged.Height,
 		staged.Sender,
 		staged.Scid,
 		safeString(strings.Split(staged.Headers, ";")[0]),
-	}...)
+	)
 
 	lines = append(lines, line)
 
