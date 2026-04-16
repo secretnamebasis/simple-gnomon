@@ -75,7 +75,7 @@ func height_handling(ctx context.Context) {
 
 				waitForAllQueues()
 
-				backup()
+				go backup()
 			}
 		}
 	}

@@ -121,7 +121,6 @@ func (bbs *BboltStore) BackUpDatabases(silent bool) {
 
 	// capture the db
 	database := bbs.DB
-	//workers[index].Idx.BBSBackend.DB
 
 	// sync the database
 	if err := database.Sync(); err != nil {
