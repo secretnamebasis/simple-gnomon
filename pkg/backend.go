@@ -211,15 +211,13 @@ func set_up_backend() error {
 }
 
 // this will serve as the backup action
-func backup(each int64) {
+func backup() {
 	mu := sync.Mutex{}
 
 	// full backup
 	mu.Lock()
 	database.BackUpDatabases(silent)
 	mu.Unlock()
-
-	storeHeight(each)
 
 	established_backup = true
 }

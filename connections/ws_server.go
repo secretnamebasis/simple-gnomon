@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -87,9 +88,15 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	// fmt.Printf("%v\n", w.Header())
+	var origins []string
+	for port := 8000; port <= 9000; port++ {
+		origins = append(origins, fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("localhost:%d", port))
+	}
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		//OriginPatterns: []string{"127.0.0.1:9090", "127.0.0.1:8080"},
+		OriginPatterns: origins,
 	})
+
 	if err != nil {
 		fmt.Printf("[wshandler] Err on connection being established. %v\n", err)
 		return
@@ -232,7 +239,7 @@ func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err err
 	switch req.Method {
 	case "GetAllOwnersAndSCIDs":
 		msg.Result = d.GetAllOwnersAndSCIDs()
-	case "GetAllSCIDs":
+	case "GetAllSCIDs", "get_indexed_scids": // ored calls for this; lol, okay
 		msg.Result = d.GetAllSCIDs()
 	case "GetAllOwners":
 		msg.Result = d.GetAllOwners()
@@ -250,14 +257,28 @@ func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err err
 			msg.Error = err
 			break
 		}
-		msg.Result = d.GetAllSCIDsByClass(params.Class)
+		scids := d.GetAllSCIDsByClass(params.Class)
+		list := []string{}
+		for _, each := range d.GetAllSCIDs() { // these are in height order
+			if slices.Contains(scids, each) {
+				list = append(list, each)
+			}
+		}
+		msg.Result = list
 	case "GetAllSCIDsByTag":
 		var params *sgs.GnomonTagQuery
 		if err = json.Unmarshal(*req.Params, &params); err != nil {
 			msg.Error = err
 			break
 		}
-		msg.Result = d.GetAllSCIDsByTag(params.Tag)
+		scids := d.GetAllSCIDsByTag(params.Tag)
+		list := []string{}
+		for _, each := range d.GetAllSCIDs() { // these are in height order
+			if slices.Contains(scids, each) {
+				list = append(list, each)
+			}
+		}
+		msg.Result = list
 	case "GetLastIndexHeight":
 		var h int64
 		h, err = d.GetLastIndexHeight()

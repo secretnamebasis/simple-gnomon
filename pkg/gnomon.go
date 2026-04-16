@@ -73,7 +73,10 @@ func Start_gnomon_indexer() error {
 	}
 
 	client := &http.Client{
-		Timeout:   time.Second * 30, // things might take a moment
+		// things might take a moment
+		// without excluding this marketplace...
+		// bb43c3eb626ee767c9f305772a6666f7c7300441a0ad8538a0799eb4f12ebcd2
+		// Timeout:   time.Second * 600,
 		Transport: transport,
 	}
 
@@ -154,15 +157,15 @@ func Start_gnomon_indexer() error {
 		api = api_endpoint
 	}
 
-	server := connections.NewApiServer(&connections.APIConfig{
+	cfg := &connections.APIConfig{
 		Enabled:              true,
 		Listen:               api,
 		StatsCollectInterval: "5s",
 		MBLLookup:            store_minis, // default is false
-	}, database)
+	}
 
 	// serving api
-	go server.Start(ctx)
+	go connections.NewApiServer(cfg, database).Start(ctx)
 
 	RUNNING = true
 
@@ -290,12 +293,12 @@ func printLastStaged(staged structures.SCIDToIndexStage, now int64) {
 		"sender:%s,"+
 		"scid:%s,"+
 		"headers:%s"+
-		"}", []any{
+		"}",
 		staged.Height,
 		staged.Sender,
 		staged.Scid,
 		safeString(strings.Split(staged.Headers, ";")[0]),
-	}...)
+	)
 
 	lines = append(lines, line)
 

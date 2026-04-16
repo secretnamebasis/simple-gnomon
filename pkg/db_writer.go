@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/secretnamebasis/simple-gnomon/db"
 	structures "github.com/secretnamebasis/simple-gnomon/structs"
 )
 
@@ -63,6 +64,7 @@ func scid_db_writer(ctx context.Context) {
 				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
 				return
 			}
+			storeHeight(backup_database, int64(staged.Height))
 		}
 
 		// store counts
@@ -71,7 +73,7 @@ func scid_db_writer(ctx context.Context) {
 		database.StoreTxCount(holding_queue.normal.Load(), "normal")
 
 		// store height
-		storeHeight(int64(staged.Height))
+		storeHeight(database, int64(staged.Height))
 	}
 	for {
 		select {
@@ -88,8 +90,8 @@ func scid_db_writer(ctx context.Context) {
 	}
 }
 
-func storeHeight(height int64) error {
-	if ok, err := database.StoreLastIndexHeight(height); !ok && err != nil {
+func storeHeight(d *db.BboltStore, height int64) error {
+	if ok, err := d.StoreLastIndexHeight(height); !ok && err != nil {
 		return err
 	}
 	return nil
