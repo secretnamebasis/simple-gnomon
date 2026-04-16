@@ -239,7 +239,7 @@ func reply(d *db.BboltStore, req *sgs.JSONRpcReq, msg *sgs.JSONRpcResp) (err err
 	switch req.Method {
 	case "GetAllOwnersAndSCIDs":
 		msg.Result = d.GetAllOwnersAndSCIDs()
-	case "GetAllSCIDs":
+	case "GetAllSCIDs", "get_indexed_scids": // ored calls for this; lol, okay
 		msg.Result = d.GetAllSCIDs()
 	case "GetAllOwners":
 		msg.Result = d.GetAllOwners()
