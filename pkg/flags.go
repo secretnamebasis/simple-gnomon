@@ -49,8 +49,8 @@ Options:
 
 // a simple flag-parser
 func parseFlags() error {
-	launch_args := os.Args[1:] // we'll skip the first one
-
+	var launch_args []string
+	copy(launch_args, os.Args)
 	// launch help when present
 	if slices.Contains(launch_args, "--help") || slices.Contains(launch_args, "-h") {
 		fmt.Println(help_msg)
