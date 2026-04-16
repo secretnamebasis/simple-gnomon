@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	endpoint           string //= flag.String("endpoint", "", "-endpoint=<DAEMON_IP:PORT>")
+	endpoint           string //= flag.String("daemon-rpc-address", "", "-daemon-rpc-address=<DAEMON_IP:PORT>")
 	ws_endpoint        string //= flag.String("ws-endpoint", "", "-ws-endpoint=<IP:PORT>")
 	api_endpoint       string //= flag.String("api-endpoint", "", "-api-endpoint=<IP:PORT>")
 	starting_height    int64  //= flag.Int64("starting-height", -1, "-starting-height=123")
@@ -49,7 +49,7 @@ Options:
 
 // a simple flag-parser
 func parseFlags() error {
-	var launch_args []string
+	var launch_args = make([]string, len(os.Args))
 	copy(launch_args, os.Args)
 	// launch help when present
 	if slices.Contains(launch_args, "--help") || slices.Contains(launch_args, "-h") {
