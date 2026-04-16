@@ -88,9 +88,15 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	// fmt.Printf("%v\n", w.Header())
+	var origins []string
+	for port := 8000; port <= 9000; port++ {
+		origins = append(origins, fmt.Sprintf("127.0.0.1:%d", port))
+	}
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		//OriginPatterns: []string{"127.0.0.1:9090", "127.0.0.1:8080"},
+		OriginPatterns: origins,
 	})
+
 	if err != nil {
 		fmt.Printf("[wshandler] Err on connection being established. %v\n", err)
 		return
