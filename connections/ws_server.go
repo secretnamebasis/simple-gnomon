@@ -90,10 +90,7 @@ func (wss *WSServer) wshandler(w http.ResponseWriter, r *http.Request) {
 	// fmt.Printf("%v\n", w.Header())
 	var origins []string
 	for port := 8000; port <= 9000; port++ {
-		origins = append(origins, fmt.Sprintf("127.0.0.1:%d", port))
-	}
-	for port := 8000; port <= 9000; port++ {
-		origins = append(origins, fmt.Sprintf("localhost:%d", port))
+		origins = append(origins, fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("localhost:%d", port))
 	}
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
