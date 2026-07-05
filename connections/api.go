@@ -153,7 +153,7 @@ func (apiServer *ApiServer) collectStats() {
 		return
 	}
 	var (
-		stats  = make(map[string]interface{})
+		stats  = make(map[string]any)
 		sclist = apiServer.Database.GetAllOwnersAndSCIDs()
 	)
 	stats["countSCs"] = len(sclist)
@@ -180,7 +180,7 @@ func (apiServer *ApiServer) setStats(reply map[string]any) {
 
 func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Request) {
 	setHeaders(writer)
-	reply := make(map[string]interface{})
+	reply := make(map[string]any)
 	apiServer.setStats(reply)
 	reply["indexedscs"] = apiServer.Stats.Load().(map[string]any)["indexedscs"]
 	encodeReply(writer, reply)
@@ -188,7 +188,7 @@ func (apiServer *ApiServer) StatsIndex(writer http.ResponseWriter, _ *http.Reque
 
 func (apiServer *ApiServer) GetSCIDs(writer http.ResponseWriter, _ *http.Request) {
 	setHeaders(writer)
-	reply := make(map[string]interface{})
+	reply := make(map[string]any)
 	apiServer.setStats(reply)
 	reply["scids"] = apiServer.Database.GetAllSCIDs()
 	encodeReply(writer, reply)
@@ -196,7 +196,7 @@ func (apiServer *ApiServer) GetSCIDs(writer http.ResponseWriter, _ *http.Request
 
 func (apiServer *ApiServer) GetSCIDsAndHeaders(writer http.ResponseWriter, _ *http.Request) {
 	setHeaders(writer)
-	reply := make(map[string]interface{})
+	reply := make(map[string]any)
 	apiServer.setStats(reply)
 	reply["indexedscs"] = apiServer.Database.GetAllSCIDsAndHeaders() // match "indexed" structure scid:value
 	encodeReply(writer, reply)
@@ -204,7 +204,7 @@ func (apiServer *ApiServer) GetSCIDsAndHeaders(writer http.ResponseWriter, _ *ht
 
 func (apiServer *ApiServer) GetSCIDsByClass(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
-	reply := make(map[string]interface{})
+	reply := make(map[string]any)
 	apiServer.setStats(reply)
 	class := r.URL.Query().Get("class")
 	scids := apiServer.Database.GetAllSCIDsByClass(class)
@@ -221,7 +221,7 @@ func (apiServer *ApiServer) GetSCIDsByClass(writer http.ResponseWriter, r *http.
 func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
 	var (
-		reply   = make(map[string]interface{})
+		reply   = make(map[string]any)
 		scid    = r.URL.Query().Get("scid")
 		address = r.URL.Query().Get("address")
 		sclist  = apiServer.Database.GetAllOwnersAndSCIDs() // Get all scid:owner
@@ -277,7 +277,7 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
 	var (
-		reply  = make(map[string]interface{})
+		reply  = make(map[string]any)
 		scid   = r.URL.Query().Get("scid")
 		height = r.URL.Query().Get("height")
 	)
@@ -337,7 +337,7 @@ func (apiServer *ApiServer) InvokeSCVarsByHeight(writer http.ResponseWriter, r *
 func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
 	var (
-		reply                   = make(map[string]interface{})
+		reply                   = make(map[string]any)
 		scid, address           = r.URL.Query().Get("scid"), r.URL.Query().Get("address")
 		allNormTxWithSCIDByAddr = apiServer.Database.GetAllNormalTxWithSCIDByAddr(address)
 		allNormTxWithSCIDBySCID = apiServer.Database.GetAllNormalTxWithSCIDBySCID(scid)
@@ -365,7 +365,7 @@ func (apiServer *ApiServer) NormalTxWithSCID(writer http.ResponseWriter, r *http
 func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http.Request) {
 	setHeaders(writer)
 	var (
-		reply        = make(map[string]interface{})
+		reply        = make(map[string]any)
 		invalidscids = apiServer.Database.GetInvalidSCIDDeploys()
 		tooBig       = len(invalidscids) > globals.MAX_API_VAR_RETURN
 	)
@@ -383,7 +383,7 @@ func (apiServer *ApiServer) InvalidSCIDStats(writer http.ResponseWriter, _ *http
 func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
 	var (
-		reply               = make(map[string]interface{})
+		reply               = make(map[string]any)
 		blid                = r.URL.Query().Get("blid")
 		allMiniBlocksByBlid = apiServer.Database.GetMiniblockDetailsByHash(blid)
 		tooBig              = len(allMiniBlocksByBlid) > globals.MAX_API_VAR_RETURN
@@ -409,7 +409,7 @@ func (apiServer *ApiServer) MBLLookupByHash(writer http.ResponseWriter, r *http.
 func (apiServer *ApiServer) MBLLookupByAddr(writer http.ResponseWriter, r *http.Request) {
 	setHeaders(writer)
 	var (
-		reply               = make(map[string]interface{})
+		reply               = make(map[string]any)
 		addr                = r.URL.Query().Get("address")
 		allMiniBlocksByAddr = apiServer.Database.GetMiniblockCountByAddress(addr)
 	)
@@ -428,7 +428,7 @@ func (apiServer *ApiServer) MBLLookupAll(writer http.ResponseWriter, r *http.Req
 	setHeaders(writer)
 
 	var (
-		reply         = make(map[string]interface{})
+		reply         = make(map[string]any)
 		allMiniBlocks = apiServer.Database.GetAllMiniblockDetails()
 		tooBig        = len(allMiniBlocks) > globals.MAX_API_VAR_RETURN
 	)
@@ -453,7 +453,7 @@ func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request)
 	setHeaders(writer)
 
 	var (
-		reply = make(map[string]interface{})
+		reply = make(map[string]any)
 		info  = apiServer.Database.GetGetInfoDetails()
 	)
 
@@ -464,7 +464,7 @@ func (apiServer *ApiServer) GetInfo(writer http.ResponseWriter, _ *http.Request)
 
 func (apiServer *ApiServer) GetStats(writer http.ResponseWriter, _ *http.Request) {
 	setHeaders(writer)
-	reply := make(map[string]interface{})
+	reply := make(map[string]any)
 	apiServer.setStats(reply)
 
 	encodeReply(writer, reply)
@@ -485,7 +485,7 @@ func setHeaders(writer http.ResponseWriter) {
 	writer.WriteHeader(http.StatusOK)
 }
 
-func encodeReply(writer http.ResponseWriter, reply map[string]interface{}) {
+func encodeReply(writer http.ResponseWriter, reply map[string]any) {
 	err := json.NewEncoder(writer).Encode(reply)
 	if err != nil {
 		fmt.Printf("Error serializing API response: %v\n", err)
