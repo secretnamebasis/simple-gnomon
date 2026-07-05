@@ -196,7 +196,7 @@ func Start_gnomon_indexer() error {
 		Class:   "NAMESERVICE",
 		Tags:    "all",
 	}
-
+	fmt.Println("Depositing Latest Copy of NameService Contract")
 	if err := database.AddSCIDToIndex(*staged); err != nil {
 		return err
 	}
