@@ -29,6 +29,7 @@ var (
 	indices         = []structures.SearchFilter{}
 
 	established_backup      bool
+	establishing_backup     bool
 	achieved_current_height int64
 	lowest_height           int64
 	day_of_blocks           int64
