@@ -52,6 +52,7 @@ func scid_db_writer(ctx context.Context) {
 		if staged.Method == "install" {
 			staged_for_writing <- *staged
 		}
+
 		// store scid by tag
 		if err := database.AddSCIDToIndex(*staged); err != nil {
 			log.Fatal("indexer error:", err, staged.Scid, staged.Height)
@@ -60,11 +61,13 @@ func scid_db_writer(ctx context.Context) {
 
 		if achieved_current_height > 0 { // once the indexer has reached the top...
 			// do incremental backups
-			if err := backup_database.AddSCIDToIndex(*staged); err != nil {
-				log.Fatal("indexer error:", err, staged.Scid, staged.Height)
-				return
-			}
-			storeHeight(backup_database, int64(staged.Height))
+			go func() { // another go routine won't hurt here.
+				if err := backup_database.AddSCIDToIndex(*staged); err != nil {
+					log.Fatal("indexer error:", err, staged.Scid, staged.Height)
+					return
+				}
+				storeHeight(backup_database, int64(staged.Height))
+			}()
 		}
 
 		// store counts
