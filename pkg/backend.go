@@ -212,6 +212,12 @@ func set_up_backend() error {
 
 // this will serve as the backup action
 func backup() {
+	// jump out if there is already a back up
+	if establishing_backup {
+		return
+	}
+	establishing_backup = true
+
 	mu := sync.Mutex{}
 
 	// full backup
@@ -220,4 +226,5 @@ func backup() {
 	mu.Unlock()
 
 	established_backup = true
+	establishing_backup = false
 }

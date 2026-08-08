@@ -29,6 +29,7 @@ var (
 	indices         = []structures.SearchFilter{}
 
 	established_backup      bool
+	establishing_backup     bool
 	achieved_current_height int64
 	lowest_height           int64
 	day_of_blocks           int64
@@ -196,7 +197,7 @@ func Start_gnomon_indexer() error {
 		Class:   "NAMESERVICE",
 		Tags:    "all",
 	}
-
+	fmt.Println("Depositing Latest Copy of NameService Contract")
 	if err := database.AddSCIDToIndex(*staged); err != nil {
 		return err
 	}

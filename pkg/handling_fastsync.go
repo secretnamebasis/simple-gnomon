@@ -29,11 +29,18 @@ func fastsync_handling(ctx context.Context) error {
 		TopoHeight: -1,
 	}
 
-	sc, _ := connections.GetSC(params)
+	sc, err := connections.GetSC(params)
+	if err != nil {
+		return err
+	}
 	fmt.Println("gnomonSC collected")
 	kv := sc.VariableStringKeys
 
-	sig, err := hex.DecodeString(kv["signature"].(string))
+	s, ok := kv["signature"].(string)
+	if !ok {
+		return errors.New("signature is not a string")
+	}
+	sig, err := hex.DecodeString(s)
 	if err != nil {
 		return err
 	}
