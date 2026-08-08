@@ -97,6 +97,7 @@ func (apiServer *ApiServer) newRouter() *mux.Router {
 		{"/api/scvarsbyheight", apiServer.InvokeSCVarsByHeight},
 		{"/api/invalidscids", apiServer.InvalidSCIDStats},
 		{"/api/scidprivtx", apiServer.NormalTxWithSCID},
+		{"/api/getscidkeysbyvalue", apiServer.GetSCIDKeysByValue},
 	}
 	if apiServer.Config.MBLLookup {
 		routes = append(routes,
@@ -271,6 +272,28 @@ func (apiServer *ApiServer) InvokeIndexBySCID(writer http.ResponseWriter, r *htt
 		}
 		reply["scidinvokescount"], reply["scidinvokes"] = len(scidinvokes), scidinvokes
 	}
+	encodeReply(writer, reply)
+}
+
+func (apiServer *ApiServer) GetSCIDKeysByValue(writer http.ResponseWriter, r *http.Request) {
+	setHeaders(writer)
+	var (
+		reply        = make(map[string]interface{})
+		scid         = r.URL.Query().Get("scid")
+		value        = r.URL.Query().Get("value")
+		height int64 = -1
+	)
+	apiServer.setStats(reply)
+	if h, err := strconv.ParseInt(r.URL.Query().Get("height"), 10, 64); err == nil && h > 0 {
+		height = h
+	}
+	if scid == "" || value == "" {
+		reply["stringkeys"], reply["uint64keys"] = nil, nil
+		encodeReply(writer, reply)
+		return
+	}
+	stringkeys, uint64keys := apiServer.Database.GetSCIDKeysByValue(scid, value, height)
+	reply["stringkeys"], reply["uint64keys"] = stringkeys, uint64keys
 	encodeReply(writer, reply)
 }
 
