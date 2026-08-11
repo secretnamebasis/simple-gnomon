@@ -83,7 +83,11 @@ func Start_gnomon_indexer() error {
 
 	opts := &jsonrpc.RPCClientOpts{HTTPClient: client}
 
-	url := "http://" + endpoint + "/json_rpc"
+	url := endpoint
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "http://" + url
+	}
+	url += "/json_rpc"
 
 	connections.RpcClient = jsonrpc.NewClientWithOpts(url, opts)
 
